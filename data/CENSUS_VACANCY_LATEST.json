@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "source": "census-acs-5yr",
+  "scraped_at": "2026-05-17T04:25:00Z",
+  "scraped_by": "census-rental-vacancy v0.1 (manual first-run, autonomous mode)",
+  "data_year": 2023,
+  "data_methodology": "ACS 5-year estimates 2019-2023. Variables: B25001_001E (total housing), B25003_003E (renter-occupied), B25004_002E (vacant for rent), B25004_004E (vacant rented not yet occupied). Gross Rental Vacancy Rate formula: B25004_002E / (B25003_003E + B25004_002E) × 100",
+  "trigger": "manual",
+  "counties": {
+    "anderson": {
+      "label": "Anderson County, Texas",
+      "fips": "48001",
+      "rental_vacancy_rate_pct": 6.33,
+      "renter_occupied_units": 5136,
+      "vacant_for_rent_units": 347,
+      "rented_not_occupied_units": 115,
+      "total_housing_units": 20474,
+      "source_year": 2023,
+      "scrape_status": "ok"
+    },
+    "cherokee": {
+      "label": "Cherokee County, Texas",
+      "fips": "48073",
+      "rental_vacancy_rate_pct": 9.07,
+      "renter_occupied_units": 4930,
+      "vacant_for_rent_units": 492,
+      "rented_not_occupied_units": 162,
+      "total_housing_units": 20964,
+      "source_year": 2023,
+      "scrape_status": "ok"
+    },
+    "henderson": {
+      "label": "Henderson County, Texas (Cedar Creek Lake)",
+      "fips": "48213",
+      "rental_vacancy_rate_pct": 7.99,
+      "renter_occupied_units": 7658,
+      "vacant_for_rent_units": 665,
+      "rented_not_occupied_units": 407,
+      "total_housing_units": 41352,
+      "source_year": 2023,
+      "scrape_status": "ok"
+    },
+    "kaufman": {
+      "label": "Kaufman County, Texas",
+      "fips": "48257",
+      "rental_vacancy_rate_pct": 8.22,
+      "renter_occupied_units": 10641,
+      "vacant_for_rent_units": 953,
+      "rented_not_occupied_units": 286,
+      "total_housing_units": 52744,
+      "source_year": 2023,
+      "scrape_status": "ok"
+    },
+    "van-zandt": {
+      "label": "Van Zandt County, Texas",
+      "fips": "48467",
+      "rental_vacancy_rate_pct": 5.88,
+      "renter_occupied_units": 4317,
+      "vacant_for_rent_units": 270,
+      "rented_not_occupied_units": 317,
+      "total_housing_units": 25708,
+      "source_year": 2023,
+      "scrape_status": "ok"
+    },
+    "wood": {
+      "label": "Wood County, Texas",
+      "fips": "48499",
+      "rental_vacancy_rate_pct": 2.91,
+      "renter_occupied_units": 3669,
+      "vacant_for_rent_units": 110,
+      "rented_not_occupied_units": 74,
+      "total_housing_units": 22267,
+      "source_year": 2023,
+      "scrape_status": "ok"
+    }
+  },
+  "summary": {
+    "counties_attempted": 6,
+    "counties_ok": 6,
+    "counties_failed": 0,
+    "data_year": 2023,
+    "note": "Gross rental vacancy across all 6 ECH counties is healthy (2.91% to 9.07%). Rental-specific complement to REVENTURE_LATEST.json total-housing vacancy."
+  }
+}

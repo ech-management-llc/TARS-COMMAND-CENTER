@@ -1,56 +1,31 @@
 # TCC Last Bump
 
-**Last activity:** 2026-05-26 EOD (Tuesday)
-**Session:** CRD-stand-up + MCP-wiring + plugin-config + Option-B-cleanup (mainframe ECHMAINFRAME)
+**Last activity:** 2026-06-05 PM2 — v0.6.3 production rebuild (branch `v0.6.3`, NOT merged)
+**Session:** Claude Code — TCC v0.6.3 cutover-ready build (flip GATED on Jerry + Phase 1d step 3 ledger data)
 **Operator:** Jerry Eads
-**Bumped via:** github MCP `create_or_update_file` (first end-to-end validation of github MCP on mainframe — no bash sandbox involved)
+**Branch discipline:** all work on `v0.6.3`. `main` (live production) untouched.
 
-## Headline status
+## What v0.6.3 did
 
-- **github MCP LIVE on mainframe** — 26 tools, verified by reading TCC commit history + writing this file
-- **obsidian MCP LIVE on mainframe** — via stdio shim `obsidian-mcp.cmd` against Local REST API plugin v4.1.0
-- **CRD remote access established** — Jerry-laptop → mainframe at distance via Chrome Remote Desktop (replacing failed Tailscale)
-- **Chrome login pass complete** on mainframe (Plaid, Altra, GitHub, Zapier, RentRedi, DealCheck, Reventure, Zillow, QuickBooks, Pushover, DocuSign, Gmail, MS 365)
-- **23 scheduled tasks LIVE** on mainframe Cowork + 10 plugins + 8 artifacts pinned + Keep Awake ON
-- **Watchdog v0:** 🔴 DISABLED (DRY RUN runaway-alert bug; awaiting v0.1 refinement — see TD-050)
-- **Top-level 08_TARS_PROJECTS cleanup:** 7 entries → 3 (Option B; backups verified at 99_INBOX/plugin-source-export/)
+- **Split the 157KB monolith** → `index.html` + `styles.css` + `app.js`. The single
+  file had exceeded the GitHub MCP edit window for a month (TD-012). CSS + JS —
+  the most-churned layers — are now small, independently editable files.
+  **TD-012 is structurally addressed** (note for the register). Caveat: index.html
+  is still ~108KB of bespoke preserved content (not migrated to a data model — see
+  the extract-split commit body).
+- **Financial row (FL cutover payload):** new **FINANCIALS** tab fetches
+  `GET https://api.foundationlayerhq.com/api/dashboard/latest` (public, TD-087) and
+  renders 4 Capital Rules tiles, headline metrics, the 6-entity table, data-freshness
+  badges, and the generated-at stamp. Ledger values are all 0 today, so an honest
+  **LIVE WIRE — awaiting ledger flows (Phase 1d step 3)** badge shows. API-unreachable
+  degrades to a last-success state; never blank, never fake.
+- **Market tiles:** read `./data/*.json` (Reventure / Census / DealCheck). The
+  vault->repo push pipeline doesn't exist yet (TARS follow-up), so tiles show
+  `awaiting first snapshot push`; snapshots older than 48h get a STALE badge.
+- **PWA:** service-worker cache bumped to `tars-cc-v5-v063`; `styles.css` + `app.js`
+  added to the precache.
 
-## Capital Rules state
+## The flip (Jerry's gated step)
 
-- LTV ceiling: 45-50% — hold
-- DSCR floor: 1.8x — hold
-- Liquidity reserve: $500K — Treasury auto-monitoring 7 AM daily
-- Per-door target: $400-500 / $300 floor — hold
-- No new portfolio data this session (next financial-reports fire: Friday 1 PM)
-
-## Tech debt impact this session
-
-- **5 new TDs filed** (TD-050 through TD-054) — addendum at `MEGA_BRAIN/05_DIGITAL_JERRY_SYSTEM/04_TARS_MEMORY/TECH_DEBT_ADDENDUM_2026-05-26.md`
-- **3 inline resolutions:**
-  - TD-045 (PS ExecutionPolicy bypass-preamble adopted vault-wide)
-  - TD-048 (Node.js false alarm — was installed; npm shims at `%APPDATA%\npm\` no-spaces path)
-  - TD-049 (cmd.exe quoting routed around via direct .cmd shim paths)
-
-## Top punch items (next session)
-
-1. **HIGH** — Phase 4A: redistribute 16 LAYER2_TARS_*.md specs into runtime project folders
-2. **HIGH** — Register 7 ech-financials scheduled tasks on mainframe (biggest leverage gap per LAYER_WIRING_MAP)
-3. **MEDIUM** — TARS-WATCHDOG v0.1 refinement (fix DRY RUN bug, recreate Pushover app, redeploy)
-4. **MEDIUM** — YubiKey ceremony when keys arrive (6-key allocation)
-5. **LOW** — Investigate TARS auto-deploy 9-day gap (May 16 → May 25)
-
-## TD-012 Note (still in effect)
-
-Full index.html bump remains deferred per TD-012 (file size 157,729 bytes exceeds GitHub MCP edit window). This TCC_LAST_BUMP.md marker file proves activity until index.html refactor or chunked-edit support lands.
-
-## Cross-machine cooperation test result
-
-Tonight validated the laptop-builds-plan, vault-transports, mainframe-executes pattern end-to-end:
-- Laptop session pre-authored `EOD_CONTEXT_BRIEF_2026-05-26.md` to vault
-- Mainframe Cowork consumed brief, executed signoff
-- TD/PL/DAILY_MEMORY addendums landed durably in vault
-- This commit demonstrates github MCP write capability — closes the Phase 2 prerequisite for autonomous tcc-bump
-
----
-
-*Bumped by TARS via github MCP (first mainframe validation) · 2026-05-26 EOD session signoff*
+Merge `v0.6.3` -> `main` to go live. Gated on Phase 1d step 3 real ledger data per
+the 2026-05-17 cutover directive. Build is cutover-READY; Jerry flips.

@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "source": "reventure",
+  "scraped_at": "2026-05-17T03:45:00-05:00",
+  "scraped_by": "reventure-scrape v1.0 (manual first-run)",
+  "trigger": "manual",
+  "extraction_method": "Claude in Chrome → Table View → get_page_text",
+  "counties": {
+    "henderson": {
+      "label": "Henderson Co. (Cedar Creek / Athens / Malakoff)",
+      "state": "TX",
+      "cap_rate": {
+        "value": 4.4,
+        "unit": "percent",
+        "note": "county-wide blended, NOT class-B-MF specifically",
+        "source_period": "2026-Q1"
+      },
+      "vacancy_rate": {
+        "value": 18.9,
+        "unit": "percent",
+        "vacant_units": 8143,
+        "housing_units": 43037,
+        "note": "TOTAL housing vacancy incl. seasonal Cedar Creek stock — for rental-specific see census-rental-vacancy when installed",
+        "source_period": "2024-12"
+      },
+      "secondary": {
+        "home_value_yoy_pct": -2.0,
+        "overvalued_pct": 9.9,
+        "value_income_ratio": 4.2,
+        "price_cut_pct": 24.4,
+        "population": 87467
+      },
+      "scrape_status": "ok"
+    },
+    "kaufman": {
+      "label": "Kaufman Co. (Mabank area)",
+      "state": "TX",
+      "cap_rate": {"value": 5.0, "unit": "percent", "source_period": "2026-Q1"},
+      "vacancy_rate": {"value": 8.0, "unit": "percent", "source_period": "2024-12"},
+      "secondary": {
+        "home_value_yoy_pct": -3.9,
+        "overvalued_pct": 5.9,
+        "value_income_ratio": 3.2,
+        "price_cut_pct": 23.6,
+        "population": 197829
+      },
+      "scrape_status": "ok"
+    },
+    "van-zandt": {
+      "label": "Van Zandt Co. (Canton)",
+      "state": "TX",
+      "cap_rate": {"value": 5.1, "unit": "percent", "source_period": "2026-Q1"},
+      "vacancy_rate": {"value": 13.6, "unit": "percent", "source_period": "2024-12"},
+      "secondary": {
+        "home_value_yoy_pct": 0.7,
+        "overvalued_pct": 16.8,
+        "value_income_ratio": 4.1,
+        "price_cut_pct": 29.9,
+        "population": 65304
+      },
+      "scrape_status": "ok"
+    },
+    "anderson": {
+      "label": "Anderson Co. (Palestine)",
+      "state": "TX",
+      "cap_rate": {"value": 6.1, "unit": "percent", "source_period": "2026-Q1"},
+      "vacancy_rate": {"value": 14.8, "unit": "percent", "source_period": "2024-12"},
+      "secondary": {
+        "home_value_yoy_pct": -2.8,
+        "overvalued_pct": 4.5,
+        "value_income_ratio": 3.3,
+        "price_cut_pct": 21.1,
+        "population": 58439
+      },
+      "scrape_status": "ok"
+    },
+    "cherokee": {
+      "label": "Cherokee Co. (Rusk/Jacksonville)",
+      "state": "TX",
+      "cap_rate": {"value": 7.4, "unit": "percent", "source_period": "2026-Q1"},
+      "vacancy_rate": {"value": 13.6, "unit": "percent", "source_period": "2024-12"},
+      "secondary": {
+        "home_value_yoy_pct": -5.8,
+        "overvalued_pct": 6.8,
+        "value_income_ratio": 3.6,
+        "price_cut_pct": 19.1,
+        "population": 51886
+      },
+      "scrape_status": "ok"
+    },
+    "wood": {
+      "label": "Wood Co.",
+      "state": "TX",
+      "cap_rate": {"value": 4.6, "unit": "percent", "source_period": "2026-Q1"},
+      "vacancy_rate": {"value": 16.5, "unit": "percent", "source_period": "2024-12"},
+      "secondary": {
+        "home_value_yoy_pct": -0.8,
+        "overvalued_pct": 26.0,
+        "value_income_ratio": 4.3,
+        "price_cut_pct": 23.3,
+        "population": 46961
+      },
+      "scrape_status": "ok"
+    }
+  },
+  "summary": {
+    "counties_attempted": 6,
+    "counties_ok": 6,
+    "counties_failed": 0,
+    "duration_ms": null,
+    "cap_rate_source_period": "2026-Q1",
+    "vacancy_rate_source_period": "2024-12"
+  },
+  "data_quality_notes": {
+    "cap_rate": "County-wide blended across all rental types (SFR, multi, condo, vacation). Source: Reventure App Calculation from Zillow + US Census.",
+    "vacancy_rate": "Includes seasonal/vacation housing — explains Henderson's 18.9% (Cedar Creek seasonal stock). For rental-specific see CENSUS_VACANCY_LATEST.json."
+  }
+}
