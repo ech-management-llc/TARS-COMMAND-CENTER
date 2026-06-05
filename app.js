@@ -456,3 +456,159 @@ initRecurring();
     .catch(() => { el.textContent = 'check network'; });
 })();
 
+// ══════════════════════════════════════
+//  FINANCIALS — Foundation Layer API (Phase 1d cutover payload)
+//  Public endpoint (TD-087). Honest display per Jerry's doctrine:
+//  zeros + LIVE WIRE while the ledger is pre-flow; never fake, never blank.
+// ══════════════════════════════════════
+const FL_API = 'https://api.foundationlayerhq.com/api/dashboard/latest';
+const FL_LS_KEY = 'tcc_fin_last_success';
+
+function _esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _fmtMoney(n){
+  if (n===null || n===undefined || n==='' || isNaN(n)) return '—';
+  n = Number(n);
+  const a = Math.abs(n);
+  if (a >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (a >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
+  return '$' + n.toLocaleString('en-US');
+}
+function _ruleColor(s){ return s==='RED'?'var(--red)':s==='YELLOW'?'var(--yellow)':'var(--green)'; }
+function _fmtTs(iso){
+  if (!iso) return '—';
+  try {
+    const dt = new Date(iso);
+    if (isNaN(dt.getTime())) return iso;
+    return dt.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/Chicago'}) + ' CT';
+  } catch(e){ return iso; }
+}
+
+function renderFinancials(){
+  fetch(FL_API, { cache:'no-store' })
+    .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(d => {
+      try { localStorage.setItem(FL_LS_KEY, JSON.stringify({ ts: d.generated_at })); } catch(e){}
+      renderFinancialPayload(d);
+    })
+    .catch(err => renderFinancialError(err));
+}
+
+function renderFinancialPayload(d){
+  const hm = d.headline_metrics || {};
+  const allZero = ['total_revenue_ytd','total_noi_ytd','cash_position','total_debt'].every(k => !hm[k]);
+  const bar = document.getElementById('fin-status-bar');
+  if (bar){
+    if (allZero){
+      bar.className = 'fin-status-bar live-wire';
+      bar.innerHTML = '🔌 LIVE WIRE — awaiting ledger flows (Phase 1d step 3). The Foundation Layer pipe is connected and verified; real figures populate when the ledger goes live.';
+    } else {
+      bar.className = 'fin-status-bar live-data';
+      bar.innerHTML = '🟢 LIVE — Foundation Layer ledger data';
+    }
+  }
+
+  const cr = d.capital_rules || {};
+  const order = [['ltv','LTV'],['dscr','DSCR'],['liquidity','Liquidity'],['per_door','Per-door']];
+  const grid = document.getElementById('capital-rules-grid');
+  if (grid){
+    grid.innerHTML = order.map(([key,fb]) => {
+      const r = cr[key]; if(!r) return '';
+      const status = r.status || 'GREEN';
+      const fmt = key==='ltv' ? (v=>Math.round((v||0)*100)+'%')
+                : key==='dscr' ? (v=>Number(v||0).toFixed(2)+'x')
+                : (v=>_fmtMoney(v));
+      return '<div class="cr-tile" style="border-left-color:'+_ruleColor(status)+'">'
+        + '<div class="cr-label">'+_esc(r.label||fb)+'</div>'
+        + '<div class="cr-status" style="background:'+_ruleColor(status)+'">'+_esc(status)+'</div>'
+        + '<div class="cr-value">'+fmt(r.value)+'</div>'
+        + '<div class="cr-meta">threshold '+fmt(r.threshold)+' · headroom '+fmt(r.headroom)+'</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  const strip = document.getElementById('headline-metrics');
+  if (strip){
+    strip.innerHTML = [['Revenue YTD','total_revenue_ytd'],['NOI YTD','total_noi_ytd'],['Cash Position','cash_position'],['Total Debt','total_debt']]
+      .map(([lbl,k]) => '<div class="hm-tile"><div class="hm-val">'+_fmtMoney(hm[k])+'</div><div class="hm-lbl">'+lbl+'</div></div>').join('');
+  }
+
+  const tbl = document.getElementById('entity-table');
+  if (tbl){
+    const ents = d.entities || [];
+    tbl.innerHTML = '<thead><tr><th>Entity</th><th>Rev YTD</th><th>NOI YTD</th><th>Cash</th><th>Debt</th></tr></thead><tbody>'
+      + ents.map(e => '<tr><td><span class="ent-code">'+_esc(e.code)+'</span><span class="ent-name">'+_esc(e.name)+'</span></td>'
+        + '<td>'+_fmtMoney(e.revenue_ytd)+'</td><td>'+_fmtMoney(e.noi_ytd)+'</td><td>'+_fmtMoney(e.cash)+'</td><td>'+_fmtMoney(e.debt)+'</td></tr>').join('')
+      + '</tbody>';
+  }
+
+  const foot = document.getElementById('fin-footer');
+  if (foot){
+    const fresh = d.data_freshness || {};
+    const badges = Object.keys(fresh).map(k => {
+      const f = fresh[k] || {};
+      const st = String(f.status||'').toUpperCase();
+      const cls = (st.includes('FRESH')||st.includes('OK')||st.includes('CURRENT')) ? 'fresh' : st.includes('STALE') ? 'stale' : '';
+      return '<span class="fresh-badge '+cls+'">'+_esc(k.replace(/_/g,' '))+': '+_esc(f.last_export||f.status||'—')+'</span>';
+    }).join('');
+    foot.innerHTML = '<div class="fresh-row">'+badges+'</div>'
+      + '<div class="fin-stamp">week of '+_esc(d.week_of)+' · generated '+_esc(_fmtTs(d.generated_at))+' · source '+_esc(d.data_source||'foundation-layer')+'</div>';
+  }
+}
+
+function renderFinancialError(){
+  let last = '';
+  try { const s = JSON.parse(localStorage.getItem(FL_LS_KEY)||'null'); if (s && s.ts) last = ' · last success ' + _fmtTs(s.ts); } catch(e){}
+  const bar = document.getElementById('fin-status-bar');
+  if (bar){
+    bar.className = 'fin-status-bar api-down';
+    bar.innerHTML = '⚠ API unreachable — Foundation Layer dashboard is not responding'+last+'. No live figures shown (never fake).';
+  }
+  ['capital-rules-grid','headline-metrics','market-tiles'].forEach(id => { const el=document.getElementById(id); if(el && !el.innerHTML.trim()) el.innerHTML='<div class="fin-empty">— unavailable —</div>'; });
+  const tbl = document.getElementById('entity-table'); if (tbl) tbl.innerHTML = '<tbody><tr><td class="fin-empty">— unavailable —</td></tr></tbody>';
+}
+
+// ══════════════════════════════════════
+//  MARKET TILES — ./data/*.json snapshots (vault→repo push pipeline is a
+//  TARS-side follow-up; design for graceful absence + >48h stale badge).
+// ══════════════════════════════════════
+const MARKET_SNAPSHOTS = [
+  { file:'REVENTURE_LATEST.json',       title:'Reventure — Market',        render:m => 'cap rate + vacancy across ' + ((m.counties||m.markets||[]).length || '—') + ' counties' },
+  { file:'CENSUS_VACANCY_LATEST.json',  title:'Census — Rental Vacancy',   render:m => 'gross rental vacancy (ACS 5-yr) across ' + ((m.counties||[]).length || '—') + ' counties' },
+  { file:'DEALCHECK_PORTFOLIO.json',    title:'DealCheck — Portfolio',     render:m => ((m.properties||[]).length || '—') + ' properties tracked' },
+];
+
+function _isStale(ts){ if(!ts) return false; const t=new Date(ts).getTime(); if(isNaN(t)) return false; return (Date.now()-t) > 48*3600*1000; }
+function _safe(fn,m){ try { return fn(m); } catch(e){ return 'snapshot present'; } }
+
+function renderMarketTiles(){
+  const wrap = document.getElementById('market-tiles');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  MARKET_SNAPSHOTS.forEach(snap => {
+    const tile = document.createElement('div');
+    tile.className = 'market-tile';
+    tile.innerHTML = '<div class="mt-title">'+_esc(snap.title)+'</div><div class="mt-body">loading…</div>';
+    wrap.appendChild(tile);
+    fetch('./data/'+snap.file, { cache:'no-store' })
+      .then(r => { if(!r.ok) throw new Error('missing'); return r.json(); })
+      .then(m => {
+        const ts = m.scraped_at || m.generated_at || m.timestamp || m.last_updated;
+        const stale = _isStale(ts);
+        tile.innerHTML = '<div class="mt-title">'+_esc(snap.title)+(stale?' <span class="mt-stale">STALE &gt;48h</span>':'')+'</div>'
+          + '<div class="mt-body">'+_esc(_safe(snap.render,m))+'</div>'
+          + '<div class="mt-ts">'+(ts?'snapshot '+_esc(_fmtTs(ts)):'')+'</div>';
+      })
+      .catch(() => {
+        tile.innerHTML = '<div class="mt-title">'+_esc(snap.title)+'</div><div class="mt-body awaiting">awaiting first snapshot push</div>';
+      });
+  });
+}
+
+// Init the financial + market render once the DOM is ready (containers live in
+// #panel-financials). app.js is loaded with defer, so the DOM is parsed here.
+(function initFinancialsTab(){
+  function go(){ renderFinancials(); renderMarketTiles(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
+  else go();
+})();
+

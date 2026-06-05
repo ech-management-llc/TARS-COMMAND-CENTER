@@ -335,3 +335,47 @@ body{color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif
 .ref-step{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
 .ref-step-num{background:#1a1a40;color:#9fa8da;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;flex-shrink:0;margin-top:1px;}
 .ref-step-text{font-size:10px;color:var(--text);line-height:1.5;}
+
+/* ══ FINANCIALS TAB — Phase 1d cutover payload (FL API + market snapshots) ══ */
+.fin-main{padding:14px 20px calc(60px + var(--safe-bot));max-width:900px;margin:0 auto;}
+.fin-status-bar{font-size:11px;font-weight:700;line-height:1.5;padding:11px 14px;border-radius:6px;margin-bottom:16px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);}
+.fin-status-bar.live-wire{background:var(--blue-dim);border-color:var(--blue);color:var(--blue-text);}
+.fin-status-bar.live-data{background:var(--green-dim);border-color:var(--green);color:var(--green);}
+.fin-status-bar.api-down{background:var(--red-dim);border-color:var(--red);color:var(--red-text);}
+.fin-block-label{font-size:9px;font-weight:800;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.capital-rules-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+@media(min-width:600px){.capital-rules-grid{grid-template-columns:repeat(4,1fr);}}
+.cr-tile{background:var(--surface);border:1px solid var(--border);border-left-width:3px;border-radius:6px;padding:12px;}
+.cr-label{font-size:9px;font-weight:700;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase;}
+.cr-status{display:inline-block;font-size:8px;font-weight:900;letter-spacing:1px;color:#000;padding:2px 7px;border-radius:2px;margin:6px 0;}
+.cr-value{font-size:22px;font-weight:900;color:#fff;line-height:1;}
+.cr-meta{font-size:9px;color:var(--text-dim);margin-top:6px;line-height:1.4;}
+.headline-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+@media(min-width:600px){.headline-metrics{grid-template-columns:repeat(4,1fr);}}
+.hm-tile{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;}
+.hm-val{font-size:18px;font-weight:900;color:var(--green);line-height:1;}
+.hm-lbl{font-size:8px;color:var(--text-dim);letter-spacing:.8px;text-transform:uppercase;margin-top:4px;}
+.entity-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:6px;}
+.entity-table{width:100%;border-collapse:collapse;font-size:11px;}
+.entity-table th{font-size:8px;font-weight:800;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase;text-align:right;padding:8px 10px;background:var(--surface2);border-bottom:1px solid var(--border);}
+.entity-table th:first-child{text-align:left;}
+.entity-table td{padding:8px 10px;text-align:right;border-bottom:1px solid #1a1a1a;color:var(--text);white-space:nowrap;}
+.entity-table td:first-child{text-align:left;}
+.entity-table tr:last-child td{border-bottom:none;}
+.ent-code{font-weight:800;color:#fff;margin-right:6px;}
+.ent-name{font-size:9px;color:var(--text-dim);}
+.market-tiles{display:grid;grid-template-columns:1fr;gap:8px;}
+@media(min-width:600px){.market-tiles{grid-template-columns:repeat(3,1fr);}}
+.market-tile{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;}
+.mt-title{font-size:10px;font-weight:800;letter-spacing:.8px;color:#ccc;text-transform:uppercase;margin-bottom:6px;}
+.mt-stale{font-size:8px;font-weight:900;background:var(--yellow-dim);color:var(--yellow-text);border:1px solid var(--yellow);border-radius:2px;padding:1px 5px;letter-spacing:.5px;}
+.mt-body{font-size:11px;color:var(--text);line-height:1.4;}
+.mt-body.awaiting{color:var(--text-dim);font-style:italic;}
+.mt-ts{font-size:8px;color:var(--text-dim);margin-top:6px;}
+.fin-footer{margin-top:18px;}
+.fresh-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.fresh-badge{font-size:8px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:2px;background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);}
+.fresh-badge.fresh{background:var(--green-dim);color:var(--green);border-color:var(--green);}
+.fresh-badge.stale{background:var(--yellow-dim);color:var(--yellow-text);border-color:var(--yellow);}
+.fin-stamp{font-size:9px;color:var(--text-dim);letter-spacing:.5px;line-height:1.5;}
+.fin-empty{font-size:10px;color:var(--text-dim);font-style:italic;padding:10px;}

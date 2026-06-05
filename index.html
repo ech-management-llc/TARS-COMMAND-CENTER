@@ -90,6 +90,7 @@ Deliver the end-of-day briefing.</div>
   </div>
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('my-tasks')" id="tab-my-tasks">👤 MY TASKS</button>
+    <button class="tab-btn" onclick="switchTab('financials')" id="tab-financials">💰 FINANCIALS</button>
     <button class="tab-btn" onclick="switchTab('team')" id="tab-team">👥 TEAM <span class="tab-count" id="team-count">—</span></button>
     <button class="tab-btn" onclick="switchTab('punch-list')" id="tab-punch-list">📋 PUNCH LIST <span class="tab-count" id="tab-punch-count">—</span></button>
     <button class="tab-btn" onclick="switchTab('recurring')" id="tab-recurring">🔁 RECURRING</button>
@@ -1061,6 +1062,30 @@ Deliver the end-of-day briefing.</div>
   <div class="footer">ECH MANAGEMENT SERVICES LLC — TEAM PLAN — V4 — CONFIDENTIAL</div>
 </div>
 
+
+<!-- ══════════════════════════════════════
+     TAB: FINANCIALS — Foundation Layer cutover payload (Phase 1d step 2)
+     Containers populated by app.js (renderFinancials + renderMarketTiles).
+══════════════════════════════════════ -->
+<div class="tab-panel" id="panel-financials">
+  <div class="fin-main">
+    <div class="fin-status-bar" id="fin-status-bar">connecting to Foundation Layer…</div>
+
+    <div class="fin-block-label">Capital Rules</div>
+    <div class="capital-rules-grid" id="capital-rules-grid"></div>
+
+    <div class="fin-block-label">Headline Metrics</div>
+    <div class="headline-metrics" id="headline-metrics"></div>
+
+    <div class="fin-block-label">Entities</div>
+    <div class="entity-table-wrap"><table class="entity-table" id="entity-table"></table></div>
+
+    <div class="fin-block-label">Market Signals</div>
+    <div class="market-tiles" id="market-tiles"></div>
+
+    <div class="fin-footer" id="fin-footer"></div>
+  </div>
+</div>
 
 <script src="app.js" defer></script>
 </body>
