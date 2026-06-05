@@ -495,12 +495,16 @@ function renderFinancials(){
 
 function renderFinancialPayload(d){
   const hm = d.headline_metrics || {};
-  const allZero = ['total_revenue_ytd','total_noi_ytd','cash_position','total_debt'].every(k => !hm[k]);
+  // Honest gate (Rule 21): show "LIVE ledger data" ONLY once real income is flowing.
+  // cash_position is already non-zero from Plaid SANDBOX account provisioning, so an
+  // all-zero check falsely read "LIVE" over pre-production figures. Gate on revenue:
+  // until total_revenue_ytd > 0, the row stays in the honest LIVE WIRE state.
+  const hasRealIncome = Number(hm.total_revenue_ytd) > 0;
   const bar = document.getElementById('fin-status-bar');
   if (bar){
-    if (allZero){
+    if (!hasRealIncome){
       bar.className = 'fin-status-bar live-wire';
-      bar.innerHTML = '🔌 LIVE WIRE — awaiting ledger flows (Phase 1d step 3). The Foundation Layer pipe is connected and verified; real figures populate when the ledger goes live.';
+      bar.innerHTML = '🔌 LIVE WIRE — pipeline connected & verified; figures are PRE-PRODUCTION (Plaid sandbox) until real income flows — not actual financials yet.';
     } else {
       bar.className = 'fin-status-bar live-data';
       bar.innerHTML = '🟢 LIVE — Foundation Layer ledger data';

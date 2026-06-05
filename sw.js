@@ -1,7 +1,7 @@
 // TARS Command Center — Service Worker
 // Version: 1.0 — ECH Management Services LLC
 
-const CACHE_NAME = 'tars-cc-v5-v063';
+const CACHE_NAME = 'tars-cc-v6-v063-badge';
 const ASSETS = [
   '/',
   '/index.html',
