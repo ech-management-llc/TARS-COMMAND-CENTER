@@ -1,618 +1,491 @@
-// ══════════════════════════════════════
-//  PWA — SERVICE WORKER
-// ══════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════
+   TCC — Platform v1 · CORE
+   Generic. Reads config/tenant.json + config/layers.json and renders
+   the home from the registry. ZERO tenant specifics live in this file —
+   everything ECH-flavored is in the config + the /layers folders.
+
+   Add a layer = drop a folder in /layers/ + add one entry to
+   config/layers.json. No edit here. (See /layers/_TEMPLATE/README.md.)
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── PWA ── */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 
-// ══════════════════════════════════════
-//  FORCE REFRESH
-// ══════════════════════════════════════
-function forceRefresh() {
-  const btn = document.getElementById('refresh-btn');
-  btn.textContent = '🔄 REFRESHING...';
-  btn.classList.add('refreshing');
-  const doReload = () => window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-      const unregisters = regs.map(r => r.unregister());
-      return Promise.all(unregisters);
-    }).then(() => {
-      if ('caches' in window) {
-        return caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
-      }
-    }).then(() => { setTimeout(doReload, 200); }).catch(() => doReload());
-  } else {
-    doReload();
-  }
-}
-
-// ══════════════════════════════════════
-//  PERSONA
-// ══════════════════════════════════════
-let persona = localStorage.getItem('tars_persona') || 'jerry';
-
-function setPersona(p) {
-  persona = p;
-  localStorage.setItem('tars_persona', p);
-  document.getElementById('persona-modal').classList.add('hidden');
-  applyPersona();
-  renderMyTasks();
-  renderTeam();
-}
-
-function showSignoffModal() {
-  document.getElementById('signoff-modal').classList.remove('hidden');
-}
-function hideSignoffModal() {
-  document.getElementById('signoff-modal').classList.add('hidden');
-  const btn = document.getElementById('signoff-copy-btn');
-  btn.textContent = '📋 COPY COMMAND';
-  btn.classList.remove('copied');
-}
-function copySignoffCommand() {
-  const cmd = document.getElementById('signoff-cmd').innerText;
-  navigator.clipboard.writeText(cmd).then(() => {
-    const btn = document.getElementById('signoff-copy-btn');
-    btn.textContent = '✓ COPIED — PASTE INTO TARS';
-    btn.classList.add('copied');
-  });
-}
-document.getElementById('signoff-modal').addEventListener('click', function(e) {
-  if (e.target === this) hideSignoffModal();
-});
-
-function copyBootCommand() {
-  const boot = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TARS — DIGITAL JERRY BOOT COMMAND V1
-ECH MANAGEMENT SERVICES LLC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-You are TARS — the AI operations engine for Jerry Eads and ECH Management Services. Load everything below as your full operating context for this session.
-
-── IDENTITY ──
-Person: Jerry Eads | Your name: TARS | Address him as: Jerry
-Style: Direct, institutional, no-fluff. Dense and action-oriented. No filler.
-
-── ENTITIES ──
-• ECH Management Services LLC — primary management company
-• EADS Industries LLC — holding company, multifamily units
-• JP Eads Company LLC — construction entity
-• E&S Concrete Construction Inc — construction entity
-• EADS Tools and Equipment LLC — equipment/tools entity
-• Primary email: jerry.eads@echmanagement.services
-
-── CAPITAL RULES — HARDWIRED NON-NEGOTIABLE ──
-• Global LTV ceiling: 45–50% (never breach)
-• Average DSCR floor: ≈ 1.8× (never approve a deal below this)
-• Liquidity reserve minimum: ≈ $500K (always maintained)
-• Primary bank: Altra Bank | VeraBank: always $0
-• Portfolio target: 100 → 200+ units
-
-── DOCTRINE ──
-1. Apathy kills. Build what you drew.
-2. No open loops — everything gets closed.
-3. Institutional grade or nothing.
-4. Capital rules are law, not suggestions.
-5. Ashley executes. Jerry decides. TARS operates.
-6. Every session has a purpose. State it. Execute it.
-7. Memory is sacred. Update it every session.
-8. The system is the asset. Protect and build it.
-9. Speed of execution beats perfection of planning.
-10. Digital Jerry is the operating system. TARS is the engine.
-11. Every dollar has a job. Idle capital is a liability.
-12. If it's not in the system, it doesn't exist.
-
-── PLATFORM CONTEXT ──
-This is a WEB or PHONE session — no persistent memory, no file tools, no live connectors.
-Cowork (desktop) is the primary TARS platform with full memory and tools.
-
-── SYSTEM STATUS ──
-• Command Center: https://tcc.echmanagement.services/
-• Slack: echmanagementservices.slack.com
-• Cowork connectors: Gmail, Calendar, DocuSign, Slack, Zapier — MCP Live, Drive, GitHub, GitHub Auto-Push (Zap LIVE), TARS Finance App (custom-built), Claude in Chrome (LIVE Apr 26)
-• QuickBooks: DROPPED (too expensive) — replaced by TARS Finance App
-• FoundationLedger: LIVE at foundationledger.com — real estate financial SaaS (launched Apr 26, 2026)
-• Pending connectors: Monday.com (email change in progress), Gusto (not started)
-
-── BOOT CONFIRMATION ──
-Respond: "TARS ONLINE — [date] — OPERATOR MODE — Ready, Jerry. What are we working on?"
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-  navigator.clipboard.writeText(boot).then(() => {
-    const btn = document.getElementById('boot-btn');
-    btn.textContent = '✓ COPIED — PASTE INTO CLAUDE';
-    btn.style.background = 'var(--blue)';
-    btn.style.color = '#fff';
-    setTimeout(() => {
-      btn.textContent = '⚡ BOOT COMMAND';
-      btn.style.background = 'var(--blue-dim)';
-      btn.style.color = 'var(--blue-text)';
-    }, 3000);
-  });
-}
-
-function showPersonaModal() {
-  document.getElementById('persona-modal').classList.remove('hidden');
-}
-
-function applyPersona() {
-  const av   = document.getElementById('persona-avatar');
-  const nm   = document.getElementById('persona-name');
-  const greet = document.getElementById('mt-greeting');
-  const sub   = document.getElementById('mt-sub');
-  if (persona === 'ashley') {
-    av.textContent = 'A';
-    av.style.background = '#1a1a40';
-    av.style.color = '#9fa8da';
-    av.style.border = '1px solid #3d3d80';
-    nm.textContent = 'ASHLEY';
-    greet.textContent = 'Hey Ashley.';
-    sub.textContent = 'Here\'s what\'s on your plate.';
-  } else {
-    av.textContent = 'JE';
-    av.style.background = '#1a3d2b';
-    av.style.color = '#00e676';
-    av.style.border = '1px solid #00e676';
-    nm.textContent = 'JERRY';
-    greet.textContent = getGreeting() + ', Jerry.';
-    sub.textContent = 'Here\'s what\'s on your plate.';
-  }
-}
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-// ══════════════════════════════════════
-//  TAB SWITCHING
-// ══════════════════════════════════════
-function switchTab(id) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('panel-' + id).classList.add('active');
-  document.getElementById('tab-' + id).classList.add('active');
-}
-
-// ══════════════════════════════════════
-//  PUNCH LIST
-// ══════════════════════════════════════
-let filterMode = 'all';
-
-function toggleItem(el) {
-  if (el.classList.contains('done'))          { el.classList.replace('done','needed');   el.querySelector('.checkbox').textContent = ''; }
-  else if (el.classList.contains('needed'))   { el.classList.replace('needed','done');   el.querySelector('.checkbox').textContent = '✓'; }
-  else if (el.classList.contains('inprog'))   { el.classList.replace('inprog','done');   el.querySelector('.checkbox').textContent = '✓'; }
-  else if (el.classList.contains('upcoming')) { el.classList.replace('upcoming','done'); el.querySelector('.checkbox').textContent = '✓'; }
-  updateAll();
-  renderMyTasks();
-  renderTeam();
-}
-
-function toggleSection(id) { document.getElementById(id).classList.toggle('collapsed'); }
-function expandAll()  { document.querySelectorAll('.section').forEach(s => s.classList.remove('collapsed')); }
-function collapseAll(){ document.querySelectorAll('.section').forEach(s => s.classList.add('collapsed')); }
-
-function filter(mode) {
-  filterMode = mode;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-  document.querySelectorAll('#panel-punch-list .item').forEach(item => {
-    let show = true;
-    if (mode === 'done')   show = item.classList.contains('done');
-    if (mode === 'needed') show = item.classList.contains('needed');
-    if (mode === 'inprog') show = item.classList.contains('inprog');
-    if (mode === 'p1')     show = !!item.querySelector('.p1');
-    if (mode === 'p2')     show = !!item.querySelector('.p2');
-    item.style.display = show ? 'flex' : 'none';
-  });
-}
-
-function updateAll() {
-  const sids = ['s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12'];
-  let tDone = 0, tAll = 0, cD = 0, cN = 0, cI = 0, cU = 0;
-  sids.forEach(sid => {
-    const sec = document.getElementById(sid);
-    const items = sec.querySelectorAll('.item');
-    const done  = sec.querySelectorAll('.item.done').length;
-    const total = items.length;
-    document.getElementById(sid+'-count').textContent = done + ' / ' + total;
-    document.getElementById(sid+'-bar').style.width = (total > 0 ? Math.round(done/total*100) : 0) + '%';
-    tDone += done; tAll += total;
-  });
-  document.querySelectorAll('#panel-punch-list .item').forEach(i => {
-    if      (i.classList.contains('done'))     cD++;
-    else if (i.classList.contains('needed'))   cN++;
-    else if (i.classList.contains('inprog'))   cI++;
-    else if (i.classList.contains('upcoming')) cU++;
-  });
-  const gPct = tAll > 0 ? Math.round(tDone/tAll*100) : 0;
-  document.getElementById('global-label').textContent = tDone + ' of ' + tAll + ' complete';
-  document.getElementById('global-bar').style.width   = gPct + '%';
-  document.getElementById('global-pct').textContent   = gPct + '%';
-  document.getElementById('count-done').textContent     = cD;
-  document.getElementById('count-needed').textContent   = cN;
-  document.getElementById('count-inprog').textContent   = cI;
-  document.getElementById('count-upcoming').textContent = cU;
-  document.getElementById('tab-punch-count').textContent = tDone + '/' + tAll;
-}
-
-// ══════════════════════════════════════
-//  MY TASKS — RENDER
-// ══════════════════════════════════════
-function isAshleyItem(item) { return !!item.querySelector('.ashley-tag'); }
-
-function getStatusClass(item) {
-  if (item.classList.contains('done'))     return 'done';
-  if (item.classList.contains('inprog'))   return 'inprog';
-  if (item.classList.contains('upcoming')) return 'upcoming';
-  return 'needed';
-}
-
-function renderMyTasks() {
-  const allItems = Array.from(document.querySelectorAll('#panel-punch-list .item'));
-  let myItems;
-  if (persona === 'ashley') {
-    myItems = allItems.filter(i => isAshleyItem(i));
-  } else {
-    // Jerry sees all non-Ashley items (he owns everything else)
-    myItems = allItems.filter(i => !isAshleyItem(i));
-  }
-
-  const p1list   = document.getElementById('mt-p1-list');
-  const openlist = document.getElementById('mt-open-list');
-  const inplist  = document.getElementById('mt-inprog-list');
-  const donelist = document.getElementById('mt-done-list');
-  p1list.innerHTML = openlist.innerHTML = inplist.innerHTML = donelist.innerHTML = '';
-
-  let done = 0, open = 0, inprog = 0, p1count = 0;
-
-  myItems.forEach(src => {
-    const status = getStatusClass(src);
-    const text   = src.querySelector('.item-text').textContent;
-    const hasP1  = !!src.querySelector('.p1');
-    const clone  = document.createElement('div');
-    clone.className = 'mytask-item ' + status;
-    const cbText = status === 'done' ? '✓' : (status === 'inprog' ? '~' : (status === 'upcoming' ? '→' : ''));
-    clone.innerHTML = `<div class="checkbox" style="${status==='done'?'background:var(--green);border-color:var(--green);color:#000;font-weight:900;':''}${status==='inprog'?'border-color:var(--yellow);background:var(--yellow-dim);':''}">${cbText}</div><div class="item-content"><div class="item-text">${text}</div></div>`;
-    clone.onclick = () => { src.click(); };
-
-    if (status === 'done') { donelist.appendChild(clone); done++; }
-    else if (status === 'inprog') { inplist.appendChild(clone); inprog++; }
-    else if (status === 'upcoming') { /* skip from counts but show in open */ openlist.appendChild(clone); }
-    else { // needed
-      open++;
-      if (hasP1) { p1count++; const p1clone = clone.cloneNode(true); p1clone.onclick = () => { src.click(); }; p1list.appendChild(p1clone); }
-      openlist.appendChild(clone);
-    }
-  });
-
-  const total = myItems.length;
-  document.getElementById('mt-done').textContent   = done;
-  document.getElementById('mt-open').textContent   = open;
-  document.getElementById('mt-inprog').textContent = inprog;
-  document.getElementById('mt-p1').textContent     = p1count;
-  document.getElementById('mt-bar-label').textContent = done + ' of ' + total + ' complete';
-  document.getElementById('mt-bar').style.width = (total > 0 ? Math.round(done/total*100) : 0) + '%';
-
-  // Hide empty sections
-  document.getElementById('mt-p1-section').style.display  = p1list.children.length  ? '' : 'none';
-  document.getElementById('mt-inprog-section').style.display = inplist.children.length ? '' : 'none';
-  document.getElementById('mt-done-section').style.display  = donelist.children.length ? '' : 'none';
-}
-
-// ══════════════════════════════════════
-//  TEAM — RENDER
-// ══════════════════════════════════════
-function renderTeam() {
-  const allItems = Array.from(document.querySelectorAll('#panel-punch-list .item'));
-  const jerryItems  = allItems.filter(i => !isAshleyItem(i));
-  const ashleyItems = allItems.filter(i => isAshleyItem(i));
-
-  function buildList(container, items) {
-    container.innerHTML = '';
-    let done = 0, open = 0;
-    items.forEach(src => {
-      const status = getStatusClass(src);
-      const text   = src.querySelector('.item-text').textContent;
-      const hasP1  = !!src.querySelector('.p1');
-      const row = document.createElement('div');
-      row.className = 'team-item-row ' + status;
-      const dotColor = status === 'done' ? 'var(--green)' : status === 'inprog' ? 'var(--yellow)' : status === 'upcoming' ? 'var(--blue)' : 'var(--red)';
-      row.innerHTML = `<div class="team-item-dot ${status}" style="background:${dotColor}"></div><div class="team-item-text">${text}${hasP1 ? ' <span class="team-badge p1">P1</span>' : ''}</div>`;
-      container.appendChild(row);
-      if (status === 'done') done++;
-      else if (status !== 'upcoming') open++;
-    });
-    return { done, open, total: items.length };
-  }
-
-  const jStats = buildList(document.getElementById('jerry-task-list'), jerryItems);
-  const aStats = buildList(document.getElementById('ashley-task-list'), ashleyItems);
-
-  document.getElementById('jerry-done').textContent  = jStats.done;
-  document.getElementById('jerry-open').textContent  = jStats.open;
-  document.getElementById('jerry-total').textContent = jStats.total;
-  document.getElementById('jerry-bar').style.width   = jStats.total > 0 ? Math.round(jStats.done/jStats.total*100)+'%' : '0%';
-
-  document.getElementById('ashley-done').textContent  = aStats.done;
-  document.getElementById('ashley-open').textContent  = aStats.open;
-  document.getElementById('ashley-total').textContent = aStats.total;
-  document.getElementById('ashley-bar').style.width   = aStats.total > 0 ? Math.round(aStats.done/aStats.total*100)+'%' : '0%';
-
-  document.getElementById('team-count').textContent = (jStats.open + aStats.open) + ' open';
-}
-
-// ══════════════════════════════════════
-//  RECURRING TAB
-// ══════════════════════════════════════
-function toggleDay(id) {
-  document.getElementById(id).classList.toggle('collapsed');
-  updateDayCounts();
-}
-
-function toggleRecur(el) {
-  if (el.classList.contains('done')) {
-    el.classList.replace('done','needed');
-    el.querySelector('.checkbox').textContent = '';
-  } else {
-    el.classList.replace('needed','done');
-    el.querySelector('.checkbox').textContent = '✓';
-  }
-  updateDayCounts();
-}
-
-function updateDayCounts() {
-  const days = ['mon','tue','wed','thu','fri','wknd'];
-  const dayIds = {'mon':'day-mon','tue':'day-tue','wed':'day-wed','thu':'day-thu','fri':'day-fri','wknd':'day-wknd'};
-  days.forEach(d => {
-    const block = document.getElementById(dayIds[d]);
-    if (!block) return;
-    const items = block.querySelectorAll('.recur-item');
-    const done  = block.querySelectorAll('.recur-item.done').length;
-    const el = document.getElementById('count-' + d);
-    if (el) el.textContent = items.length > 0 ? done + '/' + items.length : '—';
-  });
-}
-
-function resetWeek() {
-  document.querySelectorAll('.recur-item').forEach(el => {
-    el.classList.remove('done');
-    el.classList.add('needed');
-    el.querySelector('.checkbox').textContent = '';
-  });
-  updateDayCounts();
-}
-
-function initRecurring() {
-  // Highlight today's day block
-  const now = new Date();
-  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-  const dayMap = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',0:'wknd',6:'wknd'};
-  const todayKey = dayMap[dayOfWeek];
-  const todayBlock = document.getElementById('day-' + todayKey);
-  if (todayBlock) {
-    todayBlock.classList.add('today');
-    const badge = document.getElementById('badge-' + todayKey);
-    if (badge) badge.style.display = 'inline-block';
-    // Expand today, collapse others
-    ['mon','tue','wed','thu','fri','wknd'].forEach(d => {
-      const b = document.getElementById('day-' + d);
-      if (b) {
-        if (d === todayKey) b.classList.remove('collapsed');
-        else if (d !== 'mon' && d !== 'fri') b.classList.add('collapsed');
-      }
-    });
-  }
-
-  // Set week label
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
-  const opts = {month:'short', day:'numeric', year:'numeric'};
-  const lbl = document.getElementById('week-label');
-  if (lbl) lbl.textContent = 'WEEK OF ' + monday.toLocaleDateString('en-US', opts).toUpperCase();
-
-  updateDayCounts();
-}
-
-// ══════════════════════════════════════
-//  INIT
-// ══════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  updateAll();
-  applyPersona();
-  renderMyTasks();
-  renderTeam();
-  initRecurring();
-});
-updateAll();
-applyPersona();
-renderMyTasks();
-renderTeam();
-initRecurring();
-
-// ══════════════════════════════════════
-//  LAST UPDATED — DYNAMIC FROM GITHUB
-// ══════════════════════════════════════
-(function fetchLastUpdated() {
-  const el = document.getElementById('last-updated-ts');
-  if (!el) return;
-  // Private repo — read .last-deployed from same origin (updated by Actions workflow)
-  fetch('https://api.github.com/repos/ech-management-llc/TARS-COMMAND-CENTER/commits?per_page=1')
-    .then(r => r.json())
-    .then(data => {
-      if (data && data[0] && data[0].commit) {
-        const d = new Date(data[0].commit.committer.date);
-        const opts = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' };
-        el.textContent = d.toLocaleString('en-US', opts) + ' CT';
-      } else {
-        el.textContent = 'unavailable';
-      }
-    })
-    .catch(() => { el.textContent = 'check network'; });
-})();
-
-// ══════════════════════════════════════
-//  FINANCIALS — Foundation Layer API (Phase 1d cutover payload)
-//  Public endpoint (TD-087). Honest display per Jerry's doctrine:
-//  zeros + LIVE WIRE while the ledger is pre-flow; never fake, never blank.
-// ══════════════════════════════════════
-const FL_API = 'https://api.foundationlayerhq.com/api/dashboard/latest';
-const FL_LS_KEY = 'tcc_fin_last_success';
-
-function _esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function _fmtMoney(n){
-  if (n===null || n===undefined || n==='' || isNaN(n)) return '—';
-  n = Number(n);
-  const a = Math.abs(n);
+/* ── tiny helpers ── */
+const $ = (id) => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function pct(v){ if (v==null||isNaN(v)) return '—'; const r = Math.round(Number(v)*100)/100; return (Number.isInteger(r) ? r : parseFloat(r.toFixed(2))) + '%'; }
+function fmtMoney(n){
+  if (n===null||n===undefined||n===''||isNaN(n)) return '—';
+  n = Number(n); const a = Math.abs(n);
   if (a >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
   if (a >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
   return '$' + n.toLocaleString('en-US');
 }
-function _ruleColor(s){ return s==='RED'?'var(--red)':s==='YELLOW'?'var(--yellow)':'var(--green)'; }
-function _fmtTs(iso){
+function fmtTs(iso){
   if (!iso) return '—';
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return String(iso);
+  return dt.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true}) ;
+}
+function isStale(ts, hours){ if(!ts) return false; const t=new Date(ts).getTime(); if(isNaN(t)) return false; return (Date.now()-t) > (hours||48)*3600*1000; }
+function timeOfDay(){ const h=new Date().getHours(); return h<12?'morning':h<17?'afternoon':'evening'; }
+
+/* ── runtime state ── */
+const STATE = {
+  tenant: null,
+  registry: null,
+  county: null,
+  data:   { fl:null, reventure:null, census:null, dealcheck:null, fred:null },
+  status: { fl:'pending' },         // 'pending' | 'ok' | 'down'
+  lastGoodKey: 'tcc_fl_last_success'
+};
+
+/* ════════════════════════════════════════════════════════════════
+   BOOT
+   ════════════════════════════════════════════════════════════════ */
+async function boot(){
   try {
-    const dt = new Date(iso);
-    if (isNaN(dt.getTime())) return iso;
-    return dt.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/Chicago'}) + ' CT';
-  } catch(e){ return iso; }
+    const [tenant, registry] = await Promise.all([
+      fetch('./config/tenant.json', {cache:'no-store'}).then(r=>r.json()),
+      fetch('./config/layers.json', {cache:'no-store'}).then(r=>r.json())
+    ]);
+    STATE.tenant = tenant;
+    STATE.registry = registry;
+  } catch(e){
+    $('home').innerHTML = '<div class="note" style="color:var(--red)">Could not load the layer registry (config/*.json). The home renders from these files — check they are present.</div>';
+    return;
+  }
+  applyBranding();
+  if (window.Agents) Agents.init(STATE);   // global TARS + per-layer employees + memory store
+  renderChrome();
+  renderHome();
+  fetchAll();
+  wireGlobalControls();
 }
 
-function renderFinancials(){
-  fetch(FL_API, { cache:'no-store' })
-    .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-    .then(d => {
-      try { localStorage.setItem(FL_LS_KEY, JSON.stringify({ ts: d.generated_at })); } catch(e){}
-      renderFinancialPayload(d);
-    })
-    .catch(err => renderFinancialError(err));
+function applyBranding(){
+  const b = (STATE.tenant.branding)||{};
+  if (b.accent) document.documentElement.style.setProperty('--accent', b.accent);
+  document.title = (b.title? b.title+' ' : '') + 'Command Center';
 }
 
-function renderFinancialPayload(d){
-  const hm = d.headline_metrics || {};
-  // Honest gate (Rule 21): show "LIVE ledger data" ONLY once real income is flowing.
-  // cash_position is already non-zero from Plaid SANDBOX account provisioning, so an
-  // all-zero check falsely read "LIVE" over pre-production figures. Gate on revenue:
-  // until total_revenue_ytd > 0, the row stays in the honest LIVE WIRE state.
-  const hasRealIncome = Number(hm.total_revenue_ytd) > 0;
-  const bar = document.getElementById('fin-status-bar');
-  if (bar){
-    if (!hasRealIncome){
-      bar.className = 'fin-status-bar live-wire';
-      bar.innerHTML = '🔌 LIVE WIRE — pipeline connected & verified; figures are PRE-PRODUCTION (Plaid sandbox) until real income flows — not actual financials yet.';
-    } else {
-      bar.className = 'fin-status-bar live-data';
-      bar.innerHTML = '🟢 LIVE — Foundation Layer ledger data';
-    }
-  }
+/* ── entitlement + enabled filter (the licensing boundary lives here) ── */
+function visibleLayers(){
+  return (STATE.registry.layers||[]).filter(l => l.enabled !== false && l.entitled !== false);
+}
+function layersInGroup(g){ return visibleLayers().filter(l => l.group === g); }
+function layerById(id){ return (STATE.registry.layers||[]).find(l => l.id === id); }
 
-  const cr = d.capital_rules || {};
-  const order = [['ltv','LTV'],['dscr','DSCR'],['liquidity','Liquidity'],['per_door','Per-door']];
-  const grid = document.getElementById('capital-rules-grid');
-  if (grid){
-    grid.innerHTML = order.map(([key,fb]) => {
-      const r = cr[key]; if(!r) return '';
-      const status = r.status || 'GREEN';
-      const fmt = key==='ltv' ? (v=>Math.round((v||0)*100)+'%')
-                : key==='dscr' ? (v=>Number(v||0).toFixed(2)+'x')
-                : (v=>_fmtMoney(v));
-      return '<div class="cr-tile" style="border-left-color:'+_ruleColor(status)+'">'
-        + '<div class="cr-label">'+_esc(r.label||fb)+'</div>'
-        + '<div class="cr-status" style="background:'+_ruleColor(status)+'">'+_esc(status)+'</div>'
-        + '<div class="cr-value">'+fmt(r.value)+'</div>'
-        + '<div class="cr-meta">threshold '+fmt(r.threshold)+' · headroom '+fmt(r.headroom)+'</div>'
-        + '</div>';
-    }).join('');
-  }
+/* ════════════════════════════════════════════════════════════════
+   CHROME (verbar, global TARS button, header, AI summary, footer)
+   ════════════════════════════════════════════════════════════════ */
+function renderChrome(){
+  // source ribbon — distinct source tags present in the registry
+  const tags = [];
+  visibleLayers().forEach(l => { if (l.source_tag && !tags.includes(l.source_tag)) tags.push(l.source_tag); });
+  if (!tags.includes('FL')) tags.unshift('FL');
+  const pillCls = { FRED:'src-fred', REV:'src-rev', CEN:'src-cen', DEALCHECK:'src-dc', FL:'src-fl' };
+  $('verbar').innerHTML = '<b>PLATFORM v1</b>' +
+    tags.map(t => '<span class="srcpill '+(pillCls[t]||'src-fl')+'">'+esc(t)+'</span>').join('');
 
-  const strip = document.getElementById('headline-metrics');
-  if (strip){
-    strip.innerHTML = [['Revenue YTD','total_revenue_ytd'],['NOI YTD','total_noi_ytd'],['Cash Position','cash_position'],['Total Debt','total_debt']]
-      .map(([lbl,k]) => '<div class="hm-tile"><div class="hm-val">'+_fmtMoney(hm[k])+'</div><div class="hm-lbl">'+lbl+'</div></div>').join('');
-  }
+  // global TARS button
+  const g = STATE.tenant.global_agent || {};
+  $('tars-btn').innerHTML =
+    '<span class="tarsav">'+tarsSvg(26)+'</span>'+
+    '<span class="tarstxt"><b>Ask '+esc(g.name||'TARS')+'</b><span>'+esc(g.tagline||'your on-call AI employee')+'</span></span>'+
+    '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
 
-  const tbl = document.getElementById('entity-table');
-  if (tbl){
-    const ents = d.entities || [];
-    tbl.innerHTML = '<thead><tr><th>Entity</th><th>Rev YTD</th><th>NOI YTD</th><th>Cash</th><th>Debt</th></tr></thead><tbody>'
-      + ents.map(e => '<tr><td><span class="ent-code">'+_esc(e.code)+'</span><span class="ent-name">'+_esc(e.name)+'</span></td>'
-        + '<td>'+_fmtMoney(e.revenue_ytd)+'</td><td>'+_fmtMoney(e.noi_ytd)+'</td><td>'+_fmtMoney(e.cash)+'</td><td>'+_fmtMoney(e.debt)+'</td></tr>').join('')
-      + '</tbody>';
-  }
+  // header
+  const op = (STATE.tenant.operator)||{};
+  const b = (STATE.tenant.branding)||{};
+  const now = new Date();
+  $('head').innerHTML =
+    '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>'+
+    '<div class="when"><b>'+now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+'</b>'+
+    timeOfDay()+(op.greeting_name?' · '+esc(op.greeting_name):'')+'</div>';
 
-  const foot = document.getElementById('fin-footer');
-  if (foot){
-    const fresh = d.data_freshness || {};
-    const badges = Object.keys(fresh).map(k => {
-      const f = fresh[k] || {};
-      const st = String(f.status||'').toUpperCase();
-      const cls = (st.includes('FRESH')||st.includes('OK')||st.includes('CURRENT')) ? 'fresh' : st.includes('STALE') ? 'stale' : '';
-      return '<span class="fresh-badge '+cls+'">'+_esc(k.replace(/_/g,' '))+': '+_esc(f.last_export||f.status||'—')+'</span>';
-    }).join('');
-    foot.innerHTML = '<div class="fresh-row">'+badges+'</div>'
-      + '<div class="fin-stamp">week of '+_esc(d.week_of)+' · generated '+_esc(_fmtTs(d.generated_at))+' · source '+_esc(d.data_source||'foundation-layer')+'</div>';
+  // AI summary (static for v1 — honest)
+  const ai = STATE.tenant.ai_summary || {};
+  if (ai.enabled){
+    $('ai-summary').innerHTML =
+      '<div class="ttl"><div class="l"><span class="dot"></span> STATE · AI SUMMARY</div>'+
+      '<button class="toggle" id="ai-toggle" type="button">AI: ON</button></div>'+
+      '<p id="aitxt">'+esc(ai.text||'')+'</p>'+
+      (ai.live ? '' : '<div class="src-note">'+esc(ai.note||'Static for v1 — not a live model call.')+'</div>');
+    $('ai-toggle').onclick = () => { const p=$('aitxt'); p.style.display = p.style.display==='none'?'block':'none'; };
+  } else { $('ai-summary').style.display='none'; }
+
+  // footer
+  $('foot').innerHTML = 'TCC · PLATFORM v1 · tenant: '+esc(STATE.tenant.name||'')+
+    (STATE.tenant.reference_install?' (reference install)':'')+'<br>layers render from the registry · honest display always';
+}
+
+function tarsSvg(s){
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/><circle cx="12" cy="7" r="3.6" stroke="#0a0a0b"/></svg>';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   HOME — groups + tiles
+   ════════════════════════════════════════════════════════════════ */
+function renderHome(){
+  const groups = STATE.registry.groups || [];
+  let html = '';
+  groups.forEach(grp => {
+    const ls = layersInGroup(grp.id);
+    if (!ls.length) return;
+    if (grp.label) html += '<div class="sect">'+esc(grp.label)+'</div>';
+    if (grp.id === 'status')    html += '<div class="grid2">'+ls.map(tileShell).join('')+'</div>';
+    else if (grp.id === 'portfolio') html += ls.map(tileShell).join('');
+    else if (grp.id === 'market')    html += renderMarketGroup(ls);
+    else if (grp.id === 'artifact')  html += renderArtifactGroup(ls);
+    else html += ls.map(tileShell).join('');
+  });
+  $('home').innerHTML = html;
+  // initial paint of data-bound tiles (skeleton → fills when data lands)
+  refreshDataTiles();
+  bindTileClicks();
+  bindMarketPicker();
+}
+
+// a stable container for each tile so data can refresh it in place
+function tileShell(l){ return '<div id="tile-'+esc(l.id)+'" data-tile="'+esc(l.id)+'"></div>'; }
+
+function renderArtifactGroup(ls){
+  const cap = '<div class="empcap">👤 Every layer has an on-call employee — open any tile and tap “Ask” to have it find something or answer for you.</div>';
+  return cap + '<div class="gridA">'+ls.map(artTile).join('')+'</div>';
+}
+
+function artTile(l){
+  const soon = l.status_rules === 'soon';
+  const add  = l.kind === 'add';
+  const cls = 'art'+(l.featured?' feat':'')+(soon||add?' disabled':'')+(add?' add':'');
+  const corner = soon ? '<span class="soon">SOON</span>' : add ? '<span class="soon">+ ADD</span>' : (l.tier?'<span class="L">'+esc(l.tier)+'</span>':'');
+  return '<button type="button" class="'+cls+'" data-tile="'+esc(l.id)+'">'+corner+
+    '<div class="ico">'+esc(l.icon||'▫')+'</div>'+
+    '<div class="nm">'+esc(l.title)+'</div>'+
+    '<div class="ds">'+esc(l.desc||'')+'</div></button>';
+}
+
+/* ── MARKET group: county picker + tiles ── */
+function renderMarketGroup(ls){
+  const picker = '<div class="pickrow"><select class="picker" id="county-picker"></select></div>';
+  // split: first 4 in a grid4, remainder in grid2 (mirrors the visual target)
+  const top = ls.slice(0,4), rest = ls.slice(4);
+  let h = picker + '<div class="grid4">'+top.map(tileShell).join('')+'</div>';
+  if (rest.length) h += '<div class="grid2" style="margin-top:10px">'+rest.map(tileShell).join('')+'</div>';
+  // gap explanation note (from the gap layer's note, if present)
+  const gap = ls.find(l => l.data && l.data.source==='vacancy_gap');
+  if (gap && gap.note) h += '<div class="note" id="market-note"><b>Why two vacancy numbers?</b> '+esc(gap.note)+'</div>';
+  return h;
+}
+
+function countyOptions(){
+  // union of counties present in BOTH market files, so every market tile has a value
+  const rev = STATE.data.reventure && STATE.data.reventure.counties || {};
+  const cen = STATE.data.census && STATE.data.census.counties || {};
+  const keys = Object.keys(rev).filter(k => cen[k]);
+  return keys.map(k => ({ key:k, label: (rev[k] && rev[k].label) || (cen[k] && cen[k].label) || k }));
+}
+
+function bindMarketPicker(){
+  const sel = $('county-picker'); if (!sel) return;
+  const opts = countyOptions();
+  if (!opts.length){ sel.innerHTML = '<option>loading…</option>'; sel.disabled = true; return; }
+  if (!STATE.county || !opts.find(o=>o.key===STATE.county)){
+    const def = (STATE.tenant.market && STATE.tenant.market.default_county) || opts[0].key;
+    STATE.county = opts.find(o=>o.key===def) ? def : opts[0].key;
+  }
+  sel.disabled = false;
+  sel.innerHTML = opts.map(o => '<option value="'+esc(o.key)+'"'+(o.key===STATE.county?' selected':'')+'>📍 '+esc(o.label)+'</option>').join('');
+  sel.onchange = () => { STATE.county = sel.value; refreshDataTiles(); };
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TILE RENDERERS (read STATE → HTML; called on every data refresh)
+   ════════════════════════════════════════════════════════════════ */
+function refreshDataTiles(){
+  visibleLayers().forEach(l => {
+    if (l.group === 'artifact') return;            // artifact tiles are static (rendered once)
+    const el = $('tile-'+l.id); if (!el) return;
+    el.innerHTML = renderTile(l);
+  });
+  // market picker may need (re)populating once data arrives
+  if (!$('county-picker') || $('county-picker').disabled) bindMarketPicker();
+  bindTileClicks();
+}
+
+function renderTile(l){
+  switch (l.data && l.data.type){
+    case 'fl_api':   return tileCapitalRules(l);
+    case 'json_file':return tileJsonFile(l);
+    case 'computed': return l.data.source==='system_health' ? tileSystem(l) : tileGap(l);
+    default:         return tileGeneric(l);
   }
 }
 
-function renderFinancialError(){
-  let last = '';
-  try { const s = JSON.parse(localStorage.getItem(FL_LS_KEY)||'null'); if (s && s.ts) last = ' · last success ' + _fmtTs(s.ts); } catch(e){}
-  const bar = document.getElementById('fin-status-bar');
-  if (bar){
-    bar.className = 'fin-status-bar api-down';
-    bar.innerHTML = '⚠ API unreachable — Foundation Layer dashboard is not responding'+last+'. No live figures shown (never fake).';
-  }
-  ['capital-rules-grid','headline-metrics','market-tiles'].forEach(id => { const el=document.getElementById(id); if(el && !el.innerHTML.trim()) el.innerHTML='<div class="fin-empty">— unavailable —</div>'; });
-  const tbl = document.getElementById('entity-table'); if (tbl) tbl.innerHTML = '<tbody><tr><td class="fin-empty">— unavailable —</td></tr></tbody>';
+function badge(cls, txt){ return '<span class="badge '+cls+'">'+esc(txt)+'</span>'; }
+function tileOpen(l){ return ' data-tile="'+esc(l.id)+'"'; }
+function tileWrap(l, inner, linkable){
+  const cls = 'tile'+(linkable?'':' nolink')+(l.accent?' accent-'+l.accent:'');
+  return '<button type="button" class="'+cls+'"'+tileOpen(l)+'>'+inner+'</button>';
 }
 
-// ══════════════════════════════════════
-//  MARKET TILES — ./data/*.json snapshots (vault→repo push pipeline is a
-//  TARS-side follow-up; design for graceful absence + >48h stale badge).
-// ══════════════════════════════════════
-const MARKET_SNAPSHOTS = [
-  { file:'REVENTURE_LATEST.json',       title:'Reventure — Market',        render:m => 'cap rate + vacancy across ' + ((m.counties||m.markets||[]).length || '—') + ' counties' },
-  { file:'CENSUS_VACANCY_LATEST.json',  title:'Census — Rental Vacancy',   render:m => 'gross rental vacancy (ACS 5-yr) across ' + ((m.counties||[]).length || '—') + ' counties' },
-  { file:'DEALCHECK_PORTFOLIO.json',    title:'DealCheck — Portfolio',     render:m => ((m.properties||[]).length || '—') + ' properties tracked' },
-];
+/* SYSTEM — health roll-up */
+function tileSystem(l){
+  const flUp = STATE.status.fl === 'ok';
+  const flDown = STATE.status.fl === 'down';
+  const nLayers = visibleLayers().length;
+  let bcls='b-green', btxt='ALL GREEN', big='All green';
+  if (flDown){ bcls='b-red'; btxt='ATTENTION'; big='1 source down'; }
+  else if (STATE.status.fl==='pending'){ bcls='b-gray'; btxt='CHECKING'; big='Checking…'; }
+  // sparkline from FL trend if present, else flat
+  const trend = (STATE.data.fl && STATE.data.fl.trend_12_weeks) || [];
+  const bars = (trend.length?trend.slice(-7):[0,0,0,0,0,0,0]).map((t,i)=>{
+    const h = 30 + i*7; return '<i style="height:'+h+'%"></i>';
+  }).join('');
+  const liveSources = [STATE.data.reventure, STATE.data.census, flUp?true:null].filter(Boolean).length;
+  const inner =
+    '<div class="top"><span class="lbl">SYSTEM</span>'+badge(bcls,btxt)+'</div>'+
+    '<div class="big'+(flDown?'':'')+'">'+esc(big)+'</div>'+
+    '<div class="sub">'+nLayers+' layers · '+liveSources+' live sources</div>'+
+    '<div class="spark">'+bars+'</div>';
+  return tileWrap(l, inner, !!l.drilldown);
+}
 
-function _isStale(ts){ if(!ts) return false; const t=new Date(ts).getTime(); if(isNaN(t)) return false; return (Date.now()-t) > 48*3600*1000; }
-function _safe(fn,m){ try { return fn(m); } catch(e){ return 'snapshot present'; } }
+/* CAPITAL RULES — FL API */
+function tileCapitalRules(l){
+  const fl = STATE.data.fl;
+  if (STATE.status.fl === 'down'){
+    const inner = '<div class="top"><span class="lbl">CAPITAL RULES</span>'+badge('b-red','API DOWN')+'</div>'+
+      '<div class="big muted">unreachable</div><div class="sub">last-good held · never faked</div>';
+    return tileWrap(l, inner, !!l.drilldown);
+  }
+  if (!fl){ return tileWrap(l, '<div class="top"><span class="lbl">CAPITAL RULES</span>'+badge('b-gray','…')+'</div><div class="big muted">loading…</div>', !!l.drilldown); }
+  const cr = fl.capital_rules || {};
+  const keys = ['ltv','dscr','liquidity','per_door'];
+  const statuses = keys.map(k => (cr[k]&&cr[k].status)||'UNKNOWN');
+  let bcls, btxt, big;
+  if (statuses.includes('RED')){ bcls='b-red'; btxt='BREACH'; big='Breach'; }
+  else if (statuses.includes('YELLOW')){ bcls='b-yellow'; btxt='ATTENTION'; big='Attention'; }
+  else if (statuses.every(s=>s==='GREEN')){ bcls='b-green'; btxt='PASSING'; big='Passing'; }
+  else { bcls='b-gray'; btxt='STRUCTURE LIVE'; big='Pending'; }   // some UNKNOWN
+  const nPend = statuses.filter(s=>s==='UNKNOWN').length;
+  const sub = nPend ? ('LTV · DSCR · Liq · /door ('+nPend+' pending)') : 'LTV · DSCR · Liq · /door';
+  const inner = '<div class="top"><span class="lbl">CAPITAL RULES</span>'+badge(bcls,btxt)+'</div>'+
+    '<div class="big">'+esc(big)+'</div><div class="sub">'+esc(sub)+'</div>'+
+    '<div class="stamp">FL API · '+esc(fmtTs(fl.generated_at))+'</div>';
+  return tileWrap(l, inner, !!l.drilldown);
+}
 
-function renderMarketTiles(){
-  const wrap = document.getElementById('market-tiles');
-  if (!wrap) return;
-  wrap.innerHTML = '';
-  MARKET_SNAPSHOTS.forEach(snap => {
-    const tile = document.createElement('div');
-    tile.className = 'market-tile';
-    tile.innerHTML = '<div class="mt-title">'+_esc(snap.title)+'</div><div class="mt-body">loading…</div>';
-    wrap.appendChild(tile);
-    fetch('./data/'+snap.file, { cache:'no-store' })
-      .then(r => { if(!r.ok) throw new Error('missing'); return r.json(); })
-      .then(m => {
-        const ts = m.scraped_at || m.generated_at || m.timestamp || m.last_updated;
-        const stale = _isStale(ts);
-        tile.innerHTML = '<div class="mt-title">'+_esc(snap.title)+(stale?' <span class="mt-stale">STALE &gt;48h</span>':'')+'</div>'
-          + '<div class="mt-body">'+_esc(_safe(snap.render,m))+'</div>'
-          + '<div class="mt-ts">'+(ts?'snapshot '+_esc(_fmtTs(ts)):'')+'</div>';
-      })
-      .catch(() => {
-        tile.innerHTML = '<div class="mt-title">'+_esc(snap.title)+'</div><div class="mt-body awaiting">awaiting first snapshot push</div>';
-      });
+/* JSON-FILE tiles: portfolio (DealCheck), market (Reventure/Census/FRED) */
+function tileJsonFile(l){
+  const sel = l.data.select;
+  // market county-keyed (Reventure / Census)
+  if (l.data.county_keyed){
+    const src = l.data.source.indexOf('REVENTURE')>-1 ? STATE.data.reventure
+             : l.data.source.indexOf('CENSUS')>-1   ? STATE.data.census : null;
+    return tileMarketValue(l, src);
+  }
+  // FRED (file absent for v1)
+  if (l.data.source.indexOf('FRED')>-1){
+    return tileMarketAbsent(l, 'FRED');
+  }
+  // Portfolio (DealCheck) — graceful awaiting
+  if (l.id === 'portfolio'){ return tilePortfolio(l); }
+  return tileGeneric(l);
+}
+
+function tileMarketValue(l, src){
+  const tag = l.source_tag || '';
+  const tagCls = {REV:'src-rev',CEN:'src-cen'}[tag]||'src-rev';
+  const head = '<div class="top"><span class="lbl">'+esc(l.title)+'</span><span class="srcpill '+tagCls+'">'+esc(tag)+'</span></div>';
+  if (!src || !src.counties || !STATE.county || !src.counties[STATE.county]){
+    return tileWrap(l, head+'<div class="big muted">—</div><div class="sub">awaiting snapshot</div>', false);
+  }
+  const c = src.counties[STATE.county];
+  let val='—', sub='';
+  if (l.data.select==='cap_rate'){ val=pct(c.cap_rate&&c.cap_rate.value); sub='county blended · '+esc((c.cap_rate&&c.cap_rate.source_period)||''); }
+  else if (l.data.select==='vacancy_rate'){ val=pct(c.vacancy_rate&&c.vacancy_rate.value); sub='incl. seasonal · '+esc((c.vacancy_rate&&c.vacancy_rate.source_period)||''); }
+  else if (l.data.select==='rental_vacancy_rate_pct'){ val=pct(c.rental_vacancy_rate_pct); sub='ACS 5-yr · '+esc(src.data_year||''); }
+  const stale = isStale(src.scraped_at, 48*30); // monthly data; only flag if very old
+  return tileWrap(l, head+'<div class="big">'+esc(val)+'</div><div class="sub">'+sub+(stale?' · <span style="color:var(--yellow)">stale</span>':'')+'</div>', false);
+}
+
+function tileMarketAbsent(l, tag){
+  const tagCls = {FRED:'src-fred'}[tag]||'src-fl';
+  return tileWrap(l,
+    '<div class="top"><span class="lbl">'+esc(l.title)+'</span><span class="srcpill '+tagCls+'">'+esc(tag)+'</span></div>'+
+    '<div class="big muted">—</div><div class="sub">'+esc(tag)+' unavailable</div>', false);
+}
+
+/* CENSUS vs REV GAP — computed */
+function tileGap(l){
+  const rev = STATE.data.reventure, cen = STATE.data.census, k = STATE.county;
+  const head = '<div class="top"><span class="lbl">'+esc(l.title)+'</span></div>';
+  if (!rev||!cen||!k||!rev.counties[k]||!cen.counties[k]){
+    return tileWrap(l, head+'<div class="big muted">—</div><div class="sub">awaiting snapshot</div>', false);
+  }
+  const total = rev.counties[k].vacancy_rate && rev.counties[k].vacancy_rate.value;
+  const rental = cen.counties[k].rental_vacancy_rate_pct;
+  if (total==null||rental==null) return tileWrap(l, head+'<div class="big muted">—</div>', false);
+  const gap = Math.round((rental-total)*10)/10;
+  const sign = gap>0?'+':'';
+  return tileWrap(l, head+'<div class="big" style="color:var(--teal)">'+sign+gap+'pp</div><div class="sub">seasonal stock</div>', false);
+}
+
+/* PORTFOLIO — DealCheck (file absent for v1 → graceful) */
+function tilePortfolio(l){
+  const d = STATE.data.dealcheck;
+  const head = '<div class="top"><span class="lbl" style="color:var(--green)">DEALCHECK · PORTFOLIO</span>'+
+    (d?'<span class="stamp">'+esc(fmtTs(d.scraped_at))+'</span>':'<span class="srcpill src-dc">DEALCHECK</span>')+'</div>';
+  if (!d || !d.properties){
+    return '<button type="button" class="tile accent-green"'+tileOpen(l)+' style="width:100%">'+head+
+      '<div class="big muted" style="margin-top:6px">Awaiting first snapshot</div>'+
+      '<div class="sub">DealCheck portfolio push not wired yet — opens the Deal Analyzer.</div></button>';
+  }
+  const props = d.properties||[];
+  const doors = props.length;
+  const cf = props.reduce((s,p)=>s+(Number(p.cash_flow_monthly)||0),0);
+  const caps = props.map(p=>Number(p.cap_rate)).filter(n=>!isNaN(n));
+  const avgCap = caps.length ? (caps.reduce((a,b)=>a+b,0)/caps.length) : null;
+  return '<button type="button" class="tile accent-green"'+tileOpen(l)+' style="width:100%">'+head+
+    '<div style="display:flex; gap:26px; margin:6px 0 2px">'+
+    '<div><div class="big">'+doors+'</div><div class="sub">DOORS</div></div>'+
+    '<div><div class="big">'+fmtMoney(cf)+'</div><div class="sub">CF/MO</div></div>'+
+    '<div><div class="big">'+pct(avgCap)+'</div><div class="sub">AVG CAP</div></div></div></button>';
+}
+
+function tileGeneric(l){
+  return tileWrap(l, '<div class="top"><span class="lbl">'+esc(l.title)+'</span></div><div class="big muted">—</div>', !!l.drilldown);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DATA FETCH — honest states, last-good fallback, graceful absence
+   ════════════════════════════════════════════════════════════════ */
+function fetchAll(){
+  // FL API
+  const flUrl = (STATE.tenant.data_sources && STATE.tenant.data_sources.fl_api);
+  if (flUrl){
+    fetch(flUrl, {cache:'no-store'})
+      .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(d=>{ STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
+      .catch(()=>{ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
+  }
+  // committed snapshots (graceful absence)
+  loadSnapshot('./data/REVENTURE_LATEST.json',      d=>STATE.data.reventure=d);
+  loadSnapshot('./data/CENSUS_VACANCY_LATEST.json', d=>STATE.data.census=d);
+  loadSnapshot('./data/DEALCHECK_PORTFOLIO.json',   d=>STATE.data.dealcheck=d);
+  loadSnapshot('./data/FRED_LATEST.json',           d=>STATE.data.fred=d);
+}
+function loadSnapshot(url, set){
+  fetch(url, {cache:'no-store'})
+    .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+    .then(d=>{ set(d); refreshDataTiles(); })
+    .catch(()=>{ /* absent → tiles already show graceful state */ });
+}
+
+function updLiveBar(){
+  const live = document.querySelector('#updbar .live');
+  const lbl = $('live-label');
+  if (STATE.status.fl === 'down'){
+    let last='';
+    try{ const s=JSON.parse(localStorage.getItem(STATE.lastGoodKey)||'null'); if(s&&s.ts) last=' · last good '+fmtTs(s.ts); }catch(e){}
+    if (live) live.classList.add('down');
+    if (lbl) lbl.textContent = 'API unreachable'+last;
+  } else if (STATE.status.fl === 'ok'){
+    if (live) live.classList.remove('down');
+    if (lbl) lbl.textContent = 'Live · updated '+ (STATE.data.fl ? fmtTs(STATE.data.fl.generated_at) : fmtTs(new Date().toISOString()));
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ROUTING — tap a tile → open the drill-in of the same name
+   ════════════════════════════════════════════════════════════════ */
+function bindTileClicks(){
+  document.querySelectorAll('[data-tile]').forEach(el => {
+    if (el.__bound) return; el.__bound = true;
+    el.addEventListener('click', () => openLayer(el.getAttribute('data-tile')));
   });
 }
 
-// Init the financial + market render once the DOM is ready (containers live in
-// #panel-financials). app.js is loaded with defer, so the DOM is parsed here.
-(function initFinancialsTab(){
-  function go(){ renderFinancials(); renderMarketTiles(); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
-  else go();
-})();
+function openLayer(id){
+  const l = layerById(id); if (!l) return;
+  if (l.kind === 'add') return openAddLayer();
+  if (l.status_rules === 'soon') return openSoon(l);
+  if (!l.drilldown) return;                         // glance-only tile (market/system)
+  openDrill(l);
+}
 
+function pbar(l){
+  return '<div class="pbar"><div class="pbar-l"><button class="back" type="button" id="drill-back">← Back</button>'+
+    '<div class="ptitle">'+esc(l.icon||'')+' '+esc(l.title)+'</div></div></div>';
+}
+
+function openDrill(l){
+  const panel = $('panel');
+  panel.innerHTML = pbar(l) +
+    '<iframe class="drillframe" src="'+esc(l.drilldown)+'" title="'+esc(l.title)+'" loading="lazy"></iframe>';
+  // per-layer employee chat (core-rendered into the overlay chrome)
+  if (window.Agents) Agents.injectLayerEmployee(panel, l);
+  $('drill-back').onclick = closeDrill;
+  showOverlay('ov');
+}
+
+function openSoon(l){
+  const panel = $('panel');
+  panel.innerHTML = pbar(l) +
+    '<div class="drill-soon"><div class="ico">'+esc(l.icon||'🧩')+'</div>'+
+    '<h3>'+esc(l.title)+' — coming soon</h3>'+
+    '<p>This layer is on the roadmap. When it ships it drops in here with its own drill-in and on-call employee — no rebuild.</p></div>';
+  $('drill-back').onclick = closeDrill;
+  showOverlay('ov');
+}
+
+function openAddLayer(){
+  const panel = $('panel');
+  panel.innerHTML =
+    '<div class="pbar"><div class="pbar-l"><button class="back" type="button" id="drill-back">← Back</button><div class="ptitle">➕ Add a layer</div></div></div>'+
+    '<div class="card" style="background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:16px">'+
+    '<p style="font-size:14px;line-height:1.6;color:var(--txt)">A <b>layer</b> is a department of your business — Financials, Documents, Rent Roll, and so on. Each layer is a tile with a drill-in and its own on-call employee.</p>'+
+    '<p style="font-size:13px;line-height:1.6;color:var(--mut);margin-top:10px">Two ways to add one, no assembly required:</p>'+
+    '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">'+
+    '<div style="background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px"><b>Built for you</b><div style="font-size:12.5px;color:var(--mut);margin-top:3px">Tell us what you need; we build the layer and turn it on.</div></div>'+
+    '<div style="background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px"><b>Architect agent</b> <span class="badge b-gray">coming soon</span><div style="font-size:12.5px;color:var(--mut);margin-top:3px">A guided agent walks you through creating your own layer, step by step.</div></div>'+
+    '</div>'+
+    '<div class="src-note" style="font-size:11px;color:var(--dim);margin-top:14px">Under the hood: a layer = a folder in <code>/layers/</code> + one entry in <code>config/layers.json</code>. The core never changes. See <code>/layers/_TEMPLATE/</code>.</div>'+
+    '</div>';
+  $('drill-back').onclick = closeDrill;
+  showOverlay('ov');
+}
+
+function showOverlay(id){ $(id).classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; }
+function hideOverlay(id){ $(id).classList.remove('on'); document.body.style.overflow=''; }
+function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; }
+
+/* ── global controls ── */
+function wireGlobalControls(){
+  $('refresh-btn').onclick = forceRefresh;
+  $('tars-btn').onclick = () => { if (window.Agents) Agents.openGlobal(); };
+  // close overlays on backdrop click / Esc
+  ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov') $('panel').innerHTML=''; } }));
+  document.addEventListener('keydown', e => { if (e.key==='Escape'){ hideOverlay('ov'); hideOverlay('gov'); } });
+}
+
+function forceRefresh(){
+  const btn = $('refresh-btn');
+  btn.textContent = '↻ REFRESHING…'; btn.classList.add('refreshing');
+  // re-pull live sources without nuking the SW cache (honest, fast)
+  STATE.status.fl='pending'; refreshDataTiles();
+  fetchAll();
+  setTimeout(()=>{ btn.textContent='↻ REFRESH'; btn.classList.remove('refreshing'); }, 900);
+}
+
+/* go */
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+/* expose a few internals for the agents module */
+window.TCC = { STATE, layerById, visibleLayers, fmtMoney, fmtTs, esc };
