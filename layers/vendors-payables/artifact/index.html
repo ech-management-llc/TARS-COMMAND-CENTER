@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendors &amp; Payables — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🧾 Vendors &amp; Payables</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample payables.</b> Each bill links to the account it's paid from through the one accounts model (Plaid account id → entity map), so liabilities roll up per entity and feed the cash-flow + Capital-Rules view. Real balances + account identities arrive at Plaid production — until then amounts are illustrative and accounts read an honest sandbox state.
+  </div>
+
+  <div class="ruleg">
+    <div class="rule ry"><div class="rn">TOTAL DUE</div><div class="rv" style="color:var(--yellow)">$6,980</div><div class="rt">8 open bills</div></div>
+    <div class="rule ry"><div class="rn">DUE ≤7 DAYS</div><div class="rv" style="color:var(--yellow)">$2,600</div><div class="rt">3 bills</div></div>
+    <div class="rule rr"><div class="rn">OVERDUE</div><div class="rv">$1,200</div><div class="rt">1 bill</div></div>
+    <div class="rule rg"><div class="rn">LINKED ACCTS</div><div class="rv">5</div><div class="rt">entity → account</div></div>
+  </div>
+
+  <div class="card flush">
+    <table>
+      <tr><th>VENDOR</th><th>LINKED ACCOUNT</th><th>DUE</th><th>AMOUNT</th><th>STATUS</th></tr>
+      <tr><td>Lone Star Plumbing</td><td>ECH MGMT · Altra ··4471</td><td>Jun 4</td><td>$1,200</td><td><span class="tag b-red">overdue</span></td></tr>
+      <tr><td>TXU Energy</td><td>ECH Mabank · Altra ··2210</td><td>Jun 11</td><td>$640</td><td><span class="tag b-yellow">due</span></td></tr>
+      <tr><td>City of Athens (water)</td><td>ECH Athens · Altra ··3056</td><td>Jun 12</td><td>$310</td><td><span class="tag b-yellow">due</span></td></tr>
+      <tr><td>GreenScape Lawn</td><td>ECH MGMT · Altra ··4471</td><td>Jun 13</td><td>$450</td><td><span class="tag b-yellow">due</span></td></tr>
+      <tr><td>State Farm (insurance)</td><td>4E Dev · Altra ··1180</td><td>Jun 20</td><td>$1,720</td><td><span class="tag b-gray">scheduled</span></td></tr>
+      <tr><td>Home Depot (materials)</td><td>ECH MGMT · Altra ··4471</td><td>Jun 25</td><td>$980</td><td><span class="tag b-gray">scheduled</span></td></tr>
+      <tr><td>Bug-Out Pest</td><td>ECH Malakoff · Altra ··5093</td><td>Jun 28</td><td>$180</td><td><span class="tag b-gray">scheduled</span></td></tr>
+      <tr><td>Hayes CPA</td><td>ECH MGMT · Altra ··4471</td><td>Jul 1</td><td>$1,500</td><td><span class="tag b-gray">scheduled</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="section-label">ACCOUNTS CONTRACT</div>
+    <div class="small muted">Every payable references an account by its Plaid account id; the entity shown is resolved through the account-to-entity map (4E / ECH Mabank / ECH Athens / ECH Malakoff / ECH MGMT). This is the same single accounts model the Financial Dashboard, Capital Rules, Rent Roll, and Lender Packet all read — no tile invents its own.</div>
+    <div class="wire-note">Account numbers shown are masked sample placeholders. Real linkage + real dollars go live at Plaid production (currently sandbox → honest $0).</div>
+  </div>
+
+  <div class="wire-note" style="text-align:center">Invoices auto-intake from vendor-tagged emails in the Inbox layer and attach to an account + due date. Sample data.</div>
+</div>
+</body>
+</html>
