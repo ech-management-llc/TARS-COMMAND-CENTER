@@ -1,12 +1,12 @@
 {
   "name": "TARS Command Center",
   "short_name": "TARS",
-  "description": "ECH Management Services \u2014 AI Operations Command Center",
-  "start_url": "/",
-  "scope": "/",
+  "description": "Tile-based operations command center — Platform v1",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0d0d0d",
-  "theme_color": "#00e676",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
   "orientation": "portrait-primary",
   "categories": [
     "business",

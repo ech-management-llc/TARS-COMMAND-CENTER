@@ -1,0 +1,7 @@
+{
+  "_comment": "Data-source stub. If your tile shows live numbers, the core fetches a JSON file like this from the repo's top-level /data/ folder (data.source in your layer entry). Until the push pipeline fills it, the tile shows a graceful 'awaiting first snapshot' state — never blank, never faked.",
+  "schema_version": 1,
+  "scraped_at": "2026-01-01T00:00:00Z",
+  "value": null,
+  "note": "Replace with your real shape. Include a timestamp (scraped_at / generated_at) so the core can show a stale badge when the snapshot is old."
+}

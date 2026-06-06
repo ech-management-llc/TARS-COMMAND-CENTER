@@ -150,8 +150,10 @@ function renderHome(){
   bindMarketPicker();
 }
 
-// a stable container for each tile so data can refresh it in place
-function tileShell(l){ return '<div id="tile-'+esc(l.id)+'" data-tile="'+esc(l.id)+'"></div>'; }
+// a stable container for each tile so data can refresh it in place.
+// (data-tile lives on the inner button rendered by renderTile, not the shell,
+//  so a click binds/fires exactly once.)
+function tileShell(l){ return '<div id="tile-'+esc(l.id)+'" class="tile-shell"></div>'; }
 
 function renderArtifactGroup(ls){
   const cap = '<div class="empcap">👤 Every layer has an on-call employee — open any tile and tap “Ask” to have it find something or answer for you.</div>';

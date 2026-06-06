@@ -1,0 +1,25 @@
+{
+  "_comment": "Copy this object into the `layers` array in config/layers.json. Position = render order. Remove this _comment and the _hints below before shipping.",
+
+  "id": "my-layer",
+  "title": "My Layer",
+  "icon": "🧩",
+  "desc": "one short line under the tile name",
+  "group": "artifact",
+  "tier": "L1",
+  "enabled": true,
+  "entitled": true,
+  "data": { "type": "static" },
+  "status_rules": "neutral",
+  "drilldown": "./layers/my-layer/artifact/index.html",
+  "employee": { "name": "Alex", "role": "Layer specialist", "avatar": "A" },
+  "chips": ["What can you do here?", "Show me the latest"],
+
+  "_hints": {
+    "group": "status | portfolio | market | artifact",
+    "data.type": "static (just opens the drill-in) | fl_api | json_file | computed",
+    "data.source (json_file)": "./data/MY_SNAPSHOT.json — graceful 'awaiting snapshot' if absent",
+    "status_rules": "neutral | rollup | capital_rules | market_value | snapshot | soon | add",
+    "drilldown": "path to your standalone artifact page, or null for a glance-only tile"
+  }
+}
