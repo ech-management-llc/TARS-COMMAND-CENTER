@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financial Dashboard — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .livewire{background:var(--yellowbg);border:1px solid var(--yellowln);color:var(--yellow);font-size:13px;font-weight:600;border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:14px;line-height:1.5}
+  .livegreen{background:var(--greenbg);border:1px solid var(--greenln);color:var(--green)}
+  .apidown{background:var(--redbg);border:1px solid var(--redln);color:var(--red)}
+  .hm{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .hm .t{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:14px;text-align:center}
+  .hm .v{font-size:20px;font-weight:800}.hm .k{font-size:11px;color:var(--mut);margin-top:3px}
+  @media(max-width:560px){ .hm{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">📊 Financial Dashboard</div>
+  <div id="statusbar" class="livewire">Loading Foundation Layer live wire…</div>
+
+  <div class="section-label">CAPITAL RULES</div>
+  <div class="ruleg" id="rules"></div>
+
+  <div class="section-label">HEADLINE METRICS</div>
+  <div class="hm" id="headline"></div>
+
+  <div class="section-label">BY ENTITY</div>
+  <div class="card flush"><table id="entities"><tbody><tr><td class="muted">loading…</td></tr></tbody></table></div>
+
+  <div class="card">
+    <div class="section-label">REPORTS</div>
+    <div class="filt">
+      <button class="btn" onclick="report('P&amp;L')">P&amp;L</button>
+      <button class="btn" onclick="report('Cash Flow')">Cash Flow</button>
+      <button class="btn" onclick="report('Balance Sheet')">Balance Sheet</button>
+      <button class="btn primary" onclick="emailReport()">📧 Email this report</button>
+    </div>
+    <div class="wire-note" id="reportnote">Weekly P&amp;L · Cash Flow · Balance Sheet generate from the Foundation Layer ledger. Pre-production (Plaid sandbox), so rows read $0 honestly until real income flows.</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">ACCOUNTS CONTRACT</div>
+    <div class="small muted">Every figure here resolves through the one accounts model: Plaid pulls accounts + balances + transactions from the banks into the Foundation Layer backend; the account-to-entity map assigns each account to its entity. This dashboard reads the FL API — never Plaid directly, never a per-tile copy.</div>
+    <div class="wire-note">Plaid is in <b>sandbox</b>, so money reads an honest $0/placeholder. Real linkage + real dollars go live at Plaid production (gated on Nov compliance). No number here is fabricated.</div>
+  </div>
+
+  <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
+</div>
+
+<script>
+  var FL = "https://api.foundationlayerhq.com/api/dashboard/latest";
+  var LS = "tcc_fin_artifact_lastgood";
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function money(n){ if(n==null||isNaN(n)) return '—'; n=Number(n); var a=Math.abs(n); if(a>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+(n/1e3).toFixed(1)+'K'; return '$'+n.toLocaleString('en-US'); }
+  function ts(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d.getTime())) return iso; return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}); }
+  function ruleColor(s){ return s==='RED'?'rr':s==='YELLOW'?'ry':s==='GREEN'?'rg':''; }
+  function fmtLtv(v){ return v==null?'—':Math.round(v*100)+'%'; }
+  function fmtDscr(v){ return v==null?'—':Number(v).toFixed(2)+'×'; }
+
+  function render(d, source){
+    var hm = d.headline_metrics||{};
+    var hasIncome = Number(hm.total_revenue_ytd)>0;
+    var bar = document.getElementById('statusbar');
+    if (hasIncome){ bar.className='livewire livegreen'; bar.innerHTML='🟢 LIVE — Foundation Layer ledger data · week of '+esc(d.week_of||''); }
+    else { bar.className='livewire'; bar.innerHTML='🔌 LIVE WIRE — real dollar figures pending (ledger engine not finished). Rules + structure are live; revenue / NOI read $0 honestly.'; }
+
+    // capital rules
+    var cr = d.capital_rules||{};
+    var order = [['ltv','LTV',fmtLtv],['dscr','DSCR',fmtDscr],['liquidity','LIQUIDITY',money],['per_door','PER-DOOR',money]];
+    document.getElementById('rules').innerHTML = order.map(function(o){
+      var r = cr[o[0]]; if(!r) return '';
+      var st = r.status||'UNKNOWN';
+      var cls = ruleColor(st);
+      var sub = st==='UNKNOWN' ? 'pending (sandbox)' : ('thresh '+o[2](r.threshold)+(r.headroom!=null?' · head '+o[2](r.headroom):''));
+      return '<div class="rule '+cls+'"><div class="rn">'+o[1]+'</div><div class="rv">'+(st==='UNKNOWN'?'—':o[2](r.value))+'</div><div class="rt">'+esc(sub)+'</div></div>';
+    }).join('');
+
+    // headline
+    document.getElementById('headline').innerHTML = [['Revenue YTD','total_revenue_ytd'],['NOI YTD','total_noi_ytd'],['Cash','cash_position'],['Debt','total_debt']]
+      .map(function(m){ return '<div class="t"><div class="v">'+money(hm[m[1]])+'</div><div class="k">'+m[0]+'</div></div>'; }).join('');
+
+    // entities
+    var ents = d.entities||[];
+    document.getElementById('entities').innerHTML =
+      '<thead><tr><th>ENTITY</th><th>CASH</th><th>NOI YTD</th><th>STATUS</th></tr></thead><tbody>'+
+      ents.map(function(e){
+        var sandbox = !(Number(e.cash)>0);
+        return '<tr><td>'+esc(e.name||e.code)+'</td><td>'+(Number(e.cash)>0?money(e.cash):'—')+'</td>'+
+          '<td class="muted">'+money(e.noi_ytd)+'</td><td><span class="tag '+(sandbox?'b-gray':'b-green')+'">'+(sandbox?'sandbox':'live')+'</span></td></tr>';
+      }).join('')+'</tbody>';
+
+    document.getElementById('stamp').textContent = 'Source: '+source+' · generated '+ts(d.generated_at);
+    try{ localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}
+  }
+
+  function fail(){
+    var last=''; try{ var s=JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ts) last=' · last good '+ts(s.ts); }catch(e){}
+    var bar=document.getElementById('statusbar'); bar.className='livewire apidown';
+    bar.innerHTML='⚠ API unreachable — the Foundation Layer dashboard is not responding'+last+'. No figures shown (never faked).';
+    document.getElementById('rules').innerHTML='<div class="muted small">— unavailable —</div>';
+    document.getElementById('entities').innerHTML='<tbody><tr><td class="muted">— unavailable —</td></tr></tbody>';
+  }
+
+  function report(name){ document.getElementById('reportnote').innerHTML='<b>'+name+'</b> is pre-production: the ledger reads $0 until real income flows at Plaid production. The weekly pack generates from the Foundation Layer ledger.'; }
+  function emailReport(){ document.getElementById('reportnote').innerHTML='Live build: opens the email flow (recipient · scope · note) and sends the report via the Foundation Layer report pipeline. No external send is wired in this public preview.'; }
+
+  fetch(FL,{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){ render(d,'foundation-layer:api'); }).catch(fail);
+</script>
+</body>
+</html>

@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ECH Deal Analyzer · Prototype v0.1</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a0a;
+    --surface: #161616;
+    --surface-2: #1f1f1f;
+    --surface-3: #262626;
+    --border: #262626;
+    --border-strong: #3a3a3a;
+    --text: #fafafa;
+    --text-dim: #a1a1aa;
+    --text-faint: #71717a;
+    --green: #10b981;
+    --green-bg: rgba(16,185,129,0.12);
+    --green-glow: rgba(16,185,129,0.45);
+    --yellow: #eab308;
+    --yellow-bg: rgba(234,179,8,0.12);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.14);
+    --blue: #3b82f6;
+    --blue-bg: rgba(59,130,246,0.14);
+    --purple: #a855f7;
+    --purple-bg: rgba(168,85,247,0.12);
+    --orange: #f97316;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 2px 12px rgba(0,0,0,0.5);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px 16px 80px; }
+
+  /* ── Top banner ── */
+  .mockup-banner {
+    background: rgba(234,179,8,0.10);
+    border: 1px solid rgba(234,179,8,0.35);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--yellow);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .mockup-banner b { font-weight: 700; }
+
+  /* ── Header ── */
+  .hdr {
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .hdr-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .hdr-brand {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .hdr-brand b { color: var(--green); }
+  .mode-toggle {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .mode-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .mode-toggle button.active {
+    background: var(--green);
+    color: #062b1d;
+  }
+  .property-address {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .property-meta {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .property-meta b { color: var(--text); font-weight: 600; }
+
+  /* ── Verdict card (top hero) ── */
+  .verdict {
+    border-radius: var(--radius);
+    padding: 16px 18px 18px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-md);
+  }
+  .verdict.marginal {
+    background: linear-gradient(180deg, rgba(234,179,8,0.14) 0%, var(--surface) 60%);
+    border: 2px solid var(--yellow);
+  }
+  .verdict.good {
+    background: linear-gradient(180deg, rgba(16,185,129,0.14) 0%, var(--surface) 60%);
+    border: 2px solid var(--green);
+  }
+  .verdict.skip {
+    background: linear-gradient(180deg, rgba(239,68,68,0.14) 0%, var(--surface) 60%);
+    border: 2px solid var(--red);
+  }
+  .verdict-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .verdict-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.15;
+    margin-bottom: 8px;
+  }
+  .verdict.marginal .verdict-title { color: var(--yellow); }
+  .verdict.good .verdict-title { color: var(--green); }
+  .verdict.skip .verdict-title { color: var(--red); }
+  .verdict-body {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .verdict-body p { margin: 0 0 8px; }
+  .verdict-body p:last-child { margin-bottom: 0; }
+
+  /* ── Section labels ── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin: 0 0 12px 4px;
+  }
+
+  /* ── The Big Three (key metrics) ── */
+  .metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .metric-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .metric-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    flex: 1;
+  }
+  .metric-name .pro {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-faint);
+    letter-spacing: 0.8px;
+    margin-left: 6px;
+    text-transform: uppercase;
+  }
+  .metric-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+  .metric-explanation {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .metric-explanation b { color: var(--text); font-weight: 600; }
+  .pro-mode-only { display: none; }
+  body.pro-mode .pro-mode-only { display: inline; }
+  body.pro-mode .layman-only { display: none; }
+  .layman-only { display: inline; }
+
+  .metric-rating {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    font-size: 11px;
+  }
+  .rating-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--surface-3);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .rating-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .rating-bar-fill.green { background: var(--green); }
+  .rating-bar-fill.yellow { background: var(--yellow); }
+  .rating-bar-fill.red { background: var(--red); }
+  .rating-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    min-width: 80px;
+    text-align: right;
+  }
+  .rating-label.green { color: var(--green); }
+  .rating-label.yellow { color: var(--yellow); }
+  .rating-label.red { color: var(--red); }
+
+  /* ── Portfolio benchmark ── */
+  .benchmark {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px 16px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  .benchmark-intro {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .benchmark-intro b { color: var(--text); font-weight: 600; }
+  .portfolio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .portfolio-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .portfolio-row.this-property {
+    background: rgba(234,179,8,0.12);
+    border: 1px solid var(--yellow);
+  }
+  .portfolio-row .row-name {
+    flex: 1;
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .portfolio-row .row-cf {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 70px;
+    text-align: right;
+  }
+  .portfolio-row .row-cap {
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 55px;
+    text-align: right;
+  }
+  .portfolio-row.this-property .row-name,
+  .portfolio-row.this-property .row-cf,
+  .portfolio-row.this-property .row-cap {
+    color: var(--yellow);
+  }
+
+  /* ── Risk framing ── */
+  .risk {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px 16px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  .risk-scenarios {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .risk-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .risk-scenario-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--orange);
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    width: 110px;
+    line-height: 1.3;
+  }
+  .risk-impact {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.4;
+  }
+  .risk-impact .number {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .risk-impact .alert {
+    color: var(--red);
+    font-weight: 700;
+  }
+  .risk-impact .ok {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  /* ── What we'd watch (actionable) ── */
+  .action-card {
+    background: linear-gradient(180deg, rgba(59,130,246,0.10) 0%, var(--surface) 80%);
+    border: 1px solid rgba(59,130,246,0.30);
+    border-radius: var(--radius);
+    padding: 14px 16px 16px;
+    margin-bottom: 24px;
+  }
+  .action-card .label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--blue);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .action-card ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.55;
+  }
+  .action-card li { margin-bottom: 4px; }
+
+  /* ── Glossary ── */
+  .glossary-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+  }
+  .glossary-toggle {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 14px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: inherit;
+  }
+  .glossary-toggle:hover { background: var(--surface-2); }
+  .glossary-toggle .chevron { color: var(--text-faint); transition: transform 0.2s; }
+  .glossary-block.open .glossary-toggle .chevron { transform: rotate(180deg); }
+  .glossary-content {
+    display: none;
+    padding: 0 16px 16px;
+  }
+  .glossary-block.open .glossary-content { display: block; }
+  .glossary-item {
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .glossary-item b { color: var(--text); font-weight: 700; }
+  .glossary-item span { color: var(--text-dim); }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Disclaimer ── */
+  .disclaimer {
+    background: var(--surface-2);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 10px;
+    color: var(--text-faint);
+    line-height: 1.4;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  @media (min-width: 600px) {
+    .wrap { max-width: 720px; padding: 24px 24px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="mockup-banner">
+    <b>PROTOTYPE v0.1</b> · Deal Analyzer · pre-loaded with 415 Skiles for demo · static data
+  </div>
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-top">
+      <div class="hdr-brand"><b>ECH</b> Deal Analyzer</div>
+      <div class="mode-toggle">
+        <button class="active" id="mode-learner" onclick="setMode('learner')">Learner</button>
+        <button id="mode-pro" onclick="setMode('pro')">Pro</button>
+      </div>
+    </div>
+    <div class="property-address">415 Skiles St</div>
+    <div class="property-meta">
+      Malakoff, TX 75148 · <b>3 bed</b> / <b>1.5 bath</b> / <b>1,008 sqft</b> · House
+    </div>
+  </div>
+
+  <!-- VERDICT (top hero) -->
+  <div class="verdict marginal">
+    <div class="verdict-label">Our Take</div>
+    <div class="verdict-title">⚠️ Marginal — Buy with discipline</div>
+    <div class="verdict-body">
+      <p><b>The short version:</b> This deal works on paper but has thin margins. The annual return rate is healthy at 10.6%, but the monthly cash you'd actually keep after all bills is only $334. That's above our "won't touch it" floor of $300 per door, but below our $400–500 target for a solid keeper.</p>
+      <p><b>What this means:</b> One bad month — a busted HVAC, a vacancy, an insurance hike — and you're at break-even or losing money on this property. Pros buy deals like this all the time, but only when they have <b>strong reserves</b> and a clear improvement plan. Don't treat it as set-and-forget.</p>
+    </div>
+  </div>
+
+  <!-- THE BIG THREE -->
+  <div class="section-label">The Big Three Numbers</div>
+  <div class="metrics">
+
+    <!-- Cap Rate -->
+    <div class="metric">
+      <div class="metric-head">
+        <div class="metric-name">
+          <span class="layman-only">Annual Return Rate</span>
+          <span class="pro-mode-only">Cap Rate</span>
+          <span class="pro layman-only">aka "cap rate"</span>
+        </div>
+        <div class="metric-value">10.6%</div>
+      </div>
+      <div class="metric-explanation">
+        <span class="layman-only">If you bought this property in cash (no loan), this is the percent of your money it would return per year — before factoring in taxes or any growth in the property's value. <b>Higher is generally better.</b></span>
+        <span class="pro-mode-only">NOI / Purchase price. Pre-finance, pre-tax annual yield.</span>
+      </div>
+      <div class="metric-rating">
+        <div class="rating-bar"><div class="rating-bar-fill green" style="width: 78%"></div></div>
+        <div class="rating-label green">Strong</div>
+      </div>
+      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;">
+        <b>How this compares:</b> East TX class-B rentals average around 7.2%. This deal is <b>well above average</b> at 10.6%. Five of your other 11 properties beat it — but those are exceptional. Among the financed deals in your portfolio, this one's actually middle-of-the-pack.
+      </div>
+    </div>
+
+    <!-- Cash Flow -->
+    <div class="metric">
+      <div class="metric-head">
+        <div class="metric-name">
+          <span class="layman-only">Monthly Cash You'd Keep</span>
+          <span class="pro-mode-only">Net Cash Flow</span>
+          <span class="pro layman-only">aka "cash flow"</span>
+        </div>
+        <div class="metric-value">$334/mo</div>
+      </div>
+      <div class="metric-explanation">
+        <span class="layman-only">After collecting rent and paying the mortgage, property taxes, insurance, repairs, vacancy budget, and management fees — this is the actual money you'd put in your pocket each month.</span>
+        <span class="pro-mode-only">Monthly NOI minus debt service.</span>
+      </div>
+      <div class="metric-rating">
+        <div class="rating-bar"><div class="rating-bar-fill yellow" style="width: 50%"></div></div>
+        <div class="rating-label yellow">Marginal</div>
+      </div>
+      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;">
+        <b>How this compares to your rule:</b> Your hardwired rule says <b>$400–500/door target, $300 floor.</b> This deal is at $334 — above the floor, below the target. Out of your 12 properties, this one and 408 Kaufman are the only two financed deals below $400.
+      </div>
+    </div>
+
+    <!-- CoC -->
+    <div class="metric">
+      <div class="metric-head">
+        <div class="metric-name">
+          <span class="layman-only">Return on Your Cash</span>
+          <span class="pro-mode-only">Cash-on-Cash Return</span>
+          <span class="pro layman-only">aka "CoC return"</span>
+        </div>
+        <div class="metric-value">Infinity%</div>
+      </div>
+      <div class="metric-explanation">
+        <span class="layman-only">This is the percent return on the <b>actual cash</b> you put down at closing — separate from the loan. "Infinity" means you put <b>no money down</b> (this was a creative-financing deal). Mathematically the return is infinite, which sounds amazing but…</span>
+        <span class="pro-mode-only">Annual cash flow / cash invested. Infinity = $0 cash basis (BRRRR or creative-finance acquisition).</span>
+      </div>
+      <div class="metric-rating">
+        <div class="rating-bar"><div class="rating-bar-fill green" style="width: 95%"></div></div>
+        <div class="rating-label green">N/A — no cash in</div>
+      </div>
+      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;">
+        <b>Honest read:</b> Infinity-percent CoC sounds great but it means you have <b>zero equity cushion</b> on this deal. If property value drops or you need to sell fast, you have nothing to absorb the loss. Treat this as "free upside, but watch your back."
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PORTFOLIO BENCHMARK -->
+  <div class="section-label">How This Stacks Against Your Other Properties</div>
+  <div class="benchmark">
+    <div class="benchmark-intro">
+      ECH currently owns <b>12 rentals</b>. Here's how <b>415 Skiles</b> ranks on monthly cash flow:
+    </div>
+    <div class="portfolio-list">
+      <div class="portfolio-row"><span class="row-name">124 Pierce Dr (Mabank)</span><span class="row-cf">$1,088/mo</span><span class="row-cap">0%</span></div>
+      <div class="portfolio-row"><span class="row-name">103 Mary Beth Ln EDU</span><span class="row-cf">$750/mo</span><span class="row-cap">0%</span></div>
+      <div class="portfolio-row"><span class="row-name">204 W Mount Vernon</span><span class="row-cf">$728/mo</span><span class="row-cap">18.0%</span></div>
+      <div class="portfolio-row"><span class="row-name">500 Reynolds Rd</span><span class="row-cf">$649/mo</span><span class="row-cap">15.2%</span></div>
+      <div class="portfolio-row"><span class="row-name">1301 E Royall Blvd</span><span class="row-cf">$628/mo</span><span class="row-cap">15.8%</span></div>
+      <div class="portfolio-row"><span class="row-name">410 W Scott St</span><span class="row-cf">$412/mo</span><span class="row-cap">12.2%</span></div>
+      <div class="portfolio-row"><span class="row-name">408 E Kaufman St</span><span class="row-cf">$392/mo</span><span class="row-cap">12.2%</span></div>
+      <div class="portfolio-row this-property"><span class="row-name">⚠️ 415 Skiles St (this deal)</span><span class="row-cf">$334/mo</span><span class="row-cap">10.6%</span></div>
+      <div class="portfolio-row"><span class="row-name">103 Mary Beth Ln</span><span class="row-cf">$110/mo</span><span class="row-cap">1.1%</span></div>
+      <div class="portfolio-row"><span class="row-name">12451 St Hwy 198</span><span class="row-cf">$0/mo</span><span class="row-cap">0%</span></div>
+    </div>
+    <div class="benchmark-intro" style="margin-top:14px; margin-bottom:0;">
+      <b>Rank: 8 of 12 by monthly cash flow.</b> This is one of your weaker performers — only 2 of the active financed deals do worse. The annual return rate (10.6%) saves the picture, but if you bought another property today with the same profile, it'd drag your portfolio average down.
+    </div>
+  </div>
+
+  <!-- RISK FRAMING -->
+  <div class="section-label">What If Things Go Sideways?</div>
+  <div class="risk">
+    <div class="risk-scenarios">
+      <div class="risk-row">
+        <div class="risk-scenario-label">Rent drops 10%</div>
+        <div class="risk-impact">
+          Cash flow falls from <span class="number">$334</span> to roughly <span class="alert">$120/mo</span>. You'd drop <b>below your $300 floor.</b>
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-scenario-label">One month vacant</div>
+        <div class="risk-impact">
+          You'd lose ~<span class="number">$1,200</span> in rent and still owe the mortgage. <b>4+ months of normal cash flow</b> to recover.
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-scenario-label">Major repair ($8K)</div>
+        <div class="risk-impact">
+          New roof or HVAC = <span class="alert">~2 years of cash flow gone.</span> Pro reality, not catastrophe — but worth budgeting for.
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-scenario-label">Refi rate ↑ 1%</div>
+        <div class="risk-impact">
+          If you refi later, monthly payment climbs ~<span class="number">$60-80</span>. Cash flow drops to <span class="alert">~$250</span>, <b>below your floor.</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIONABLE TAKE -->
+  <div class="action-card">
+    <div class="label">📌 What We'd Watch</div>
+    <ul>
+      <li><b>Cash reserve.</b> Keep at least $5K dedicated to this property — one bad month would eat it.</li>
+      <li><b>Rent growth.</b> If Malakoff rents tick up 5% next year, this becomes a healthy deal. Track Reventure data on this market.</li>
+      <li><b>Don't add another like this.</b> One marginal deal is fine. Three drags the whole portfolio.</li>
+      <li><b>Exit option open.</b> Because you have zero cash basis, you can walk if numbers turn. That's the upside of the financing.</li>
+    </ul>
+  </div>
+
+  <!-- GLOSSARY -->
+  <div class="glossary-block" id="glossary">
+    <button class="glossary-toggle" onclick="toggleGlossary()">
+      <span>📖 Learn the Words — Plain English Glossary</span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="glossary-content">
+      <div class="glossary-item">
+        <b>Cap Rate</b> <span>— "Capitalization Rate." If you paid cash for a property (no loan), this is the annual return percent. Pros use it to compare deals quickly. Higher = better return per dollar of price.</span>
+      </div>
+      <div class="glossary-item">
+        <b>Cash Flow</b> <span>— What's left over each month after rent comes in and ALL bills go out (mortgage, taxes, insurance, repairs, vacancy budget, management). The actual money in your pocket.</span>
+      </div>
+      <div class="glossary-item">
+        <b>CoC (Cash-on-Cash)</b> <span>— Return on the actual cash you put down at closing. Different from cap rate because it accounts for loans. "Infinity" means you put $0 down (creative financing).</span>
+      </div>
+      <div class="glossary-item">
+        <b>NOI (Net Operating Income)</b> <span>— Annual rent collected minus annual expenses (NOT including loan payments). Used to calculate cap rate.</span>
+      </div>
+      <div class="glossary-item">
+        <b>DSCR (Debt Service Coverage Ratio)</b> <span>— How many times your NOI covers your mortgage payment. ECH requires 1.8× minimum — meaning property's income is 1.8x its mortgage.</span>
+      </div>
+      <div class="glossary-item">
+        <b>LTV (Loan-to-Value)</b> <span>— What percent of the property's value is borrowed. ECH caps this at 50%. The other 50% is your equity (or in this deal's case, zero).</span>
+      </div>
+      <div class="glossary-item">
+        <b>Per-door</b> <span>— Cash flow expressed per rental unit. A 4-unit property earning $1,600/mo is $400 per door. ECH targets $400-500/door.</span>
+      </div>
+      <div class="glossary-item">
+        <b>BRRRR</b> <span>— Buy, Rehab, Rent, Refinance, Repeat. A strategy where you buy a fixer, improve it, rent it, refinance to pull cash back out, then repeat. Common path to scaling a portfolio with limited starting capital.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DISCLAIMER -->
+  <div class="disclaimer">
+    Educational analysis only. Not investment advice. ECH Management is not a registered investment advisor. Numbers reflect assumptions that may not match your situation. Consult a qualified professional before committing capital.
+  </div>
+
+  <div class="footer">
+    ECH Deal Analyzer · prototype v0.1 · pre-loaded with 415 Skiles St for demo<br>
+    Built 2026-05-15 PM-3 · Source: DealCheck data + ECH portfolio benchmarks + Capital Rules
+  </div>
+
+</div>
+
+<script>
+  function setMode(mode) {
+    document.body.classList.toggle("pro-mode", mode === "pro");
+    document.getElementById("mode-learner").classList.toggle("active", mode === "learner");
+    document.getElementById("mode-pro").classList.toggle("active", mode === "pro");
+  }
+  function toggleGlossary() {
+    document.getElementById("glossary").classList.toggle("open");
+  }
+</script>
+</body>
+</html>
