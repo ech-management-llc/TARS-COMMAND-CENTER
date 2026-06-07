@@ -111,6 +111,25 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 
 .foot{text-align:center; color:var(--dim); font-size:11px; margin-top:26px; line-height:1.7}
 
+/* ── account chip (header) ── */
+.acct{font-size:11px;color:var(--dim);margin-top:3px}
+.acct button{background:none;border:0;color:var(--purple);font-size:11px;cursor:pointer;padding:0;text-decoration:underline}
+
+/* ── login gate ── */
+.gate{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.gate-card{width:100%;max-width:360px;background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:26px 22px;text-align:center}
+.gate-logo{display:flex;justify-content:center;margin-bottom:12px}
+.gate-card h2{font-size:20px;font-weight:700;letter-spacing:1px}
+.gate-card h2 span{color:var(--mut);font-weight:500;font-size:13px}
+.gate-sub{color:var(--mut);font-size:13px;margin:6px 0 16px}
+.gate-card label{text-align:left;display:block;font-size:11px;color:var(--mut);font-weight:600;margin:10px 2px 4px}
+.gate-card input,.gate-card select{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px 12px;font:inherit;font-size:14px}
+.gate-btn{width:100%;margin-top:14px;padding:11px;border:0;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;background:var(--surf2);color:var(--txt)}
+.gate-btn.primary{background:var(--accent,#10b981);color:#06150f}
+.gate-link{background:none;border:0;color:var(--purple);font-size:12px;margin-top:14px;cursor:pointer}
+.gate-note{font-size:11px;color:var(--dim);margin-top:14px;line-height:1.5}
+.gate-note.ok{color:var(--green)}
+
 /* ── global TARS button (top of home) ── */
 .tarsbtn{display:flex;align-items:center;gap:13px;width:100%;background:var(--purplebg);border:1px solid var(--purpleln);border-radius:var(--radius);padding:12px 16px;cursor:pointer;color:inherit;margin-bottom:14px;text-align:left}
 .tarsbtn:hover{background:#211c3d}

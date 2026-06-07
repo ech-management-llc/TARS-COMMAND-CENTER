@@ -67,7 +67,18 @@ async function boot(){
     return;
   }
   applyBranding();
-  if (window.Agents) Agents.init(STATE);   // global TARS + per-layer employees + memory store
+  // Login gates the app (productized). If no session, show the light sign-in.
+  if (!Auth.session()) { renderLoginGate(); return; }
+  startApp();
+}
+
+function startApp(){
+  const s = Auth.session();
+  STATE.user = s;
+  STATE.role = s.role || 'owner';
+  STATE.scope = s.scope || null;                 // field role → a single layer id
+  if (STATE.tenant) STATE.tenant.current_role = STATE.role;
+  if (window.Agents) Agents.init(STATE);         // global TARS + per-layer employees + memory store
   renderChrome();
   renderHome();
   fetchAll();
@@ -80,9 +91,34 @@ function applyBranding(){
   document.title = (b.title? b.title+' ' : '') + 'Command Center';
 }
 
-/* ── entitlement + enabled filter (the licensing boundary lives here) ── */
+/* ════════════════════════════════════════════════════════════════
+   AUTH (light, plug-and-play — magic-link / simple sign-in).
+   Honest: this is a CLIENT-SIDE demo gate for the static build; real
+   verification wires to Foundation Layer Supabase / a magic-link backend
+   at production. Session is per-browser.
+   ════════════════════════════════════════════════════════════════ */
+const AUTH_KEY = 'tcc_session';
+const Auth = {
+  session(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY)||'null'); } catch(e){ return null; } },
+  signIn(sess){ try { localStorage.setItem(AUTH_KEY, JSON.stringify(sess)); } catch(e){} },
+  signOut(){ try { localStorage.removeItem(AUTH_KEY); } catch(e){} }
+};
+
+/* ── entitlement: registry flag OR a tenant purchase override (Plans & Billing) ── */
+const ENT_KEY = 'tcc_entitlements';
+const Entitlement = {
+  overrides(){ try { return JSON.parse(localStorage.getItem(ENT_KEY)||'{}'); } catch(e){ return {}; } },
+  has(id){ return this.overrides()[id] === true; },
+  grant(id){ const o=this.overrides(); o[id]=true; try{ localStorage.setItem(ENT_KEY, JSON.stringify(o)); }catch(e){} },
+  isEntitled(l){ return l.entitled !== false || this.has(l.id); }
+};
+
+/* ── enabled + entitlement + role-scope filter (the licensing/role boundary) ── */
 function visibleLayers(){
-  return (STATE.registry.layers||[]).filter(l => l.enabled !== false && l.entitled !== false);
+  let ls = (STATE.registry.layers||[]).filter(l => l.enabled !== false && Entitlement.isEntitled(l));
+  // Field role: scoped to ONE layer/job. Read-only/Owner/Admin see all entitled layers.
+  if (STATE.role === 'field' && STATE.scope) ls = ls.filter(l => l.id === STATE.scope);
+  return ls;
 }
 function layersInGroup(g){ return visibleLayers().filter(l => l.group === g); }
 function layerById(id){ return (STATE.registry.layers||[]).find(l => l.id === id); }
@@ -99,21 +135,32 @@ function renderChrome(){
   $('verbar').innerHTML = '<b>PLATFORM v1</b>' +
     tags.map(t => '<span class="srcpill '+(pillCls[t]||'src-fl')+'">'+esc(t)+'</span>').join('');
 
-  // global TARS button
+  // global TARS button — pinned at top; hidden for the scoped Field role
   const g = STATE.tenant.global_agent || {};
-  $('tars-btn').innerHTML =
-    '<span class="tarsav">'+tarsSvg(26)+'</span>'+
-    '<span class="tarstxt"><b>Ask '+esc(g.name||'TARS')+'</b><span>'+esc(g.tagline||'your on-call AI employee')+'</span></span>'+
-    '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
+  const tarsBtn = $('tars-btn');
+  if (STATE.role === 'field'){
+    tarsBtn.style.display = 'none';
+  } else {
+    tarsBtn.style.display = '';
+    tarsBtn.innerHTML =
+      '<span class="tarsav">'+tarsSvg(26)+'</span>'+
+      '<span class="tarstxt"><b>Ask '+esc(g.name||'TARS')+'</b><span>'+esc(g.tagline||'your on-call AI employee')+'</span></span>'+
+      '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
+  }
 
-  // header
+  // header + account chip (name · role · sign out)
   const op = (STATE.tenant.operator)||{};
   const b = (STATE.tenant.branding)||{};
+  const u = STATE.user || {};
+  const roleLabel = { owner:'Owner', admin:'Admin', staff:'Staff', viewer:'Read-only', tenant:'Tenant', field:'Field' }[STATE.role] || STATE.role;
   const now = new Date();
   $('head').innerHTML =
     '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>'+
     '<div class="when"><b>'+now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+'</b>'+
-    timeOfDay()+(op.greeting_name?' · '+esc(op.greeting_name):'')+'</div>';
+    timeOfDay()+(u.name?' · '+esc(u.name):'')+
+    '<div class="acct">'+esc(roleLabel)+(STATE.role==='field'&&STATE.scope?' · '+esc((layerById(STATE.scope)||{}).title||STATE.scope):'')+
+    ' · <button type="button" id="signout-btn">sign out</button></div></div>';
+  $('signout-btn').onclick = () => { Auth.signOut(); location.reload(); };
 
   // AI summary (static for v1 — honest)
   const ai = STATE.tenant.ai_summary || {};
@@ -129,6 +176,73 @@ function renderChrome(){
   // footer
   $('foot').innerHTML = 'TCC · PLATFORM v1 · tenant: '+esc(STATE.tenant.name||'')+
     (STATE.tenant.reference_install?' (reference install)':'')+'<br>layers render from the registry · honest display always';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LOGIN GATE — light, plug-and-play. Default path = magic link.
+   "Advanced / demo roles" lets you sign in as Admin / Read-only / Field
+   (Field picks a single layer/job it is scoped to).
+   ════════════════════════════════════════════════════════════════ */
+function deriveName(contact, role){
+  if (role==='owner') return (STATE.tenant.operator && STATE.tenant.operator.greeting_name) || 'Owner';
+  if (contact && contact.indexOf('@')>0) return contact.split('@')[0];
+  return ({admin:'Staff', viewer:'Viewer', field:'Field user', tenant:'Tenant'})[role] || 'User';
+}
+function renderLoginGate(){
+  const b = (STATE.tenant.branding)||{};
+  const scopeOpts = (STATE.registry.layers||[]).filter(l => l.drilldown)
+    .map(l => '<option value="'+esc(l.id)+'">'+esc(l.title)+'</option>').join('');
+  const el = document.createElement('div');
+  el.className = 'gate'; el.id = 'login-gate';
+  el.innerHTML =
+    '<div class="gate-card">'+
+      '<div class="gate-logo"><span class="tarsav" style="width:54px;height:54px">'+tarsSvg(32)+'</span></div>'+
+      '<h2>'+esc(b.title||STATE.tenant.name||'TARS')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h2>'+
+      '<p class="gate-sub">Sign in to your command center.</p>'+
+      '<label>Email or phone</label>'+
+      '<input id="gate-id" placeholder="you@company.com  ·  or  +1 555…" autocomplete="username">'+
+      '<button class="gate-btn primary" type="button" id="gate-send">Send magic link</button>'+
+      '<div id="gate-sent" style="display:none">'+
+        '<div class="gate-note ok" id="gate-sent-msg">✓ Magic link sent (demo — no real email/SMS). Tap continue to sign in.</div>'+
+        '<button class="gate-btn primary" type="button" id="gate-continue">Continue →</button>'+
+      '</div>'+
+      '<button class="gate-link" type="button" id="gate-adv-toggle">Advanced / demo roles</button>'+
+      '<div id="gate-adv" style="display:none">'+
+        '<label>Role</label>'+
+        '<select id="gate-role"><option value="owner">Owner (full)</option><option value="admin">Admin / Staff</option><option value="viewer">Read-only / Viewer</option><option value="field">Field (one job)</option></select>'+
+        '<div id="gate-scope-wrap" style="display:none"><label>Field scope — one layer/job</label><select id="gate-scope">'+scopeOpts+'</select></div>'+
+      '</div>'+
+      '<div class="gate-note">Light, plug-and-play sign-in. Real verification (Supabase / magic-link) wires at production — this build uses a local demo session.</div>'+
+    '</div>';
+  document.body.appendChild(el);
+
+  const idInput = el.querySelector('#gate-id');
+  const role = el.querySelector('#gate-role');
+  el.querySelector('#gate-adv-toggle').onclick = () => { const a=el.querySelector('#gate-adv'); a.style.display = a.style.display==='none'?'block':'none'; };
+  role.onchange = () => { el.querySelector('#gate-scope-wrap').style.display = role.value==='field'?'block':'none'; };
+  function doSignIn(){
+    const contact = (idInput.value||'').trim();
+    const r = role.value || 'owner';
+    const sess = {
+      name: deriveName(contact, r), role: r,
+      tenant: STATE.tenant.tenant_id || 'ech',
+      contact: contact || null,
+      scope: r==='field' ? (el.querySelector('#gate-scope').value || null) : null,
+      at: new Date().toISOString()
+    };
+    Auth.signIn(sess);
+    el.remove();
+    startApp();
+  }
+  el.querySelector('#gate-send').onclick = () => {
+    const r = role.value;
+    el.querySelector('#gate-sent-msg').innerHTML = r==='field'
+      ? '✓ Sign-in code sent to your phone/email (demo). Tap continue — you’ll land scoped to one job.'
+      : '✓ Magic link sent (demo — no real email/SMS). Tap continue to sign in.';
+    el.querySelector('#gate-sent').style.display='block';
+  };
+  el.querySelector('#gate-continue').onclick = doSignIn;
+  idInput.addEventListener('keydown', e => { if (e.key==='Enter') el.querySelector('#gate-send').click(); });
 }
 
 function tarsSvg(s){
@@ -485,19 +599,17 @@ function openSoon(l){
   showOverlay('ov');
 }
 
+// "+ Add a layer" → the Plans & Billing marketplace (buying flips entitlement ON)
 function openAddLayer(){
+  const pb = layerById('plans-billing');
+  const url = (pb && pb.drilldown) ? pb.drilldown + '#marketplace' : null;
+  if (!url){ openSoon({ title:'Add a layer', icon:'➕' }); return; }
   const panel = $('panel');
+  STATE.openLayer = 'plans-billing';
   panel.innerHTML =
     '<div class="pbar"><div class="pbar-l"><button class="back" type="button" id="drill-back">← Back</button><div class="ptitle">➕ Add a layer</div></div></div>'+
-    '<div class="card" style="background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:16px">'+
-    '<p style="font-size:14px;line-height:1.6;color:var(--txt)">A <b>layer</b> is a department of your business — Financials, Documents, Rent Roll, and so on. Each layer is a tile with a drill-in and its own on-call employee.</p>'+
-    '<p style="font-size:13px;line-height:1.6;color:var(--mut);margin-top:10px">Two ways to add one, no assembly required:</p>'+
-    '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">'+
-    '<div style="background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px"><b>Built for you</b><div style="font-size:12.5px;color:var(--mut);margin-top:3px">Tell us what you need; we build the layer and turn it on.</div></div>'+
-    '<div style="background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px"><b>Architect agent</b> <span class="badge b-gray">coming soon</span><div style="font-size:12.5px;color:var(--mut);margin-top:3px">A guided agent walks you through creating your own layer, step by step.</div></div>'+
-    '</div>'+
-    '<div class="src-note" style="font-size:11px;color:var(--dim);margin-top:14px">Under the hood: a layer = a folder in <code>/layers/</code> + one entry in <code>config/layers.json</code>. The core never changes. See <code>/layers/_TEMPLATE/</code>.</div>'+
-    '</div>';
+    '<iframe class="drillframe" id="drill-iframe" src="'+esc(url)+'" title="Add a layer" loading="lazy"></iframe>';
+  if (window.Agents && pb) Agents.injectLayerEmployee(panel, pb);
   $('drill-back').onclick = closeDrill;
   showOverlay('ov');
 }
@@ -513,6 +625,8 @@ function wireGlobalControls(){
   // close overlays on backdrop click / Esc
   ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov') $('panel').innerHTML=''; } }));
   document.addEventListener('keydown', e => { if (e.key==='Escape'){ hideOverlay('ov'); hideOverlay('gov'); } });
+  // a Plans & Billing purchase flips entitlement → re-render the home so the new tile appears
+  window.addEventListener('message', e => { const d = e.data || {}; if (d && d.type === 'tcc:purchase') renderHome(); });
 }
 
 function forceRefresh(){
