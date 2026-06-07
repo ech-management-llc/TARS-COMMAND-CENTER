@@ -52,6 +52,16 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 
 .sect{font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--dim); margin:22px 2px 10px}
 
+/* ── collapsible group sections ── */
+.grp{margin-top:18px}
+.grp-head{display:flex; align-items:center; justify-content:space-between; width:100%; background:transparent; border:0; border-bottom:1px solid var(--line); padding:6px 2px 8px; margin-bottom:12px; cursor:pointer; color:inherit; font:inherit}
+.grp-head:hover .grp-label{color:var(--mut)}
+.grp-label{font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--dim)}
+.grp-chev{color:var(--dim); font-size:12px; transition:transform .15s}
+.grp.collapsed .grp-chev{transform:rotate(-90deg)}
+.grp.collapsed .grp-body{display:none}
+.grp-body{display:block}
+
 .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
 .grid4{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
 .gridA{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}

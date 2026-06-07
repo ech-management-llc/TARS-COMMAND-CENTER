@@ -130,24 +130,47 @@ function tarsSvg(s){
 /* ════════════════════════════════════════════════════════════════
    HOME — groups + tiles
    ════════════════════════════════════════════════════════════════ */
+function groupDef(id){ return (STATE.registry.groups||[]).find(g => g.id === id) || { id, render:'card' }; }
+function collapsedSet(){ try { return new Set(JSON.parse(localStorage.getItem('tcc_collapsed')||'[]')); } catch(e){ return new Set(); } }
+
 function renderHome(){
   const groups = STATE.registry.groups || [];
+  const collapsed = collapsedSet();
   let html = '';
+  let firstCard = true;
   groups.forEach(grp => {
     const ls = layersInGroup(grp.id);
     if (!ls.length) return;
-    if (grp.label) html += '<div class="sect">'+esc(grp.label)+'</div>';
-    if (grp.id === 'status')    html += '<div class="grid2">'+ls.map(tileShell).join('')+'</div>';
-    else if (grp.id === 'portfolio') html += ls.map(tileShell).join('');
-    else if (grp.id === 'market')    html += renderMarketGroup(ls);
-    else if (grp.id === 'artifact')  html += renderArtifactGroup(ls);
-    else html += ls.map(tileShell).join('');
+    let body;
+    if (grp.id === 'market')           body = renderMarketGroup(ls);
+    else if (grp.render === 'card')  { body = renderCardGroup(ls, firstCard); firstCard = false; }
+    else                               body = '<div class="grid2">'+ls.map(tileShell).join('')+'</div>'; // glance (overview)
+    const isCol = collapsed.has(grp.id);
+    html += '<section class="grp'+(isCol?' collapsed':'')+'" data-group="'+esc(grp.id)+'">'+
+      '<button type="button" class="grp-head" data-grp="'+esc(grp.id)+'">'+
+      '<span class="grp-label">'+esc(grp.label||grp.id)+'</span><span class="grp-chev">▾</span></button>'+
+      '<div class="grp-body">'+body+'</div></section>';
   });
   $('home').innerHTML = html;
   // initial paint of data-bound tiles (skeleton → fills when data lands)
   refreshDataTiles();
   bindTileClicks();
   bindMarketPicker();
+  bindGroupHeaders();
+}
+
+function bindGroupHeaders(){
+  document.querySelectorAll('.grp-head').forEach(h => {
+    if (h.__bound) return; h.__bound = true;
+    h.addEventListener('click', () => toggleGroup(h.getAttribute('data-grp')));
+  });
+}
+function toggleGroup(id){
+  const sec = document.querySelector('.grp[data-group="'+id+'"]'); if (!sec) return;
+  sec.classList.toggle('collapsed');
+  const set = collapsedSet();
+  if (sec.classList.contains('collapsed')) set.add(id); else set.delete(id);
+  try { localStorage.setItem('tcc_collapsed', JSON.stringify([...set])); } catch(e){}
 }
 
 // a stable container for each tile so data can refresh it in place.
@@ -155,8 +178,8 @@ function renderHome(){
 //  so a click binds/fires exactly once.)
 function tileShell(l){ return '<div id="tile-'+esc(l.id)+'" class="tile-shell"></div>'; }
 
-function renderArtifactGroup(ls){
-  const cap = '<div class="empcap">👤 Every layer has an on-call employee — open any tile and tap “Ask” to have it find something or answer for you.</div>';
+function renderCardGroup(ls, withCaption){
+  const cap = withCaption ? '<div class="empcap">👤 Every layer has an on-call employee — open any tile and tap “Ask” to have it find, answer, or reshape the tile for you.</div>' : '';
   return cap + '<div class="gridA">'+ls.map(artTile).join('')+'</div>';
 }
 
@@ -171,16 +194,20 @@ function artTile(l){
     '<div class="ds">'+esc(l.desc||'')+'</div></button>';
 }
 
-/* ── MARKET group: county picker + tiles ── */
+/* ── MARKET group: county picker + market tiles + full-width Portfolio ── */
 function renderMarketGroup(ls){
+  const portfolio = ls.find(l => l.id === 'portfolio');
+  const market = ls.filter(l => l.id !== 'portfolio');
   const picker = '<div class="pickrow"><select class="picker" id="county-picker"></select></div>';
-  // split: first 4 in a grid4, remainder in grid2 (mirrors the visual target)
-  const top = ls.slice(0,4), rest = ls.slice(4);
+  // split market value tiles: first 4 in a grid4, remainder in grid2 (mirrors the visual target)
+  const top = market.slice(0,4), rest = market.slice(4);
   let h = picker + '<div class="grid4">'+top.map(tileShell).join('')+'</div>';
   if (rest.length) h += '<div class="grid2" style="margin-top:10px">'+rest.map(tileShell).join('')+'</div>';
   // gap explanation note (from the gap layer's note, if present)
-  const gap = ls.find(l => l.data && l.data.source==='vacancy_gap');
+  const gap = market.find(l => l.data && l.data.source==='vacancy_gap');
   if (gap && gap.note) h += '<div class="note" id="market-note"><b>Why two vacancy numbers?</b> '+esc(gap.note)+'</div>';
+  // Portfolio (DealCheck) renders full-width under the market tiles
+  if (portfolio) h += '<div style="margin-top:12px">'+tileShell(portfolio)+'</div>';
   return h;
 }
 
@@ -210,7 +237,7 @@ function bindMarketPicker(){
    ════════════════════════════════════════════════════════════════ */
 function refreshDataTiles(){
   visibleLayers().forEach(l => {
-    if (l.group === 'artifact') return;            // artifact tiles are static (rendered once)
+    if (groupDef(l.group).render === 'card') return;   // card tiles are static (rendered once)
     const el = $('tile-'+l.id); if (!el) return;
     el.innerHTML = renderTile(l);
   });
