@@ -102,6 +102,73 @@ function globalReply(text){
 }
 
 /* ════════════════════════════════════════════════════════════════
+   IN-TILE VIEW CONFIG — the per-layer employee reshapes the tile in
+   plain language ("add a late-fee column", "drop the trend chart").
+   - Edits the layer's VIEW config only (columns/sections/widgets);
+     never the underlying data.
+   - Persisted via the memory store so it sticks across sessions/devices.
+   - Supports undo. Scoped to the layer. Gated by role (canEdit).
+   ════════════════════════════════════════════════════════════════ */
+const ViewConfig = {
+  key(layerId){ return 'tcc_viewcfg_' + layerId; },
+  get(layerId){ try { return JSON.parse(localStorage.getItem(this.key(layerId)) || '{"ops":[]}'); } catch(e){ return { ops:[] }; } },
+  save(layerId, cfg){
+    try { localStorage.setItem(this.key(layerId), JSON.stringify(cfg)); } catch(e){}
+    // also persist the change to the tenant's memory store (per-layer scope)
+    Memory.append(layerId, { kind:'view-config', ops: cfg.ops });
+  },
+  apply(layerId, op){ const c = this.get(layerId); c.ops.push(op); this.save(layerId, c); return c; },
+  undo(layerId){ const c = this.get(layerId); const removed = c.ops.pop(); this.save(layerId, c); return { cfg:c, removed:removed }; },
+  // role gate (stub until auth lands): Owner/Admin may edit the view; Read-only may not.
+  canEdit(){ const role = (TENANT && TENANT.current_role) || 'owner'; return role === 'owner' || role === 'admin' || role === 'staff'; }
+};
+
+// natural-language → a view op (or null)
+function parseViewCommand(text){
+  const t = (text||'').trim().toLowerCase();
+  if (/^(undo|revert)\b/.test(t)) return { type:'undo' };
+  const m = t.match(/\b(add|show|include|remove|drop|hide|delete|take out)\b\s+(?:a |an |the |my )?(.+?)(?:\s+(column|columns|section|sections|field|fields|widget|chart|graph|tab|panel))?[.?!]*$/);
+  if (!m) return null;
+  const verb = m[1];
+  const noun = m[3] || 'column';
+  const target_type = /(section|tab|panel)/.test(noun) ? 'section' : /(widget|chart|graph)/.test(noun) ? 'widget' : 'col';
+  const label = m[2].trim().replace(/\b(column|section|field|widget|chart|graph|tab|panel)s?\b/g,'').trim() || m[2].trim();
+  const target = label.replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  const type = /^(add|show|include)$/.test(verb) ? 'add' : 'remove';
+  return { type, target_type, target, label };
+}
+
+// push the saved view config into the open drill-in iframe
+function pushViewConfig(layerId){
+  const fr = document.getElementById('drill-iframe');
+  if (!fr || !fr.contentWindow) return;
+  const cfg = ViewConfig.get(layerId);
+  try { fr.contentWindow.postMessage({ type:'tcc:viewcfg', layer:layerId, ops: cfg.ops }, '*'); } catch(e){}
+}
+
+// route a layer-chat message: view-edit command first, else a normal reply
+function handleLayerMessage(layer, emp, text){
+  const cmd = parseViewCommand(text);
+  if (!cmd) return layerReply(layer, emp, text);
+  if (!ViewConfig.canEdit())
+    return 'You have view-only access on this tile, so I can’t change its layout — an Owner or Admin can.';
+  if (cmd.type === 'undo'){
+    const { removed } = ViewConfig.undo(layer.id);
+    pushViewConfig(layer.id);
+    if (!removed) return 'Nothing to undo on the ' + esc(layer.title) + ' view.';
+    const back = removed.type === 'add' ? 'removed' : 'restored';
+    return 'Reverted — ' + back + ' the <b>' + esc(removed.label) + '</b> ' + removed.target_type + '.';
+  }
+  ViewConfig.apply(layer.id, cmd);
+  pushViewConfig(layer.id);
+  const did = cmd.type === 'add' ? 'Added' : 'Removed';
+  return did + ' the <b>' + esc(cmd.label) + '</b> ' + cmd.target_type + ' on your ' + esc(layer.title) +
+    ' view. It sticks across sessions and devices (saved to your ' + esc(Memory.describe()) +
+    '), changes only the view — never the underlying data — and you can say “undo” to revert.' +
+    ' <span style="color:var(--dim)">(If a field has no data yet it shows blank until it does.)</span>';
+}
+
+/* ════════════════════════════════════════════════════════════════
    CHAT UI
    ════════════════════════════════════════════════════════════════ */
 function esc(s){ return (window.TCC?window.TCC.esc:String)(s); }
@@ -146,7 +213,7 @@ function injectLayerEmployee(panel, layer){
   const send = () => {
     const v = input.value; if (!v || !v.trim()) return; input.value='';
     msgs.insertAdjacentHTML('beforeend','<div class="emsg u">'+escd(v)+'</div>');
-    setTimeout(()=>{ msgs.insertAdjacentHTML('beforeend','<div class="emsg a">'+layerReply(layer, emp, v)+'</div>'); msgs.scrollTop=msgs.scrollHeight; }, 220);
+    setTimeout(()=>{ msgs.insertAdjacentHTML('beforeend','<div class="emsg a">'+handleLayerMessage(layer, emp, v)+'</div>'); msgs.scrollTop=msgs.scrollHeight; }, 220);
   };
   dock.querySelector('.einput button').onclick = send;
   input.addEventListener('keydown', e => { if (e.key==='Enter') send(); });
@@ -192,10 +259,19 @@ function $(id){ return document.getElementById(id); }
 
 /* ── public API ── */
 window.Agents = {
-  init(state){ STATE = state; TENANT = state.tenant; Memory.load('all'); },
+  init(state){
+    STATE = state; TENANT = state.tenant; Memory.load('all');
+    // answer a drill-in that asks for its saved view config on load
+    window.addEventListener('message', function(e){
+      const d = e.data || {};
+      if (d && d.type === 'tcc:viewcfg:request' && STATE.openLayer) pushViewConfig(STATE.openLayer);
+    });
+  },
   openGlobal: openGlobal,
   injectLayerEmployee: injectLayerEmployee,
-  memory: Memory
+  pushViewConfig: pushViewConfig,
+  memory: Memory,
+  viewConfig: ViewConfig
 };
 
 })();

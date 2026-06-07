@@ -8,9 +8,17 @@
    config/layers.json. No edit here. (See /layers/_TEMPLATE/README.md.)
    ════════════════════════════════════════════════════════════════ */
 
-/* ── PWA ── */
+/* ── PWA ──
+   Register the offline-shell service worker in production. On localhost we
+   SKIP it (and unregister any prior dev SW) so local edits are never served
+   stale from the cache-first SW. */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  const isLocal = ['localhost','127.0.0.1','0.0.0.0'].includes(location.hostname);
+  if (isLocal) {
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+  } else {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  }
 }
 
 /* ── tiny helpers ── */
@@ -455,10 +463,14 @@ function pbar(l){
 
 function openDrill(l){
   const panel = $('panel');
+  STATE.openLayer = l.id;
   panel.innerHTML = pbar(l) +
-    '<iframe class="drillframe" src="'+esc(l.drilldown)+'" title="'+esc(l.title)+'" loading="lazy"></iframe>';
+    '<iframe class="drillframe" id="drill-iframe" src="'+esc(l.drilldown)+'" title="'+esc(l.title)+'" loading="lazy"></iframe>';
   // per-layer employee chat (core-rendered into the overlay chrome)
   if (window.Agents) Agents.injectLayerEmployee(panel, l);
+  // push any saved in-tile view edits once the drill-in loads
+  const fr = $('drill-iframe');
+  if (fr) fr.addEventListener('load', () => { if (window.Agents) Agents.pushViewConfig(l.id); });
   $('drill-back').onclick = closeDrill;
   showOverlay('ov');
 }
@@ -492,7 +504,7 @@ function openAddLayer(){
 
 function showOverlay(id){ $(id).classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; }
 function hideOverlay(id){ $(id).classList.remove('on'); document.body.style.overflow=''; }
-function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; }
+function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLayer=null; }
 
 /* ── global controls ── */
 function wireGlobalControls(){
