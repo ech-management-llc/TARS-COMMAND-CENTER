@@ -169,6 +169,23 @@
     },
 
     {
+      "id": "investor-reporting",
+      "title": "Investor Reporting",
+      "icon": "📈",
+      "desc": "LP statements · returns",
+      "group": "financial",
+      "tier": "L2",
+      "enabled": true,
+      "entitled": false,
+      "price": 49,
+      "data": { "type": "static" },
+      "status_rules": "neutral",
+      "drilldown": "./layers/investor-reporting/artifact/index.html",
+      "employee": { "name": "Blair", "role": "Investor relations", "avatar": "B" },
+      "chips": ["Draft this quarter's LP update", "What are net returns YTD?"]
+    },
+
+    {
       "id": "deal-analyzer",
       "title": "Deal Analyzer",
       "icon": "🔍",
@@ -336,6 +353,23 @@
       "employee": { "name": "Drew", "role": "Billing", "avatar": "D" },
       "chips": ["What plan am I on?", "What does another layer cost?"]
     },
+    {
+      "id": "tenant-portal",
+      "title": "Tenant Portal",
+      "icon": "🚪",
+      "desc": "tenant self-service",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": false,
+      "price": 29,
+      "data": { "type": "static" },
+      "status_rules": "neutral",
+      "drilldown": "./layers/tenant-portal/artifact/index.html",
+      "employee": { "name": "Casey", "role": "Tenant liaison", "avatar": "C" },
+      "chips": ["What can tenants do here?"]
+    },
+
     {
       "id": "resources",
       "title": "Resources",

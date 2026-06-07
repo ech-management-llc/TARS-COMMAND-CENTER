@@ -11,39 +11,95 @@
   <div class="art-head">💳 Plans &amp; Billing</div>
 
   <div class="preview-banner">
-    <b>PREVIEW.</b> This is where a tenant sees their plan, the layers they've licensed, what new layers cost, and invoices. Billing isn't wired (no charges happen here) — and per the platform model, layers are the unit you buy. Sample pricing.
+    <b>How you pay ECH:</b> a cheap <b>Foundation</b> base + purchasable layers. Buying a layer turns it on for your command center (flips its entitlement). Billing uses Stripe — <b>charges are stubbed in this build (demo — no real charge)</b>.
   </div>
 
   <div class="ruleg">
-    <div class="rule rg"><div class="rn">PLAN</div><div class="rv" style="font-size:15px">Foundation</div><div class="rt">reference install</div></div>
-    <div class="rule"><div class="rn">LAYERS ON</div><div class="rv">all</div><div class="rt">ECH v1</div></div>
-    <div class="rule"><div class="rn">SEATS</div><div class="rv">—</div><div class="rt">via Team &amp; Access</div></div>
-    <div class="rule rg"><div class="rn">STATUS</div><div class="rv" style="font-size:15px">Active</div><div class="rt">no charges (preview)</div></div>
+    <div class="rule rg"><div class="rn">PLAN</div><div class="rv" style="font-size:15px">Foundation</div><div class="rt">+ your layers</div></div>
+    <div class="rule"><div class="rn">LAYERS ON</div><div class="rv" id="o-count">—</div><div class="rt">active</div></div>
+    <div class="rule rg"><div class="rn">MONTHLY</div><div class="rv" id="o-total">—</div><div class="rt">sample pricing</div></div>
+    <div class="rule rg"><div class="rn">STATUS</div><div class="rv" style="font-size:15px">Active</div><div class="rt">demo</div></div>
   </div>
 
   <div class="card">
     <div class="section-label">YOUR LAYERS</div>
-    <div class="small muted">Every tile is a layer; entitlement decides what renders. For ECH (the reference install) all layers are entitled. A paying tenant turns layers on/off here and is billed per the layers they keep.</div>
+    <div class="card flush" style="margin-top:8px"><table><tbody id="owned"><tr><td class="muted">loading…</td></tr></tbody></table></div>
   </div>
 
-  <div class="card flush">
-    <table>
-      <tr><th>LAYER</th><th>STATUS</th><th>PRICE (sample)</th></tr>
-      <tr><td>Foundation (base)</td><td><span class="tag b-green">included</span></td><td>$ low entry</td></tr>
-      <tr><td>Financial Dashboard</td><td><span class="tag b-green">on</span></td><td>add-on</td></tr>
-      <tr><td>Inbox + lead automation</td><td><span class="tag b-green">on</span></td><td>add-on</td></tr>
-      <tr><td>Build &amp; Renovate (multi-agent)</td><td><span class="tag b-green">on</span></td><td>premium</td></tr>
-      <tr><td>Website &amp; IT + syndication</td><td><span class="tag b-green">on</span></td><td>premium</td></tr>
-      <tr><td>+ Add a layer</td><td><span class="tag b-gray">browse</span></td><td>varies</td></tr>
-    </table>
+  <div class="card" id="marketplace-card">
+    <div class="section-label" id="marketplace">MARKETPLACE — ADD A LAYER</div>
+    <div class="small muted">Pick the layers your business needs. One tap turns it on (demo — no real charge).</div>
+    <div class="card flush" style="margin-top:8px"><table><tbody id="market"><tr><td class="muted">loading…</td></tr></tbody></table></div>
+    <div class="wire-note" id="buynote">Each purchase flips that layer’s entitlement ON and it appears on your home immediately.</div>
   </div>
 
   <div class="card">
     <div class="section-label">INVOICES</div>
-    <div class="small muted">No invoices in preview. Live build: itemized by layer, downloadable, paid via the billing connector. <b>I won't run any charge without your explicit approval.</b></div>
+    <div class="small muted">No invoices in this demo. Live build: itemized by layer, downloadable, paid via Stripe. <b>No charge runs without explicit approval.</b></div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Modular licensing — layers are the purchasable unit. Pricing shown is illustrative. No billing connector wired.</div>
+  <div class="wire-note" style="text-align:center">Modular licensing — layers are the purchasable unit. Pricing is illustrative. This is PRODUCT billing (you → ECH), not tenant rent.</div>
 </div>
+
+<script>
+  var ENT_KEY = 'tcc_entitlements';
+  var BASE = 49;                 // Foundation base (sample $/mo)
+  var TIER = { L1:0, L2:19, L3:39 };  // sample add-on $/mo by tier
+  function ents(){ try { return JSON.parse(localStorage.getItem(ENT_KEY)||'{}'); } catch(e){ return {}; } }
+  function isOwned(l){ return l.entitled !== false || ents()[l.id] === true; }
+  function priceOf(l){ return (typeof l.price === 'number') ? l.price : (TIER[l.tier]||0); }
+  function money(n){ return n? '$'+n : 'included'; }
+
+  function render(layers){
+    var real = layers.filter(function(l){ return l.kind!=='add' && l.status_rules!=='soon' && l.group; });
+    var owned = real.filter(isOwned);
+    var market = real.filter(function(l){ return !isOwned(l); });
+
+    // owned table (add-ons priced; base layers "included")
+    document.getElementById('owned').innerHTML = owned.map(function(l){
+      var p = priceOf(l);
+      return '<tr><td>'+esc(l.icon)+' '+esc(l.title)+'</td><td><span class="tag b-green">on</span></td><td style="text-align:right">'+(p?('$'+p+'/mo'):'included')+'</td></tr>';
+    }).join('') || '<tr><td class="muted">none</td></tr>';
+
+    // marketplace table (locked → Add)
+    document.getElementById('market').innerHTML = market.length ? market.map(function(l){
+      var p = priceOf(l);
+      return '<tr><td>'+esc(l.icon)+' '+esc(l.title)+'<div class="small muted">'+esc(l.desc||'')+'</div></td>'+
+        '<td style="text-align:right">'+(p?('$'+p+'/mo'):'free')+'</td>'+
+        '<td style="text-align:right"><button class="btn primary" data-buy="'+esc(l.id)+'">Add</button></td></tr>';
+    }).join('') : '<tr><td class="muted">You already have every available layer. 🎉</td></tr>';
+
+    // totals
+    var total = BASE + owned.reduce(function(s,l){ return s + priceOf(l); }, 0);
+    document.getElementById('o-count').textContent = owned.length;
+    document.getElementById('o-total').textContent = '$'+total;
+
+    // wire Add buttons
+    [].forEach.call(document.querySelectorAll('[data-buy]'), function(btn){
+      btn.onclick = function(){ buy(btn.getAttribute('data-buy'), layers); };
+    });
+  }
+
+  function buy(id, layers){
+    // Stripe stub — demo, no real charge
+    var o = ents(); o[id] = true;
+    try { localStorage.setItem(ENT_KEY, JSON.stringify(o)); } catch(e){}
+    document.getElementById('buynote').innerHTML = '<b style="color:var(--green)">Added (demo — no real charge).</b> Stripe checkout is stubbed in this build; the layer is now ON and appears on your home.';
+    try { if (window.parent && window.parent !== window) window.parent.postMessage({ type:'tcc:purchase', layer:id }, '*'); } catch(e){}
+    render(layers);  // re-render: the layer moves from marketplace to owned
+  }
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  fetch('../../../config/layers.json', {cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(reg){
+      render(reg.layers||[]);
+      if (location.hash === '#marketplace' || location.hash === '#add'){
+        var m = document.getElementById('marketplace'); if (m) m.scrollIntoView({behavior:'smooth', block:'start'});
+      }
+    })
+    .catch(function(){ document.getElementById('market').innerHTML='<tr><td class="muted">Could not load the layer catalog.</td></tr>'; });
+</script>
 </body>
 </html>
