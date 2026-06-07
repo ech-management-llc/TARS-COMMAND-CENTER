@@ -24,9 +24,13 @@ The home **does not hardcode any tiles.** It renders from two config files:
   (`id, title, icon, group, enabled, entitled, data, status_rules, drilldown, employee`).
   Array order = render order.
 
-`app.js` (generic core) reads these, filters by `enabled && entitled`, renders the tile groups
-(`status · portfolio · market · artifact`), and routes a tile tap to the **drill-in of the same
-name**. `agents.js` renders the global + per-layer AI employees and the pluggable memory store.
+`app.js` (generic core) reads these, filters by `enabled && entitled`, and renders the layers in
+**labeled, collapsible sections** by `group` — `overview · market · financial · deals ·
+maintenance · it · admin` (order + labels come from the `groups` array, not code). Overview +
+Market render glance tiles (live numbers); the rest render cards that open the **drill-in of the
+same name**. `agents.js` renders the global + per-layer AI employees, the pluggable memory store,
+and **in-tile view editing** — tell a layer's employee "add a late-fee column" / "drop the trend
+chart" and it reshapes that tile's view (persisted to the memory store, undoable, view-only).
 
 ### Adding a layer — drop a folder + one registry entry (no core edit)
 
