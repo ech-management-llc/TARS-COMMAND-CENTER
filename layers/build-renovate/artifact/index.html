@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build &amp; Renovate — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .team{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .agentcard{background:var(--surf2);border:1px solid var(--purpleln);border-radius:10px;padding:10px;text-align:center}
+  .agentcard .av{width:26px;height:26px;border-radius:50%;background:var(--purple);color:#0a0a0b;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 6px}
+  .agentcard .nm{font-size:12px;font-weight:700}.agentcard .ro{font-size:10.5px;color:var(--mut)}
+  .estimate{display:inline-block;background:var(--yellowbg);border:1px solid var(--yellowln);color:var(--yellow);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.4px}
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .ph{height:96px;background:var(--surf2);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;flex-direction:column;gap:4px}
+  @media(max-width:560px){ .team{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🏗️ Build &amp; Renovate</div>
+
+  <div class="preview-banner">
+    <b>AI outputs here are ESTIMATES and design assists</b> — renderings, floor plans, and budgets are starting points for human + contractor verification, <b>not firm bids</b>. Nothing commits money until you approve it. Sample data; model + connectors not wired yet.
+  </div>
+
+  <div class="section-label">THE BUILD TEAM</div>
+  <div class="team">
+    <div class="agentcard"><div class="av">A</div><div class="nm">Avery</div><div class="ro">Architect</div></div>
+    <div class="agentcard"><div class="av">C</div><div class="nm">Cad</div><div class="ro">CAD Engineer</div></div>
+    <div class="agentcard"><div class="av">T</div><div class="nm">Tovah</div><div class="ro">Takeoff Planner</div></div>
+    <div class="agentcard"><div class="av">S</div><div class="nm">Sloane</div><div class="ro">Stager / Designer</div></div>
+  </div>
+
+  <div class="card">
+    <div class="fgrid">
+      <div><label>Property address</label><input value="415 Skiles St, Malakoff TX"></div>
+      <div><label>Square footage</label><input type="number" value="1180"></div>
+    </div>
+    <div style="margin-top:10px"><label>Renovation scope / notes</label><input value="gut kitchen + bath, refinish floors, paint, curb appeal"></div>
+    <div class="ba" style="margin-top:12px">
+      <div class="ph">📷 exterior + interior<br>photos</div>
+      <div class="ph">🎥 video walkthrough</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">FLOW</div>
+    <div class="flow">
+      <div class="fstep"><span class="fdot fdone">1</span><div><div class="ft">Address + sqft + photos/video + scope</div><div class="fs">captured above</div></div></div>
+      <div class="fstep"><span class="fdot fdone">2</span><div><div class="ft">Stager proposes the finished product <span class="estimate">AI ESTIMATE</span></div><div class="fs">before/after renderings for your approval</div></div></div>
+      <div class="fstep"><span class="fdot factive">3</span><div><div class="ft">On approval: Engineer renders a floor plan + Takeoff renders a reno budget <span class="estimate">AI ESTIMATE</span></div></div></div>
+      <div class="fstep"><span class="fdot fwait">4</span><div><div class="ft">Budget total → Deal Analyzer for the final go / no-go</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">DESIGNER — BEFORE / AFTER <span class="estimate">AI ESTIMATE</span></div>
+    <div class="ba">
+      <div class="ph">BEFORE</div>
+      <div class="ph" style="border-color:var(--greenln)">AFTER (rendering)</div>
+    </div>
+    <div class="wire-note">Renderings + the floor plan save to the property record and are reused on the Website listing.</div>
+  </div>
+
+  <div class="card">
+    <div class="row-sb"><div class="section-label" style="margin:0">RENO BUDGET <span class="estimate">AI ESTIMATE — verify before committing</span></div></div>
+    <div class="card flush" style="margin-top:8px">
+      <table>
+        <tr><th>LINE ITEM</th><th>EST</th><th>ACTUAL</th><th>VAR</th></tr>
+        <tr><td>Kitchen (cabinets, counters, appliances)</td><td>$14,000</td><td class="muted">—</td><td class="muted">—</td></tr>
+        <tr><td>Bath remodel</td><td>$7,500</td><td class="muted">—</td><td class="muted">—</td></tr>
+        <tr><td>Flooring (refinish + LVP)</td><td>$6,000</td><td class="muted">—</td><td class="muted">—</td></tr>
+        <tr><td>Paint (int/ext)</td><td>$4,500</td><td class="muted">—</td><td class="muted">—</td></tr>
+        <tr><td>Curb appeal + misc</td><td>$3,000</td><td class="muted">—</td><td class="muted">—</td></tr>
+        <tr><td><b>TOTAL (estimate)</b></td><td><b>$35,000</b></td><td class="muted">—</td><td class="muted">—</td></tr>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn primary" onclick="note('sent')">→ Send $35,000 budget to Deal Analyzer</button>
+      <button class="btn" onclick="note('seed')">Seed line items into Vendors &amp; Payables</button>
+    </div>
+    <div class="wire-note" id="budgetnote">Line items seed Vendors &amp; Payables; actuals reconcile against the estimate (variance) as receipts come in from the field.</div>
+  </div>
+
+  <div class="card" style="border-color:var(--purpleln)">
+    <div class="section-label">FIELD LOGGING — Construction Supervisor</div>
+    <div class="small muted">Signs in by <b>phone or email</b> (magic-link / SMS), scoped ONLY to Build &amp; Renovate for their assigned job (set in Team &amp; Access). From their phone they log costs, log crew payroll, and snap receipts.</div>
+    <div class="card" style="background:var(--surf2);margin-top:10px">
+      <div class="row-sb"><div><b>📸 Receipt snapped</b><div class="small muted">AI read: Home Depot · $982.14 · Jun 6</div></div><span class="estimate">OCR — confirm</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn primary" onclick="note('approve')">One-tap approve → post to Vendors</button>
+        <button class="btn" onclick="note('edit')">Edit (misread?)</button>
+      </div>
+      <div class="wire-note" id="fieldnote">Read-then-confirm — a misread is never silently booked. On approve it posts to Vendors &amp; Payables, linked to the paying account, and reconciles to the budget line.</div>
+    </div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Accounts contract: every cost links to the paying account (entity → account). Sample data; Plaid sandbox → $0 honest.</div>
+</div>
+
+<script>
+  function note(k){
+    var el=document.getElementById(k==='approve'||k==='edit'?'fieldnote':'budgetnote');
+    var msg={
+      sent:'Live build: the $35K estimate posts to Deal Analyzer as the renovation cost input for the go/no-go.',
+      seed:'Live build: the 5 line items become draft payables in Vendors &amp; Payables (status: estimate), ready to reconcile against receipts.',
+      approve:'Live build: posts Home Depot $982.14 to Vendors &amp; Payables (linked account), reconciled to the "Curb appeal + misc" budget line. (Read-then-confirm — never silently booked.)',
+      edit:'Live build: opens the OCR fields (vendor / amount / date) for correction before anything is booked.'
+    }[k];
+    if(el) el.innerHTML = msg;
+  }
+</script>
+</body>
+</html>

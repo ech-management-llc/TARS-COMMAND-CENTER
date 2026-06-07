@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Navigator — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .sideb{display:grid; grid-template-columns:200px 1fr; gap:14px}
+  .navlist div{font-size:13px; color:var(--mut); padding:7px 10px; border-radius:8px; cursor:pointer}
+  .navlist div.on,.navlist div:hover{background:var(--surf2); color:var(--txt)}
+  .navlist .group{color:var(--dim);font-size:11px;margin:8px 0 2px;cursor:default}
+  .navlist .group:hover{background:transparent;color:var(--dim)}
+  @media(max-width:560px){ .sideb{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">📁 Document Navigator</div>
+
+  <div class="preview-banner">
+    <b>The indexed VIEW of your vault — not a separate copy.</b> This layer reads from the same source-of-truth store the AI employees use. <b>Primary</b> = your storage folder (local / cloud / drive). <b>This Navigator</b> = the human-browsable index of that store. <b>Backup</b> = a scheduled mirror to a second location. A UI/index never owns the data.
+  </div>
+
+  <div style="margin-bottom:12px"><input placeholder="🔍 Search the vault — files, accounts, entities…"></div>
+
+  <div class="sideb">
+    <div class="navlist">
+      <div class="on">Overview</div>
+      <div>Account Vault</div>
+      <div>Locked Files</div>
+      <div>Legacy</div>
+      <div class="group">ENTITIES</div>
+      <div>ECH Management</div>
+      <div>4E Developments</div>
+      <div>ECH Mabank</div>
+      <div>ECH Athens</div>
+      <div>ECH Malakoff</div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="section-label">ACCOUNT VAULT (sample — service map, never credentials)</div>
+        <table>
+          <tr><th>SERVICE</th><th>ROLE</th><th>STATUS</th></tr>
+          <tr><td>Altra Bank</td><td>primary · all entities</td><td><span class="tag b-green">LIVE</span></td></tr>
+          <tr><td>Plaid</td><td>account + money feed → FL backend</td><td><span class="tag b-yellow">SANDBOX</span></td></tr>
+          <tr><td>RentRedi</td><td>rent roll</td><td><span class="tag b-green">LIVE</span></td></tr>
+          <tr><td>DealCheck</td><td>portfolio</td><td><span class="tag b-green">LIVE</span></td></tr>
+          <tr><td>VeraBank</td><td>transient · $0</td><td><span class="tag b-gray">LEGACY</span></td></tr>
+        </table>
+        <div class="wire-note">Sample. The vault stores the <b>map</b> of what account lives where — never the secrets themselves. Tokens/keys live only in the private store, never in this public view.</div>
+      </div>
+      <div class="card">
+        <div class="section-label">HOW IT STAYS ONE TRUTH</div>
+        <div class="small muted">The agents' memory store and this Navigator point at the <b>same folder</b>. Humans browse and search it here; agents query it as context each session. Edits land in one place; the backup mirror keeps a redundant copy. No separate "navigator copy" to drift.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Standalone public view — sample structure only, no credentials or personal data. Live vault indexing wires to your chosen store.</div>
+</div>
+</body>
+</html>

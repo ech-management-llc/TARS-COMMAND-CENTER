@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team &amp; Access — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">👥 Team &amp; Access</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — roles model.</b> Real sign-in (Foundation Layer Supabase auth if available, else a lightweight magic-link layer) + per-user roles + per-tenant isolation. <b>Login does not gate the app yet</b> — that's held pending the rest of the spec and your go-ahead, so nothing locks during the build.
+  </div>
+
+  <div class="card flush">
+    <table>
+      <tr><th>USER</th><th>ROLE</th><th>SCOPE</th><th>EXTERNAL SENDS</th></tr>
+      <tr><td>Jerry</td><td><span class="tag b-green">Owner</span></td><td>all layers</td><td>full</td></tr>
+      <tr><td>Ashley</td><td><span class="tag b-yellow">Admin / Staff</span></td><td>most layers</td><td>gated (approval)</td></tr>
+      <tr><td>Construction Supervisor</td><td><span class="tag" style="background:#11203a;color:#6fa8f0">Field</span></td><td>Build &amp; Renovate · one job</td><td>none</td></tr>
+      <tr><td>Accountant (sample)</td><td><span class="tag b-gray">Read-only</span></td><td>Financial (view)</td><td>none</td></tr>
+      <tr><td>Tenant</td><td><span class="tag b-gray">reserved</span></td><td>their unit only</td><td>none</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="section-label">ROLES</div>
+    <div class="small muted" style="line-height:1.7">
+      <b>Owner</b> — full control. ·
+      <b>Admin / Staff</b> (e.g. Ashley) — most layers; external sends gated to draft-for-approval. ·
+      <b>Read-only / Viewer</b> — see, can't change. ·
+      <b>Tenant</b> (reserved) — their unit only. ·
+      <b>Field</b> (e.g. Construction Supervisor) — signs in by phone or email (magic-link / SMS), scoped to ONE layer/job.
+    </div>
+    <div class="wire-note">Role + entitlement together decide what renders. Per-tenant isolation: a tenant only ever sees their own org's layers + data.</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">INVITE</div>
+    <div class="fgrid">
+      <div><label>Name</label><input placeholder="e.g. Marcus (site lead)"></div>
+      <div><label>Email or phone</label><input placeholder="email for staff · phone for field magic-link"></div>
+      <div><label>Role</label><select><option>Owner</option><option>Admin / Staff</option><option>Read-only / Viewer</option><option selected>Field (one job)</option></select></div>
+      <div><label>Scope (if field)</label><select><option>Build &amp; Renovate — 415 Skiles</option><option>Build &amp; Renovate — 102 Remington</option></select></div>
+    </div>
+    <button class="btn primary" style="margin-top:10px" onclick="document.getElementById('invnote').innerHTML='<b style=\'color:var(--green)\'>Draft invite prepared.</b> Live build: sends a magic-link (email) or SMS code; the field user lands scoped only to their job.'">Send invite</button>
+    <div class="wire-note" id="invnote">Field users get a phone/email magic-link and land scoped to a single job — they never see the rest of the command center.</div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">App-level auth structure (roles + entitlement + isolation). Hard login-gating held pending spec. Sample data — no real emails/phones.</div>
+</div>
+</body>
+</html>

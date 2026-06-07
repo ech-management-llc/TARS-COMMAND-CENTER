@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TARS Work Tracker — Punch List + Tech Debt</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; }
+  .subtitle { color: #64748b; font-size: 12px; margin-bottom: 16px; }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 16px;
+  }
+  .tab {
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #64748b;
+    font-size: 13px;
+  }
+  .tab.active { color: #0f172a; border-bottom-color: #2563eb; }
+  .tab .count {
+    display: inline-block;
+    background: #e2e8f0;
+    color: #475569;
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 11px;
+    margin-left: 6px;
+    font-weight: 700;
+  }
+  .tab.active .count { background: #2563eb; color: white; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .kpi {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; }
+  .kpi-value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .kpi-sub { font-size: 11px; color: #94a3b8; }
+  .kpi.high .kpi-value { color: #dc2626; }
+  .kpi.med .kpi-value { color: #d97706; }
+  .kpi.low .kpi-value { color: #16a34a; }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 8px;
+    font-weight: 700;
+    font-size: 13px;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .section-title .pill {
+    background: #e2e8f0;
+    color: #475569;
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 11px;
+  }
+
+  .item {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #94a3b8;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+  }
+  .item.tier-high { border-left-color: #dc2626; }
+  .item.tier-medium { border-left-color: #d97706; }
+  .item.tier-low { border-left-color: #16a34a; }
+  .item.resolved { opacity: 0.7; border-left-color: #16a34a; background: #f0fdf4; }
+  .item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .item-id {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight: 700;
+    color: #475569;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .item-title { font-weight: 600; flex: 1; }
+  .item-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .tag-high { background: #fee2e2; color: #991b1b; }
+  .tag-medium { background: #fef3c7; color: #92400e; }
+  .tag-low { background: #dcfce7; color: #166534; }
+  .tag-resolved { background: #d1fae5; color: #065f46; }
+  .item-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .item-notes {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #475569;
+    line-height: 1.4;
+  }
+  .empty {
+    color: #94a3b8;
+    font-style: italic;
+    padding: 12px;
+    text-align: center;
+  }
+  .stale-warning {
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #78350f;
+  }
+  .source {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+  }
+  .footer-note {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 12px;
+    padding: 8px;
+    background: #f1f5f9;
+    border-radius: 6px;
+  }
+  .filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 4px 10px;
+    border: 1px solid #cbd5e1;
+    background: white;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #475569;
+  }
+  .filter-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+</style>
+</head>
+<body>
+<h1>TARS Work Tracker</h1>
+<div class="subtitle" id="subtitle">Loading from MEGA_BRAIN…</div>
+
+<div class="kpi-row" id="kpis"></div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="punch">Punch List <span class="count" id="count-punch">…</span></button>
+  <button class="tab" data-tab="debt">Tech Debt <span class="count" id="count-debt">…</span></button>
+  <button class="tab" data-tab="closed">Recent Closures <span class="count" id="count-closed">…</span></button>
+</div>
+
+<div id="panel-punch" class="panel active">
+  <div class="filters">
+    <button class="filter-btn active" data-owner="all">All</button>
+    <button class="filter-btn" data-owner="Jerry">Jerry</button>
+    <button class="filter-btn" data-owner="TARS">TARS</button>
+    <button class="filter-btn" data-owner="Both">Jerry + TARS</button>
+  </div>
+  <div id="punch-list"></div>
+</div>
+
+<div id="panel-debt" class="panel">
+  <div class="filters">
+    <button class="filter-btn active" data-tier="all">All</button>
+    <button class="filter-btn" data-tier="HIGH">High</button>
+    <button class="filter-btn" data-tier="MEDIUM">Medium</button>
+    <button class="filter-btn" data-tier="LOW">Low</button>
+  </div>
+  <div id="debt-list"></div>
+</div>
+
+<div id="panel-closed" class="panel">
+  <div id="closed-list"></div>
+</div>
+
+<div class="source" id="source-info"></div>
+<div class="footer-note">
+  Single source of truth: <code>00_MANAGER_CONTROL/PUNCH_LIST.md</code> + <code>05_DIGITAL_JERRY_SYSTEM/04_TARS_MEMORY/TECH_DEBT_REGISTER.md</code>.
+  Updated each EOD signoff. Click Reload (header) to refresh.
+</div>
+
+<script>
+// ---- EMBEDDED FALLBACK (always renders even if MCP unavailable) ----
+const FALLBACK_PUNCH_RAW = `## ACTIVE — pending (top-priority surface for Jerry)
+
+| # | Item | Owner | Notes |
+|---|------|-------|-------|
+| 3 | Cowork role customization | Jerry | Folder connected; role TBD |
+| 5 | Ashley TCC seat (Claude Team) | Jerry | seat assignment pending |
+| 10 | Monday.com + Gusto MCP connections | Both | Both confirmed in Cowork registry. Order: Supabase → Monday → Gusto. |
+| 13 | Personal jerry-eads / ashley-eads GitHub user accounts | Jerry | When convenient |
+| 14 | Service billing & trial watchlist | Jerry | GitHub Enterprise trial expires ~Jun 3 2026 — 27 days out. |
+| 26 | RentRedi Phase 1 manual procedure validation | Jerry | Sample CSV needed |
+| 30 | Build FoundationLedger backend Phase 1 | Both | STRATEGIC PRIORITY (ECH exiting QB) |
+| 35 | Quarterly PAT rotation policy + first rotation | Both | TD-002 — first rotation due ~2026-07-29 |
+| 36 | Phase 2 GitHub MCP architecture — GitHub App + token broker | TARS | Gates on FL backend (#30) |
+| 37 | Instantiate Financial Operations TARS project | Jerry | Spec ready |
+| 38 | Instantiate Deal Screener Agent TARS project | Jerry | Spec ready |
+| 39 | Instantiate Tenant Relations TARS project | Jerry | Spec ready |
+| 40 | Instantiate Vendor Management TARS project | Jerry | Spec ready |
+| 41 | Test v0.3.0 file-clerk on real inbox | TARS | Validates Step 3 reconstruction |
+| 42 | Schedule memory-consolidation as Dispatch Beta validation | Both | First low-risk autonomous task |
+| 47 | Set up Friday 1PM scheduled task for financial-reports | Jerry | Cron 0 13 * * 5 |
+| 48 | First Altra Bank weekly export — 5 entities | Jerry | ~5-10 min Friday morning |
+| 49 | Update tars-system-core v0.4.0 with financial-reports Step 4.5 | TARS | Bundle into next plugin release |
+| 50 | Phase 2: Zapier zaps for RentRedi event triggers | Both | RentRedi → Zapier → TARS for real-time |
+| 51 | Phase 2 dashboard: swap to FL API endpoint when FL ships | TARS | Single-line change in fetchData() |
+`;
+
+const FALLBACK_DEBT = [
+  {id:"TD-001", title:"Legacy automation credential stored in a repo config file", tier:"HIGH", added:"2026-05-07", status:"active", note:"Phase 2: app-based auth + token broker on FL backend"},
+  {id:"TD-002", title:"Legacy automation credential has no expiration", tier:"MEDIUM", added:"2026-05-07", status:"active", note:"Quarterly rotation policy; first rotation ~2026-07-29"},
+  {id:"TD-003", title:"TARS_COMMAND_CENTER mirror drifts from actual HEAD", tier:"HIGH", added:"2026-05-05", status:"active", note:"EOD v2 Step 6→3 chain. Phase 2 webhook removes manual step."},
+  {id:"TD-004", title:"Drive Stream → bash sandbox bridge non-functional", tier:"HIGH", added:"2026-05-07", status:"active", note:"Structural Cowork limitation. Rule 2 amended. Use file tools for vault."},
+  {id:"TD-005", title:"outputs/ doesn't persist between sessions (Rule 9)", tier:"HIGH", added:"2026-05-05", status:"active", note:"EOD v2 Step 1 enforces preservation. Manual."},
+  {id:"TD-006", title:"Two end-of-day-signoff skills installed (DISABLED)", tier:"MEDIUM", added:"2026-05-07", status:"resolved", note:"RESOLVED 2026-05-07 PM-3 via plugin DISABLE"},
+  {id:"TD-007", title:"Cowork plugin install requires full Quit + relaunch", tier:"LOW", added:"2026-05-07", status:"active", note:"Friction not failure. ~2-3 min per cycle."},
+  {id:"TD-008", title:"TCC repo is PUBLIC; future TARS OS source must NOT go there", tier:"HIGH", added:"2026-05-07", status:"active", note:"Awareness only. New tars-os repo will be private."},
+  {id:"TD-009", title:"GitHub MCP install order pending (Phase 1)", tier:"MEDIUM", added:"2026-05-07", status:"active", note:"Tied to FL backend deploy"},
+  {id:"TD-010", title:"2FA hardening on org GitHub", tier:"HIGH", added:"2026-05-07", status:"resolved", note:"RESOLVED 2026-05-07 PM-2 — 43 days early"},
+  {id:"TD-011", title:"Plaid integration premature at MCP layer", tier:"MEDIUM", added:"2026-05-07", status:"resolved", note:"RESOLVED 2026-05-07 PM-3 — moved to FL backend"},
+  {id:"TD-012", title:"Cowork plugin source recovery via .remote-plugins", tier:"LOW", added:"2026-05-07", status:"active", note:"Recovery path; not for ongoing edits"},
+  {id:"TD-013", title:"GitHub MCP child process can disconnect mid-session", tier:"MEDIUM", added:"2026-05-07", status:"active", note:"Auto-recovers. Rule 11 boot consult required."},
+  {id:"TD-014", title:"Plugin source files lost (recovered)", tier:"MEDIUM", added:"2026-05-07", status:"resolved", note:"RESOLVED 2026-05-07 PM-2 via .remote-plugins recovery"},
+  {id:"TD-015", title:"V16 Operations Manual not directly readable", tier:"LOW", added:"2026-05-07", status:"active", note:"docx requires document-aware tools; V17 audit drafted"},
+  {id:"TD-016", title:"FL Phase 1 backend scaffold lost (Rule 9 violation)", tier:"HIGH", added:"2026-05-07", status:"resolved", note:"RESOLVED 2026-05-07 PM-5 — rebuilt to MEGA_BRAIN/06_PROJECTS/foundationledger/"}
+];
+
+// ---- PARSERS ----
+function parsePunchTable(md) {
+  const out = { active: [], closed: [] };
+  if (!md) return out;
+  // Find ACTIVE section and pull rows from the markdown table
+  const activeMatch = md.match(/## ACTIVE[\s\S]*?(?=^## |\Z)/m);
+  if (activeMatch) {
+    const rows = activeMatch[0].match(/^\|\s*\d+\s*\|[^\n]*\n/gm) || [];
+    rows.forEach(line => {
+      const cells = line.split("|").map(c => c.trim()).filter(Boolean);
+      if (cells.length >= 4) {
+        let owner = cells[2];
+        if (/jerry.*tars|tars.*jerry|both/i.test(owner)) owner = "Both";
+        else if (/^jerry/i.test(owner)) owner = "Jerry";
+        else if (/^tars/i.test(owner)) owner = "TARS";
+        out.active.push({ id: cells[0], title: cells[1], owner, notes: cells[3] || "" });
+      }
+    });
+  }
+  // Closed section — capture any line starting with "- ✅"
+  const closedMatch = md.match(/## CLOSED[\s\S]*?(?=^## (?!#)|$)/m);
+  if (closedMatch) {
+    const lines = closedMatch[0].split("\n").filter(l => /^- ✅/.test(l));
+    lines.slice(0, 30).forEach(line => {
+      out.closed.push({ text: line.replace(/^- ✅\s*/, "") });
+    });
+  }
+  return out;
+}
+
+function parseDebtRegister(md) {
+  if (!md) return [];
+  const items = [];
+  // Each item: ### TD-NNN — title (resolved markers within line)
+  const blocks = md.split(/^### /m).slice(1);
+  blocks.forEach(block => {
+    const headLine = block.split("\n")[0];
+    const idMatch = headLine.match(/^(TD-\d+)/);
+    if (!idMatch) return;
+    const id = idMatch[1];
+    const isResolved = /RESOLVED/i.test(headLine) || /\*\*RESOLVED/.test(block.split("\n").slice(0, 3).join("\n"));
+    let title = headLine.replace(/^TD-\d+\s*[—–-]\s*/, "").replace(/\*\*RESOLVED.*$/i, "").replace(/~~/g, "").trim();
+    const tierMatch = block.match(/\*\*Tier:\*\*\s*(HIGH|MEDIUM|LOW)/i);
+    const addedMatch = block.match(/\*\*Added:\*\*\s*([^\n]+)/);
+    const noteMatch = block.match(/\*\*(?:Why this is debt|Long-term fix|Current state):\*\*\s*([^\n]+)/);
+    items.push({
+      id,
+      title,
+      tier: tierMatch ? tierMatch[1].toUpperCase() : "MEDIUM",
+      added: addedMatch ? addedMatch[1].trim().split(";")[0] : "",
+      status: isResolved ? "resolved" : "active",
+      note: noteMatch ? noteMatch[1].trim().slice(0, 180) : ""
+    });
+  });
+  return items;
+}
+
+// ---- RENDER ----
+let state = {
+  punchActive: [],
+  punchClosed: [],
+  debtItems: [],
+  punchOwnerFilter: "all",
+  debtTierFilter: "all",
+  source: "fallback",
+  punchUpdated: "",
+  debtUpdated: ""
+};
+
+function renderKPIs() {
+  const activeCount = state.punchActive.length;
+  const debtActive = state.debtItems.filter(d => d.status === "active");
+  const high = debtActive.filter(d => d.tier === "HIGH").length;
+  const med = debtActive.filter(d => d.tier === "MEDIUM").length;
+  const low = debtActive.filter(d => d.tier === "LOW").length;
+  document.getElementById("kpis").innerHTML = `
+    <div class="kpi"><div class="kpi-label">Open punch</div><div class="kpi-value">${activeCount}</div><div class="kpi-sub">items pending</div></div>
+    <div class="kpi high"><div class="kpi-label">High debt</div><div class="kpi-value">${high}</div><div class="kpi-sub">scale-risk</div></div>
+    <div class="kpi med"><div class="kpi-label">Medium debt</div><div class="kpi-value">${med}</div><div class="kpi-sub">friction</div></div>
+    <div class="kpi low"><div class="kpi-label">Low debt</div><div class="kpi-value">${low}</div><div class="kpi-sub">cosmetic</div></div>
+  `;
+  document.getElementById("count-punch").textContent = activeCount;
+  document.getElementById("count-debt").textContent = debtActive.length;
+  document.getElementById("count-closed").textContent = state.punchClosed.length + state.debtItems.filter(d => d.status === "resolved").length;
+}
+
+function renderPunch() {
+  const filtered = state.punchActive.filter(p => state.punchOwnerFilter === "all" || p.owner === state.punchOwnerFilter);
+  const html = filtered.length === 0
+    ? `<div class="empty">No items match filter</div>`
+    : filtered.map(p => `
+      <div class="item">
+        <div class="item-head">
+          <span class="item-id">#${p.id}</span>
+          <span class="item-title">${escapeHtml(p.title)}</span>
+          <span class="item-tag tag-${p.owner === 'Jerry' ? 'medium' : p.owner === 'TARS' ? 'low' : 'high'}">${p.owner}</span>
+        </div>
+        ${p.notes ? `<div class="item-notes">${escapeHtml(p.notes.slice(0, 240))}${p.notes.length > 240 ? '…' : ''}</div>` : ''}
+      </div>
+    `).join("");
+  document.getElementById("punch-list").innerHTML = html;
+}
+
+function renderDebt() {
+  const active = state.debtItems.filter(d => d.status === "active");
+  const filtered = active.filter(d => state.debtTierFilter === "all" || d.tier === state.debtTierFilter);
+  const html = filtered.length === 0
+    ? `<div class="empty">No items match filter</div>`
+    : filtered.map(d => `
+      <div class="item tier-${d.tier.toLowerCase()}">
+        <div class="item-head">
+          <span class="item-id">${d.id}</span>
+          <span class="item-title">${escapeHtml(d.title)}</span>
+          <span class="item-tag tag-${d.tier.toLowerCase()}">${d.tier}</span>
+        </div>
+        <div class="item-meta">Added: ${escapeHtml(d.added)}</div>
+        ${d.note ? `<div class="item-notes">${escapeHtml(d.note)}</div>` : ''}
+      </div>
+    `).join("");
+  document.getElementById("debt-list").innerHTML = html;
+}
+
+function renderClosed() {
+  const debtClosed = state.debtItems.filter(d => d.status === "resolved");
+  const html = `
+    ${debtClosed.length ? `
+      <div class="section-title">Tech debt resolved <span class="pill">${debtClosed.length}</span></div>
+      ${debtClosed.map(d => `
+        <div class="item resolved">
+          <div class="item-head">
+            <span class="item-id">${d.id}</span>
+            <span class="item-title">${escapeHtml(d.title)}</span>
+            <span class="item-tag tag-resolved">RESOLVED</span>
+          </div>
+          ${d.note ? `<div class="item-notes">${escapeHtml(d.note)}</div>` : ''}
+        </div>
+      `).join("")}
+    ` : ''}
+    ${state.punchClosed.length ? `
+      <div class="section-title">Recently closed punch items <span class="pill">${state.punchClosed.length}</span></div>
+      ${state.punchClosed.map(c => `<div class="item resolved"><div class="item-notes">✅ ${escapeHtml(c.text.slice(0, 220))}</div></div>`).join("")}
+    ` : ''}
+    ${(debtClosed.length + state.punchClosed.length) === 0 ? `<div class="empty">No recent closures detected</div>` : ''}
+  `;
+  document.getElementById("closed-list").innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function setSubtitle() {
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById("subtitle").textContent = `Live view of open ECH work · source: ${state.source} · viewed ${today}`;
+  document.getElementById("source-info").textContent = `Punch list: ${state.punchUpdated || 'last EOD'} · Tech debt: ${state.debtUpdated || 'last EOD'} · Source: ${state.source}`;
+}
+
+// ---- LOAD ----
+function loadFallback() {
+  const punch = parsePunchTable(FALLBACK_PUNCH_RAW);
+  state.punchActive = punch.active;
+  state.punchClosed = [];
+  state.debtItems = FALLBACK_DEBT;
+  state.source = "committed snapshot";
+  renderAll();
+}
+
+// NOTE: the live Obsidian-MCP vault read was removed for the public standalone
+// build (no desktop-runtime calls, no MCP). This page renders the committed
+// snapshot below; the vault→repo push that would feed a live read is a separate
+// TARS-side follow-up.
+
+function renderAll() {
+  renderKPIs();
+  renderPunch();
+  renderDebt();
+  renderClosed();
+  setSubtitle();
+}
+
+// ---- TABS + FILTERS ----
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    document.getElementById("panel-" + t.dataset.tab).classList.add("active");
+  });
+});
+document.querySelectorAll("#panel-punch .filter-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#panel-punch .filter-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    state.punchOwnerFilter = b.dataset.owner;
+    renderPunch();
+  });
+});
+document.querySelectorAll("#panel-debt .filter-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#panel-debt .filter-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    state.debtTierFilter = b.dataset.tier;
+    renderDebt();
+  });
+});
+
+// init
+loadFallback();
+</script>
+</body>
+</html>

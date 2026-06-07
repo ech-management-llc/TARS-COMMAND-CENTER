@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rent Roll — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🏠 Rent Roll</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample rent roll.</b> The live source (RentRedi) is not connected yet, so the rows below are illustrative, not your actual tenants or amounts. Rent inflows reconcile to the operating account through the one accounts model (Plaid → Foundation Layer → entity map) once Plaid is in production.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Pat</b> and say “add a late-fee column” or “drop the reconciliation section” — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="ruleg">
+    <div class="rule rg"><div class="rn">OCCUPANCY</div><div class="rv">90%</div><div class="rt">9 of 10 leased</div></div>
+    <div class="rule ry"><div class="rn">VACANT</div><div class="rv" style="color:var(--yellow)">1</div><div class="rt">102 Remington</div></div>
+    <div class="rule rg"><div class="rn">COLLECTED</div><div class="rv">$14.2K</div><div class="rt">of $15.7K</div></div>
+    <div class="rule ry"><div class="rn">LATE</div><div class="rv" style="color:var(--yellow)">1</div><div class="rt">408 E Kaufman</div></div>
+  </div>
+
+  <div class="card flush">
+    <table>
+      <tr><th>UNIT</th><th>TENANT</th><th>RENT</th><th>STATUS</th><th data-view-col="late-fee" style="display:none">LATE FEE</th></tr>
+      <tr><td>500 Reynolds</td><td>A. Carter</td><td>$1,800</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td>410 Scott</td><td>L. Nguyen</td><td>$1,500</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td>1301 E Royall</td><td>M. Davis</td><td>$1,650</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td>415 Skiles</td><td>J. Morales</td><td>$1,450</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td>124 Pierce</td><td>R. Patel</td><td>$1,700</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td>103 Mary Beth</td><td>S. Kim</td><td>$1,900</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td>408 E Kaufman</td><td>T. Brooks</td><td>$1,700</td><td><span class="tag b-yellow">late 6d</span></td><td data-view-col="late-fee" style="display:none">$85</td></tr>
+      <tr><td>204 W Mt Vernon</td><td>D. Reed</td><td>$1,800</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td>102 Remington</td><td>—</td><td>$1,900</td><td><span class="tag b-gray">vacant</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+    </table>
+  </div>
+
+  <div class="card" data-view-section="reconciliation">
+    <div class="section-label">RECONCILIATION (accounts contract)</div>
+    <div class="row-sb"><span class="muted small">Operating account for rent inflows</span><span class="tag b-gray">ECH MGMT · Altra · sandbox $0</span></div>
+    <div class="wire-note">Each tenant's expected rent reconciles against inflows on the operating account. Real inflows + balances arrive at Plaid production (gated on Nov compliance); until then this reads an honest sandbox $0 rather than a fabricated balance.</div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: RentRedi rent roll (not yet wired). Tenant names + amounts are placeholders.</div>
+</div>
+
+<script>
+  // In-tile view config: the core (parent) posts the saved view ops; we apply them
+  // to this view only (show/hide marked columns + sections). Never touches data.
+  function applyViewCfg(ops){
+    document.querySelectorAll('[data-view-col]').forEach(function(el){ el.style.display='none'; });
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    (ops||[]).forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+      } else {
+        document.querySelectorAll('[data-view-col="'+op.target+'"]').forEach(function(el){ el.style.display = (op.type==='add')?'':'none'; });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){
+    var d = e.data || {};
+    if(d && d.type==='tcc:viewcfg') applyViewCfg(d.ops);
+  });
+  // tell the parent we're ready (in case it wants to (re)push)
+  try { if(window.parent && window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'}, '*'); } catch(err){}
+</script>
+</body>
+</html>

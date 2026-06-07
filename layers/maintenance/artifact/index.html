@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maintenance — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🔧 Maintenance — Work Orders</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample work orders.</b> Intake (often from the Inbox), dispatch by SMS + email, status replies, and the close→bill handoff are real designs; connectors (Gmail · SMS · Vendors · Team) aren't wired yet, so rows are illustrative.
+  </div>
+
+  <div class="ruleg">
+    <div class="rule ry"><div class="rn">OPEN</div><div class="rv" style="color:var(--yellow)">4</div><div class="rt">across 3 entities</div></div>
+    <div class="rule rr"><div class="rn">URGENT</div><div class="rv">1</div><div class="rt">AC down</div></div>
+    <div class="rule"><div class="rn">AWAITING VENDOR</div><div class="rv">2</div><div class="rt">dispatched</div></div>
+    <div class="rule rg"><div class="rn">DONE (MO)</div><div class="rv">9</div><div class="rt">this month</div></div>
+  </div>
+
+  <div class="row-sb" style="margin-bottom:10px">
+    <div class="section-label" style="margin:0">WORK ORDERS</div>
+    <div class="modetoggle" id="dispatchmode">
+      <button class="on" data-mode="draft" onclick="setMode(this)">Draft dispatch</button>
+      <button data-mode="auto" onclick="setMode(this)">Auto dispatch</button>
+    </div>
+  </div>
+
+  <div class="card flush">
+    <table>
+      <tr><th>WO</th><th>PROPERTY · ISSUE</th><th>ASSIGNED</th><th>STATUS</th></tr>
+      <tr><td>WO-118</td><td>408 E Kaufman · AC not cooling</td><td>Cool Air TX (vendor)</td><td><span class="tag b-red">urgent · dispatched</span></td></tr>
+      <tr><td>WO-117</td><td>1301 E Royall · leak under sink</td><td>Lone Star Plumbing</td><td><span class="tag b-yellow">awaiting vendor</span></td></tr>
+      <tr><td>WO-116</td><td>124 Pierce · garage door</td><td>D. Reed (team)</td><td><span class="tag b-yellow">in-progress</span></td></tr>
+      <tr><td>WO-115</td><td>500 Reynolds · gutter clean</td><td>GreenScape</td><td><span class="tag b-gray">scheduled</span></td></tr>
+      <tr><td>WO-110</td><td>410 Scott · breaker trip</td><td>Hill Electric</td><td><span class="tag b-green">done → billed</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="section-label">LIFECYCLE</div>
+    <div class="flow">
+      <div class="fstep"><span class="fdot fdone">1</span><div><div class="ft">Intake</div><div class="fs">auto-created from an Inbox email ("AC not cooling — 408 E Kaufman") or entered by hand</div></div></div>
+      <div class="fstep"><span class="fdot fdone">2</span><div><div class="ft">Prioritize + assign</div><div class="fs">pick a vendor (from Vendors &amp; Payables) or a team member (from Team &amp; Access)</div></div></div>
+      <div class="fstep"><span class="fdot factive">3</span><div><div class="ft">Dispatch by SMS + email</div><div class="fs">push address + issue + photos; they reply to update status (new → assigned → scheduled → in-progress → done)</div></div></div>
+      <div class="fstep"><span class="fdot fwait">4</span><div><div class="ft">Close → bill</div><div class="fs">a completed repair becomes a bill in Vendors &amp; Payables, linked to the paying account</div></div></div>
+    </div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Intake from Inbox · dispatch via SMS + email · close becomes a Vendors &amp; Payables bill (accounts contract). Sample data.</div>
+</div>
+
+<script>
+  function setMode(btn){
+    document.querySelectorAll('#dispatchmode button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+  }
+</script>
+</body>
+</html>

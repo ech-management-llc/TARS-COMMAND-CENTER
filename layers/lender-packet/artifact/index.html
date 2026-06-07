@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lender Packet — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🏦 Lender Packet</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample face sheet.</b> Photos + numbers normally pull from DealCheck for the typed address (manual fill where missing). The email-to-lender send respects the draft-for-approval / full-auto mode. Figures below are illustrative.
+  </div>
+
+  <!-- address + actions -->
+  <div class="card">
+    <div class="fgrid">
+      <div><label>Property address</label><input id="lp-addr" value="415 Skiles St, Malakoff TX" oninput="document.getElementById('lp-h').textContent=this.value"></div>
+      <div style="display:flex;align-items:flex-end;gap:8px">
+        <button class="btn" style="flex:1" onclick="recompute()">Generate face sheet</button>
+        <button class="btn primary" id="emailbtn" onclick="emailLender()">📧 Email to lender</button>
+      </div>
+    </div>
+    <div class="row-sb" style="margin-top:10px">
+      <div class="small muted">Email mode</div>
+      <div class="modetoggle" id="sendmode">
+        <button class="on" data-mode="draft" onclick="setMode(this)">Draft for approval</button>
+        <button data-mode="auto" onclick="setMode(this)">Full auto</button>
+      </div>
+    </div>
+    <div class="wire-note" id="emailnote">Type an address → one button builds the face sheet, one button emails it (PDF) to your lender. Default: draft for approval.</div>
+  </div>
+
+  <!-- face sheet -->
+  <div class="card">
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">
+      <div style="width:118px;height:88px;background:var(--surf2);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px">🏚️</div>
+      <div>
+        <div id="lp-h" style="font-size:17px;font-weight:700">415 Skiles St, Malakoff TX</div>
+        <div style="font-size:12.5px;color:var(--mut)">3 bed · 1.5 bath · 1,180 sqft · single-family · built 1974</div>
+        <div style="margin-top:6px"><span class="tag b-green">BRRRR candidate</span> <span class="tag b-gray">Henderson Co.</span></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="lpx">front</div><div class="lpx">kitchen</div><div class="lpx">bath</div><div class="lpx">yard</div>
+    </div>
+
+    <!-- editable inputs that drive the scenarios -->
+    <div class="fgrid" style="margin-bottom:6px">
+      <div><label>Purchase price</label><input id="i-purchase" type="number" value="95000" oninput="recompute()"></div>
+      <div><label>Rehab</label><input id="i-rehab" type="number" value="35000" oninput="recompute()"></div>
+      <div><label>After-reno value (ARV)</label><input id="i-arv" type="number" value="185000" oninput="recompute()"></div>
+      <div><label>Projected monthly rent</label><input id="i-rent" type="number" value="1600" oninput="recompute()"></div>
+      <div><label>Ask markover (over all-in)</label><input id="i-mark" type="number" value="10000" oninput="recompute()"></div>
+    </div>
+
+    <div class="ruleg">
+      <div class="rule"><div class="rn">ALL-IN</div><div class="rv" id="o-allin">$130K</div></div>
+      <div class="rule rg"><div class="rn">ARV (RENO)</div><div class="rv" id="o-arv">$185K</div></div>
+      <div class="rule"><div class="rn">PROJ RENT</div><div class="rv" id="o-rent">$1,600</div></div>
+      <div class="rule"><div class="rn">EST CAP @ ARV</div><div class="rv" id="o-cap">6.2%</div></div>
+    </div>
+
+    <div class="card" style="background:var(--surf2)">
+      <div class="section-label">REFINANCE — LTV AT PROJECTED RENO VALUE (ARV)</div>
+      <table>
+        <tr><th>SCENARIO</th><th>LOAN AMOUNT</th><th>VS ALL-IN</th></tr>
+        <tr><td>70% LTV</td><td id="o-l70">$129,500</td><td id="o-d70"></td></tr>
+        <tr><td>80% LTV</td><td id="o-l80">$148,000</td><td id="o-d80"></td></tr>
+      </table>
+    </div>
+
+    <div class="verdict" id="o-ask">THE ASK: $140,000
+      <span style="font-size:12px;font-weight:600;display:block;color:#7fe0bf;margin-top:4px" id="o-askmeta">all-in $130K + $10K · covered at 80% LTV with cushion</span>
+    </div>
+  </div>
+
+  <div class="wire-note" style="text-align:center">Source: DealCheck property numbers + photos (not yet wired) and manual fill where missing.</div>
+</div>
+
+<script>
+  function money(n){ if(isNaN(n)) return '—'; var a=Math.abs(n); if(a>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+(n/1e3).toFixed(n%1000?1:0)+'K'; return '$'+Math.round(n).toLocaleString('en-US'); }
+  function full(n){ return '$'+Math.round(n).toLocaleString('en-US'); }
+  function recompute(){
+    var purchase=+document.getElementById('i-purchase').value||0;
+    var rehab=+document.getElementById('i-rehab').value||0;
+    var arv=+document.getElementById('i-arv').value||0;
+    var rent=+document.getElementById('i-rent').value||0;
+    var mark=+document.getElementById('i-mark').value||0;
+    var allin=purchase+rehab;
+    var l70=arv*0.7, l80=arv*0.8;
+    var noi=rent*12*0.6;                 // ~60% NOI margin
+    var cap=arv? (noi/arv*100):0;
+    var ask=allin+mark;
+    document.getElementById('o-allin').textContent=money(allin);
+    document.getElementById('o-arv').textContent=money(arv);
+    document.getElementById('o-rent').textContent=full(rent);
+    document.getElementById('o-cap').textContent=cap.toFixed(1)+'%';
+    document.getElementById('o-l70').textContent=full(l70);
+    document.getElementById('o-l80').textContent=full(l80);
+    var d70=l70-allin, d80=l80-allin;
+    document.getElementById('o-d70').innerHTML='<span class="tag '+(d70>=0?'b-green':'b-yellow')+'">'+(d70>=0?'+':'−')+full(Math.abs(d70)).slice(1)+'</span>';
+    document.getElementById('o-d80').innerHTML='<span class="tag '+(d80>=0?'b-green':'b-yellow')+'">'+(d80>=0?'+':'−')+full(Math.abs(d80)).slice(1)+'</span>';
+    var cushion=l80-ask;
+    document.getElementById('o-ask').childNodes[0].nodeValue='THE ASK: '+full(ask)+' ';
+    document.getElementById('o-askmeta').textContent='all-in '+money(allin)+' + '+money(mark)+' · '+(cushion>=0?('covered at 80% LTV with ~'+money(cushion)+' cushion'):('exceeds 80% LTV by '+money(-cushion)));
+  }
+  var sendMode='draft';
+  function setMode(btn){ document.querySelectorAll('#sendmode button').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); sendMode=btn.getAttribute('data-mode'); document.getElementById('emailnote').textContent = sendMode==='auto' ? 'Full auto — the packet emails to your lender as soon as it is generated.' : 'Default: draft for approval — the email is prepared for your OK before it sends.'; }
+  function emailLender(){ document.getElementById('emailnote').innerHTML = sendMode==='auto' ? '<b style="color:var(--green)">Would send now</b> (full auto). Live build: renders the PDF and sends to your lender in one click.' : '<b style="color:var(--green)">Draft prepared</b> for your approval. Live build: renders the PDF, you review, then it sends.'; }
+  recompute();
+</script>
+</body>
+</html>

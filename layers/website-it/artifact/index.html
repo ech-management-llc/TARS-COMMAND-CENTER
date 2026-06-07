@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Website &amp; IT — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .ph{height:84px;background:var(--surf2);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:11px;text-align:center;flex-direction:column;gap:3px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .estimate{display:inline-block;background:var(--yellowbg);border:1px solid var(--yellowln);color:var(--yellow);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+  @media(max-width:560px){ .grid3{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🌐 Website &amp; IT</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW.</b> Linked to <b>ech-website → echmanagement.services</b>. Update the live site by clicks or conversation. Publishing a listing updates the availability feed the <b>Inbox lead-matcher</b> reads — Website ↔ Inbox is one pipeline. Connectors (site repo, image/AI-staging model, 360 generator, syndication) aren't wired yet.
+  </div>
+
+  <div class="card">
+    <div class="section-label">NEW / UPDATE LISTING</div>
+    <div class="fgrid">
+      <div><label>Address</label><input value="102 Remington, Mabank TX"></div>
+      <div><label>Status</label><input value="Available ~1 mo"></div>
+      <div><label>Beds / baths</label><input value="4 / 2"></div>
+      <div><label>Rent</label><input value="$1,900/mo"></div>
+    </div>
+    <div class="section-label" style="margin-top:12px">PHOTOS → AI STAGE → 360</div>
+    <div class="grid3">
+      <div class="ph">📷 drop photos</div>
+      <div class="ph" style="border-color:var(--yellowln)">✨ AI-staged<br><span class="estimate">declutter · light · virtual furniture</span></div>
+      <div class="ph" style="border-color:var(--greenln)">🌀 360 walkthrough</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn primary" onclick="publish()">⬆ Publish to website</button>
+      <button class="btn" onclick="note('preview','Live build: opens the staged listing preview before it goes live.')">Preview</button>
+    </div>
+    <div class="wire-note" id="pubnote">One-button publish updates echmanagement.services AND the availability feed Inbox reads for lead-matching.</div>
+  </div>
+
+  <div class="card">
+    <div class="row-sb"><div class="section-label" style="margin:0">SOCIAL SYNDICATION</div><span class="estimate">AI writes per-channel copy + picks photo</span></div>
+    <div class="card flush" style="margin-top:8px">
+      <table>
+        <tr><th>CHANNEL</th><th>STATUS</th><th>LINKS TO</th></tr>
+        <tr><td>Zillow</td><td><span class="tag b-green">posted</span></td><td>listing + 360</td></tr>
+        <tr><td>Apartments.com</td><td><span class="tag b-green">posted</span></td><td>listing + 360</td></tr>
+        <tr><td>Facebook</td><td><span class="tag b-yellow">draft</span></td><td>listing + 360</td></tr>
+        <tr><td>Instagram</td><td><span class="tag b-yellow">draft</span></td><td>listing + 360</td></tr>
+        <tr><td>X</td><td><span class="tag b-gray">off</span></td><td>—</td></tr>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn" onclick="note('syn','Live build: AI drafts per-channel copy + picks the lead photo; each post links to the listing + 360 tour. You approve, then it posts via the syndication connector.')">Syndicate / update enabled channels</button>
+      <button class="btn" onclick="note('syn','Live build: when a unit is rented, listings are pulled from every channel automatically.')">Pull listings (rented)</button>
+    </div>
+    <div class="wire-note" id="synnote">Configurable per channel. Each post links back to the listing + 360 tour; status tracked here; listings pulled when rented.</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">SOCIAL PROFILE LINKS (shown on the website)</div>
+    <div class="fgrid">
+      <div><label>Facebook</label><input value="facebook.com/echmanagement"></div>
+      <div><label>Instagram</label><input value="instagram.com/echmanagement"></div>
+    </div>
+    <div class="wire-note">These are the profile links the public site displays — managed here, pushed to the site on save.</div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Website ↔ Inbox = one pipeline · syndication via platform APIs or Buffer/Hootsuite/Zapier. Sample data.</div>
+</div>
+
+<script>
+  function note(id,msg){ var el=document.getElementById(id==='preview'||id==='publish'?'pubnote':'synnote'); if(el) el.textContent=msg; }
+  function publish(){ document.getElementById('pubnote').innerHTML='<b style="color:var(--green)">Published (preview).</b> Live build: writes the listing to echmanagement.services and updates the availability feed → the Inbox lead-matcher can now match prospects to 102 Remington.'; }
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "tenant_id": "ech",
+  "name": "ECH Management",
+  "reference_install": true,
+
+  "branding": {
+    "title": "TARS",
+    "title_accent": "COMMAND",
+    "logo": null,
+    "accent": "#10b981",
+    "theme": "dark"
+  },
+
+  "operator": {
+    "name": "Jerry",
+    "greeting_name": "Jerry"
+  },
+
+  "ai_summary": {
+    "enabled": true,
+    "live": false,
+    "text": "System structure is live and reporting honestly. Capital Rules: liquidity is GREEN ($366K over the floor); LTV / DSCR / per-door read pending because the ledger engine is still on sandbox data. Market: cap rate and two vacancy reads are live from Reventure + Census; the seasonal gap explains why total and rental vacancy differ. Money figures stay at honest $0 until Plaid production.",
+    "note": "Static for v1 — not a live model call. A live AI summary lands when the global agent is wired to a model."
+  },
+
+  "global_agent": {
+    "name": "TARS",
+    "role": "company-wide employee · all layers",
+    "avatar": "T",
+    "tagline": "your on-call AI employee · sees every layer · remembers your business",
+    "intro": "Hi Jerry — I am TARS, your company-wide employee. I can see every layer and I load your knowledge folder each session, so you never re-explain. What do you need?",
+    "chips": [
+      "What needs my attention today?",
+      "Find the lease for 415 Skiles",
+      "Build a lender packet",
+      "Who is late on rent?"
+    ],
+    "scope": "all"
+  },
+
+  "memory_store": {
+    "provider": "cloud",
+    "label": "ECH knowledge vault",
+    "location": "tenant-configured (cloud)",
+    "status": "configured",
+    "writeback_mode": "draft-for-approval",
+    "note": "Source of truth = the storage folder. The Document Navigator is the indexed VIEW of this same store, not a separate copy. Backup = scheduled mirror to a second location. Live read/append wiring lands with the agent model connection."
+  },
+
+  "data_sources": {
+    "fl_api": "https://api.foundationlayerhq.com/api/dashboard/latest"
+  },
+
+  "market": {
+    "default_county": "henderson",
+    "picker_label": "📍 County"
+  },
+
+  "entitlement": {
+    "mode": "all",
+    "note": "v1 stub — ECH is entitled to every layer. Core still filters tiles by entitled:true so the licensing boundary exists in code."
+  },
+
+  "deploy": {
+    "production_url": "https://tcc.echmanagement.services",
+    "plaid_stage": "sandbox",
+    "money_state": "placeholder_zero"
+  }
+}

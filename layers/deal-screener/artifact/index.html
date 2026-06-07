@@ -1,0 +1,505 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECH Deal Screener</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; padding: 0; }
+
+  .header { background: #1a1a2e; color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;}
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+  .header .sub { font-size: 11px; color: #8899bb; }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-mini { background: transparent; color: #fbbf24; border: 1px solid #fbbf24; padding: 5px 11px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .btn-mini:hover { background: #fbbf24; color: #1a1a2e; }
+  .btn-mini.danger { color: #fca5a5; border-color: #fca5a5; }
+  .btn-mini.danger:hover { background: #fca5a5; color: #1a1a2e; }
+
+  .container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+
+  .panel { background: white; border-radius: 10px; padding: 18px 20px; border: 1px solid #e2e8f0; }
+  .panel h2 { font-size: 13px; font-weight: 700; color: #1a1a2e; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; }
+  .panel h2 .sub { font-weight: 400; color: #94a3b8; font-size: 10px; letter-spacing: 0.5px; text-transform: none; margin-left: 6px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .row.single { grid-template-columns: 1fr; }
+  .row.three { grid-template-columns: 1fr 1fr 1fr; }
+  .field { display: flex; flex-direction: column; }
+  .field label { font-size: 10px; font-weight: 600; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; }
+  .field input, .field select { padding: 7px 10px; border: 1.5px solid #cbd5e0; border-radius: 6px; font-size: 13px; font-family: inherit; background: white; outline: none; }
+  .field input:focus, .field select:focus { border-color: #4a6fa5; }
+  .field input[type="number"] { font-variant-numeric: tabular-nums; }
+
+  .computed { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-top: 8px; }
+  .computed-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+  .computed-row:last-child { border-bottom: none; }
+  .computed-row .label { color: #64748b; font-weight: 500; }
+  .computed-row .value { font-weight: 700; color: #1a1a2e; font-variant-numeric: tabular-nums; }
+  .computed-row.big { padding: 10px 0; font-size: 14px; }
+  .computed-row.big .value { font-size: 16px; }
+
+  .gates { background: white; border-radius: 10px; padding: 18px 20px; border: 1px solid #e2e8f0; margin-bottom: 16px; grid-column: 1 / -1; }
+  .gates h2 { font-size: 13px; font-weight: 700; color: #1a1a2e; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; }
+  .gates-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .gate { padding: 14px 16px; border-radius: 8px; border: 2px solid; }
+  .gate-rule { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .gate-value { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .gate-status { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+  .gate.green { background: #dcfce7; border-color: #16a34a; color: #14532d; }
+  .gate.yellow { background: #fef9c3; border-color: #ca8a04; color: #713f12; }
+  .gate.red { background: #fee2e2; border-color: #dc2626; color: #7f1d1d; }
+  .gate.gray { background: #f8fafc; border-color: #cbd5e0; color: #475569; }
+
+  .verdict { grid-column: 1 / -1; padding: 24px; border-radius: 12px; text-align: center; margin-bottom: 16px; }
+  .verdict.green { background: linear-gradient(135deg, #dcfce7, #bbf7d0); border: 3px solid #16a34a; color: #14532d; }
+  .verdict.yellow { background: linear-gradient(135deg, #fef9c3, #fde047); border: 3px solid #ca8a04; color: #713f12; }
+  .verdict.red { background: linear-gradient(135deg, #fee2e2, #fecaca); border: 3px solid #dc2626; color: #7f1d1d; }
+  .verdict.gray { background: #f1f5f9; border: 3px dashed #94a3b8; color: #475569; }
+  .verdict-label { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .verdict-headline { font-size: 28px; font-weight: 900; letter-spacing: 1px; }
+  .verdict-reasons { font-size: 13px; margin-top: 10px; line-height: 1.6; }
+
+  .rules-card { background: #1a1a2e; color: #fef3c7; border-radius: 10px; padding: 14px 18px; font-size: 11px; line-height: 1.6; }
+  .rules-card strong { color: #fbbf24; }
+  .rules-card .rule-row { padding: 4px 0; border-bottom: 1px solid #334155; }
+  .rules-card .rule-row:last-child { border-bottom: none; }
+
+  .footer { padding: 16px 24px 32px; text-align: center; font-size: 10px; color: #94a3b8; }
+  .footer code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+
+  .verdict-section { display: grid; grid-template-columns: 1fr; gap: 0; padding: 16px; max-width: 1400px; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>📐 ECH Deal Screener</h1>
+    <div class="sub">Auto-underwrite against Capital Rules · Saves last deal in browser</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-mini" onclick="exportMarkdown()">Export .md</button>
+    <button class="btn-mini" onclick="loadSample()">Load sample</button>
+    <button class="btn-mini danger" onclick="resetAll()">Reset</button>
+  </div>
+</div>
+
+<div class="verdict-section">
+  <div id="verdict" class="verdict gray">
+    <div class="verdict-label">Verdict</div>
+    <div class="verdict-headline" id="verdict-headline">Enter deal data</div>
+    <div class="verdict-reasons" id="verdict-reasons">Capital Rules apply automatically as you type.</div>
+  </div>
+
+  <div class="gates">
+    <h2>Capital Rules · Live Gates</h2>
+    <div class="gates-grid" id="gates-grid">
+      <div class="gate gray"><div class="gate-rule">LTV ≤ 50%</div><div class="gate-value" id="gate-ltv">—</div><div class="gate-status" id="gate-ltv-status">awaiting input</div></div>
+      <div class="gate gray"><div class="gate-rule">DSCR ≥ 1.8×</div><div class="gate-value" id="gate-dscr">—</div><div class="gate-status" id="gate-dscr-status">awaiting input</div></div>
+      <div class="gate gray"><div class="gate-rule">Per-door $400-500</div><div class="gate-value" id="gate-pd">—</div><div class="gate-status" id="gate-pd-status">awaiting input</div></div>
+      <div class="gate gray"><div class="gate-rule">Liquidity ≥ $500K</div><div class="gate-value" id="gate-liq">—</div><div class="gate-status" id="gate-liq-status">awaiting input</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- LEFT COLUMN -->
+  <div class="panel">
+    <h2>Property <span class="sub">basic info</span></h2>
+    <div class="row">
+      <div class="field"><label>Title / Address</label><input type="text" id="title" placeholder="e.g. 410 Scott, Athens TX"></div>
+      <div class="field"><label>Entity</label>
+        <select id="entity">
+          <option value="">—</option>
+          <option>EADS_IND</option>
+          <option>ECH_DEV</option>
+          <option>JP_EADS</option>
+          <option>ECH_MGMT</option>
+          <option>EADS_TOOLS</option>
+          <option>ES_CONC</option>
+          <option>NEW_SPV</option>
+        </select>
+      </div>
+    </div>
+    <div class="row three">
+      <div class="field"><label>Type</label>
+        <select id="type">
+          <option>Multifamily</option>
+          <option>SFR</option>
+          <option>Commercial</option>
+          <option>Land</option>
+        </select>
+      </div>
+      <div class="field"><label># Units</label><input type="number" id="units" min="0" step="1" value="1"></div>
+      <div class="field"><label>Year Built</label><input type="number" id="year-built" min="1800" max="2099" step="1" placeholder="2005"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Capital Stack <span class="sub">cash + debt</span></h2>
+    <div class="row">
+      <div class="field"><label>Asking Price ($)</label><input type="number" id="asking" min="0" step="1000" placeholder="0"></div>
+      <div class="field"><label>Target Purchase ($)</label><input type="number" id="purchase" min="0" step="1000" placeholder="0"></div>
+    </div>
+    <div class="row three">
+      <div class="field"><label>Closing Costs ($)</label><input type="number" id="closing" min="0" step="100" placeholder="0"></div>
+      <div class="field"><label>Rehab / CapEx ($)</label><input type="number" id="rehab" min="0" step="100" placeholder="0"></div>
+      <div class="field"><label>Reserves ($)</label><input type="number" id="reserves" min="0" step="100" placeholder="0"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Down Payment ($)</label><input type="number" id="down" min="0" step="100" placeholder="0"></div>
+      <div class="field"><label>Loan Amount ($)</label><input type="number" id="loan" min="0" step="100" placeholder="0"></div>
+    </div>
+    <div class="computed">
+      <div class="computed-row"><span class="label">Total Project Cost</span><span class="value" id="c-tpc">$0</span></div>
+      <div class="computed-row big"><span class="label">LTV</span><span class="value" id="c-ltv">—</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Income & Expenses <span class="sub">monthly figures</span></h2>
+    <div class="row">
+      <div class="field"><label>Gross Rents / month ($)</label><input type="number" id="rents" min="0" step="50" placeholder="0"></div>
+      <div class="field"><label>Vacancy % (e.g. 5)</label><input type="number" id="vacancy" min="0" max="100" step="0.5" value="5"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Operating Expenses / month ($)</label><input type="number" id="opex" min="0" step="50" placeholder="0"></div>
+      <div class="field"><label>Debt Service / month ($)</label><input type="number" id="debt" min="0" step="50" placeholder="0"></div>
+    </div>
+    <div class="computed">
+      <div class="computed-row"><span class="label">EGI (annual)</span><span class="value" id="c-egi">$0</span></div>
+      <div class="computed-row"><span class="label">NOI (annual)</span><span class="value" id="c-noi">$0</span></div>
+      <div class="computed-row"><span class="label">Annual Debt Service</span><span class="value" id="c-ads">$0</span></div>
+      <div class="computed-row big"><span class="label">Net Cash Flow / year</span><span class="value" id="c-cf">$0</span></div>
+      <div class="computed-row big"><span class="label">DSCR</span><span class="value" id="c-dscr">—</span></div>
+      <div class="computed-row"><span class="label">Net CF / Door / month</span><span class="value" id="c-pd">—</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Liquidity Check <span class="sub">post-close</span></h2>
+    <div class="row">
+      <div class="field"><label>Current Liquidity ($)</label><input type="number" id="liq-current" min="0" step="1000" placeholder="0"></div>
+      <div class="field"><label>Cash Going Into Deal ($)</label><input type="number" id="liq-out" min="0" step="100" placeholder="0"></div>
+    </div>
+    <div class="computed">
+      <div class="computed-row big"><span class="label">Liquidity After Close</span><span class="value" id="c-liq">$0</span></div>
+      <div class="computed-row"><span class="label">Floor (rule)</span><span class="value">$500,000</span></div>
+    </div>
+    <div style="margin-top:12px;">
+      <div class="rules-card">
+        <div class="rule-row"><strong>RULE</strong> · LTV ≤ 50% ceiling — never breach</div>
+        <div class="rule-row"><strong>RULE</strong> · DSCR ≥ 1.8× floor — auto-reject below</div>
+        <div class="rule-row"><strong>RULE</strong> · Liquidity ≥ $500K post-close — non-negotiable</div>
+        <div class="rule-row"><strong>RULE</strong> · Per-door $400–$500 target / $300 minimum</div>
+        <div class="rule-row"><strong>RULE</strong> · Below replacement cost · forced equity · no speculative rents</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="grid-column: 1 / -1;">
+    <h2>Notes</h2>
+    <div class="field"><label>Free-form notes — saved with deal</label>
+      <textarea id="notes" rows="4" style="padding:8px 10px; border:1.5px solid #cbd5e0; border-radius:6px; font-family:inherit; font-size:13px; resize:vertical; outline:none;" placeholder="Forced equity path · exit strategy · seller story · comps · risks..."></textarea>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  ECH Deal Screener · Capital Rules sourced from <code>MEGA_BRAIN/04_PORTFOLIO_LEVEL_REPORTING/04_CAPITAL_PLANNING/CAPITAL-RULES.md</code> · Built 2026-05-05 by TARS
+</div>
+
+<script>
+const FIELDS = ['title','entity','type','units','year-built','asking','purchase','closing','rehab','reserves','down','loan','rents','vacancy','opex','debt','liq-current','liq-out','notes'];
+const STORAGE_KEY = 'ech-deal-screener-v1';
+
+function fmtMoney(n) {
+  if (!isFinite(n) || n === null) return '—';
+  const sign = n < 0 ? '-' : '';
+  return sign + '$' + Math.abs(Math.round(n)).toLocaleString();
+}
+function fmtPct(n) {
+  if (!isFinite(n) || n === null) return '—';
+  return (n * 100).toFixed(1) + '%';
+}
+function fmtMult(n) {
+  if (!isFinite(n) || n === null) return '—';
+  return n.toFixed(2) + '×';
+}
+function num(id) {
+  const el = document.getElementById(id);
+  if (!el) return 0;
+  const v = parseFloat(el.value);
+  return isFinite(v) ? v : 0;
+}
+
+function compute() {
+  const purchase = num('purchase');
+  const closing = num('closing');
+  const rehab = num('rehab');
+  const reserves = num('reserves');
+  const down = num('down');
+  const loan = num('loan');
+  const tpc = purchase + closing + rehab + reserves;
+
+  const rents = num('rents');
+  const vacancyPct = num('vacancy') / 100;
+  const opex = num('opex');
+  const debt = num('debt');
+  const units = Math.max(num('units') || 1, 1);
+
+  const egi = (rents * 12) * (1 - vacancyPct);
+  const noi = egi - (opex * 12);
+  const ads = debt * 12;
+  const cashFlow = noi - ads;
+  const ltv = purchase > 0 ? loan / purchase : null;
+  const dscr = ads > 0 ? noi / ads : null;
+  const perDoor = units > 0 ? cashFlow / units / 12 : null;
+
+  const liqCurrent = num('liq-current');
+  const liqOut = num('liq-out');
+  const liqAfter = liqCurrent - liqOut;
+
+  // Set computed displays
+  document.getElementById('c-tpc').textContent = fmtMoney(tpc);
+  document.getElementById('c-ltv').textContent = ltv === null ? '—' : fmtPct(ltv);
+  document.getElementById('c-egi').textContent = fmtMoney(egi);
+  document.getElementById('c-noi').textContent = fmtMoney(noi);
+  document.getElementById('c-ads').textContent = fmtMoney(ads);
+  document.getElementById('c-cf').textContent = fmtMoney(cashFlow);
+  document.getElementById('c-dscr').textContent = fmtMult(dscr);
+  document.getElementById('c-pd').textContent = perDoor === null ? '—' : fmtMoney(perDoor);
+  document.getElementById('c-liq').textContent = fmtMoney(liqAfter);
+
+  // Gates
+  const gates = [];
+
+  // LTV gate (rule: ≤ 50% target, RED above 65%)
+  const ltvEl = document.querySelector('#gates-grid .gate:nth-child(1)');
+  const ltvVal = document.getElementById('gate-ltv');
+  const ltvStatus = document.getElementById('gate-ltv-status');
+  if (ltv === null) {
+    ltvEl.className = 'gate gray'; ltvVal.textContent = '—'; ltvStatus.textContent = 'awaiting input';
+    gates.push({ name: 'LTV', state: 'gray' });
+  } else {
+    ltvVal.textContent = fmtPct(ltv);
+    if (ltv <= 0.50) { ltvEl.className = 'gate green'; ltvStatus.textContent = 'WITHIN RULE'; gates.push({name:'LTV',state:'green'}); }
+    else if (ltv <= 0.65) { ltvEl.className = 'gate yellow'; ltvStatus.textContent = 'OVER 50% — caution'; gates.push({name:'LTV',state:'yellow'}); }
+    else { ltvEl.className = 'gate red'; ltvStatus.textContent = 'ABOVE 65% — KILL'; gates.push({name:'LTV',state:'red'}); }
+  }
+
+  // DSCR gate (rule: ≥ 1.8x floor)
+  const dscrEl = document.querySelector('#gates-grid .gate:nth-child(2)');
+  const dscrVal = document.getElementById('gate-dscr');
+  const dscrStatus = document.getElementById('gate-dscr-status');
+  if (dscr === null) {
+    dscrEl.className = 'gate gray'; dscrVal.textContent = '—'; dscrStatus.textContent = 'awaiting input';
+    gates.push({ name: 'DSCR', state: 'gray' });
+  } else {
+    dscrVal.textContent = fmtMult(dscr);
+    if (dscr >= 1.8) { dscrEl.className = 'gate green'; dscrStatus.textContent = 'WITHIN RULE'; gates.push({name:'DSCR',state:'green'}); }
+    else if (dscr >= 1.4) { dscrEl.className = 'gate yellow'; dscrStatus.textContent = 'BELOW 1.8x — caution'; gates.push({name:'DSCR',state:'yellow'}); }
+    else { dscrEl.className = 'gate red'; dscrStatus.textContent = 'KILL — below floor'; gates.push({name:'DSCR',state:'red'}); }
+  }
+
+  // Per-door gate ($400-500 target / $300 floor)
+  const pdEl = document.querySelector('#gates-grid .gate:nth-child(3)');
+  const pdVal = document.getElementById('gate-pd');
+  const pdStatus = document.getElementById('gate-pd-status');
+  if (perDoor === null) {
+    pdEl.className = 'gate gray'; pdVal.textContent = '—'; pdStatus.textContent = 'awaiting input';
+    gates.push({ name: 'PerDoor', state: 'gray' });
+  } else {
+    pdVal.textContent = fmtMoney(perDoor) + '/mo';
+    if (perDoor >= 400) { pdEl.className = 'gate green'; pdStatus.textContent = 'TARGET HIT'; gates.push({name:'PerDoor',state:'green'}); }
+    else if (perDoor >= 300) { pdEl.className = 'gate yellow'; pdStatus.textContent = 'BELOW $400 — caution'; gates.push({name:'PerDoor',state:'yellow'}); }
+    else { pdEl.className = 'gate red'; pdStatus.textContent = 'BELOW $300 — KILL'; gates.push({name:'PerDoor',state:'red'}); }
+  }
+
+  // Liquidity gate (≥ $500K post-close)
+  const liqEl = document.querySelector('#gates-grid .gate:nth-child(4)');
+  const liqValEl = document.getElementById('gate-liq');
+  const liqStatus = document.getElementById('gate-liq-status');
+  if (liqCurrent === 0 && liqOut === 0) {
+    liqEl.className = 'gate gray'; liqValEl.textContent = '—'; liqStatus.textContent = 'awaiting input';
+    gates.push({ name: 'Liquidity', state: 'gray' });
+  } else {
+    liqValEl.textContent = fmtMoney(liqAfter);
+    if (liqAfter >= 500000) { liqEl.className = 'gate green'; liqStatus.textContent = 'WITHIN RULE'; gates.push({name:'Liquidity',state:'green'}); }
+    else if (liqAfter >= 400000) { liqEl.className = 'gate yellow'; liqStatus.textContent = 'BELOW $500K — caution'; gates.push({name:'Liquidity',state:'yellow'}); }
+    else { liqEl.className = 'gate red'; liqStatus.textContent = 'KILL — below floor'; gates.push({name:'Liquidity',state:'red'}); }
+  }
+
+  // Verdict
+  const reds = gates.filter(g => g.state === 'red').map(g => g.name);
+  const yellows = gates.filter(g => g.state === 'yellow').map(g => g.name);
+  const greens = gates.filter(g => g.state === 'green').map(g => g.name);
+  const grays = gates.filter(g => g.state === 'gray').length;
+
+  const verdictEl = document.getElementById('verdict');
+  const verdictHeadline = document.getElementById('verdict-headline');
+  const verdictReasons = document.getElementById('verdict-reasons');
+
+  if (grays === gates.length) {
+    verdictEl.className = 'verdict gray';
+    verdictHeadline.textContent = 'Enter deal data';
+    verdictReasons.textContent = 'Capital Rules apply automatically as you type.';
+  } else if (reds.length > 0) {
+    verdictEl.className = 'verdict red';
+    verdictHeadline.textContent = '🛑 KILL';
+    verdictReasons.textContent = `Hard rule(s) breached: ${reds.join(', ')}. ` + (yellows.length ? `Also caution on: ${yellows.join(', ')}.` : '');
+  } else if (yellows.length > 0) {
+    verdictEl.className = 'verdict yellow';
+    verdictHeadline.textContent = '⚠ CAUTION';
+    verdictReasons.textContent = `Below target on: ${yellows.join(', ')}. Re-trade or restructure required before approval.`;
+  } else {
+    verdictEl.className = 'verdict green';
+    verdictHeadline.textContent = '✓ PROCEED';
+    verdictReasons.textContent = `All Capital Rules within target: ${greens.join(', ')}.`;
+  }
+
+  saveState();
+}
+
+function saveState() {
+  const state = {};
+  FIELDS.forEach(f => { const el = document.getElementById(f); if (el) state[f] = el.value; });
+  state._saved = new Date().toISOString();
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const state = JSON.parse(raw);
+    FIELDS.forEach(f => { const el = document.getElementById(f); if (el && state[f] !== undefined) el.value = state[f]; });
+  } catch(e) {}
+}
+
+function resetAll() {
+  if (!confirm('Reset all fields? This will clear the saved deal.')) return;
+  FIELDS.forEach(f => { const el = document.getElementById(f); if (el) { if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = ''; } });
+  document.getElementById('vacancy').value = '5';
+  document.getElementById('units').value = '1';
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  compute();
+}
+
+function loadSample() {
+  const sample = {
+    'title': '410 Scott, Athens TX',
+    'entity': 'ECH_DEV',
+    'type': 'SFR',
+    'units': '1',
+    'year-built': '1965',
+    'asking': '120000',
+    'purchase': '95000',
+    'closing': '3000',
+    'rehab': '15000',
+    'reserves': '5000',
+    'down': '47500',
+    'loan': '47500',
+    'rents': '1500',
+    'vacancy': '5',
+    'opex': '350',
+    'debt': '320',
+    'liq-current': '600000',
+    'liq-out': '70500',
+    'notes': 'SFR deal · forced equity via cosmetic rehab · existing tenant willing to stay at $1500 · exit: refi at year 1 to pull capital'
+  };
+  Object.entries(sample).forEach(([k, v]) => { const el = document.getElementById(k); if (el) el.value = v; });
+  compute();
+}
+
+function exportMarkdown() {
+  const get = id => { const el = document.getElementById(id); return el ? (el.value || '—') : '—'; };
+  const purchase = num('purchase');
+  const loan = num('loan');
+  const ltv = purchase > 0 ? loan / purchase : null;
+  const rents = num('rents');
+  const opex = num('opex');
+  const debt = num('debt');
+  const vacancyPct = num('vacancy') / 100;
+  const egi = (rents * 12) * (1 - vacancyPct);
+  const noi = egi - (opex * 12);
+  const ads = debt * 12;
+  const cashFlow = noi - ads;
+  const dscr = ads > 0 ? noi / ads : null;
+  const units = Math.max(num('units') || 1, 1);
+  const perDoor = cashFlow / units / 12;
+  const liqAfter = num('liq-current') - num('liq-out');
+  const verdict = document.getElementById('verdict-headline').textContent;
+  const reasons = document.getElementById('verdict-reasons').textContent;
+
+  const md = `# Deal Analysis · ${get('title')}
+**Date:** ${new Date().toISOString().split('T')[0]}
+**Entity:** ${get('entity')}
+**Verdict:** ${verdict}
+
+## Property
+- **Type:** ${get('type')}
+- **Units:** ${get('units')}
+- **Year Built:** ${get('year-built')}
+
+## Capital Stack
+| Item | Amount |
+|---|---|
+| Asking Price | ${fmtMoney(num('asking'))} |
+| Target Purchase | ${fmtMoney(num('purchase'))} |
+| Closing Costs | ${fmtMoney(num('closing'))} |
+| Rehab / CapEx | ${fmtMoney(num('rehab'))} |
+| Reserves | ${fmtMoney(num('reserves'))} |
+| Total Project Cost | ${fmtMoney(num('purchase')+num('closing')+num('rehab')+num('reserves'))} |
+| Down Payment | ${fmtMoney(num('down'))} |
+| Loan Amount | ${fmtMoney(loan)} |
+| **LTV** | **${ltv===null?'—':fmtPct(ltv)}** |
+
+## Income & Expenses (annual unless noted)
+| Item | Amount |
+|---|---|
+| Gross Rents (annual) | ${fmtMoney(rents*12)} |
+| Vacancy ${(vacancyPct*100).toFixed(1)}% | (${fmtMoney(rents*12*vacancyPct)}) |
+| EGI | ${fmtMoney(egi)} |
+| Operating Expenses | (${fmtMoney(opex*12)}) |
+| **NOI** | **${fmtMoney(noi)}** |
+| Annual Debt Service | (${fmtMoney(ads)}) |
+| **Net Cash Flow** | **${fmtMoney(cashFlow)}** |
+| Per-door / month | ${fmtMoney(perDoor)} |
+| **DSCR** | **${dscr===null?'—':fmtMult(dscr)}** |
+
+## Liquidity
+- Current: ${fmtMoney(num('liq-current'))}
+- Cash to deal: ${fmtMoney(num('liq-out'))}
+- **After close:** ${fmtMoney(liqAfter)} (rule: ≥ $500K)
+
+## Verdict — ${verdict}
+${reasons}
+
+## Notes
+${get('notes')}
+
+---
+*Generated by ECH Deal Screener · ${new Date().toISOString()}*
+`;
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const safeTitle = (get('title') || 'deal').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+  a.download = `deal-${safeTitle}-${new Date().toISOString().split('T')[0]}.md`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// Wire up
+loadState();
+FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEventListener('input', compute); el && el.addEventListener('change', compute); });
+compute();
+</script>
+</body>
+</html>
