@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Learn & Coach — TARS Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .btn.term-open{background:var(--green);border-color:var(--green);color:#06150f}
+  .term-detail{background:var(--surf);border:1px solid var(--greenln);border-radius:var(--radius-sm);padding:14px;margin-top:10px;font-size:13px;line-height:1.6}
+  .term-detail h4{font-size:13px;margin:0 0 6px;color:var(--green)}
+  .term-detail .lead{color:var(--txt);margin-bottom:10px}
+  .term-detail ul{list-style:none;margin:0;padding:0}
+  .term-detail li{padding:8px 0;border-top:1px solid var(--line)}
+  .term-detail li b{color:var(--teal)}
+  .term-detail .eg{background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:5px;font-size:12.5px;color:var(--mut)}
+  .term-detail .eg b{color:var(--txt)}
+  .term-detail .rule-thumb{color:var(--dim);font-size:11.5px;margin-top:10px}
+</style>
 </head>
 <body>
 <div class="art-wrap">
@@ -35,7 +47,7 @@
   <div class="card" data-view-section="glossary">
     <div class="section-label">PLAIN-ENGLISH GLOSSARY — tap a term</div>
     <div class="filt">
-      <button class="btn" onclick="alert('Cap rate = a property’s yearly profit divided by its price. Higher = better return. 8%+ is solid for a rental.')">Cap rate</button>
+      <button class="btn" id="term-cap-rate-btn" onclick="toggleTerm('cap-rate')">Cap rate</button>
       <button class="btn" onclick="alert('ARV = After Repair Value — what the home is worth once you fix it up. You buy and borrow against this number.')">ARV</button>
       <button class="btn" onclick="alert('DSCR = does the rent cover the mortgage? Above 1.2 means yes, with cushion. Lenders love it.')">DSCR</button>
       <button class="btn" onclick="alert('LTV = how much you borrow vs. what the home is worth. 70% LTV on a $185k home = a $129.5k loan.')">LTV</button>
@@ -43,12 +55,42 @@
       <button class="btn" onclick="alert('NOI = Net Operating Income — rent minus operating expenses, before the mortgage. It’s what the property earns on its own.')">NOI</button>
       <button class="btn" onclick="alert('Per-door = monthly cash flow divided by the number of units. ECH targets $400–500/door, with a $300 floor.')">Per-door</button>
     </div>
+
+    <div class="term-detail" id="term-cap-rate" style="display:none">
+      <h4>Cap rate (capitalization rate)</h4>
+      <p class="lead">The basic version: a property’s yearly <b>net operating income (NOI)</b> ÷ its price. It’s a quick read on the return — and, flipped around, it’s also how you put a <b>value</b> on a property. Higher cap = cheaper / more return (often more risk or work); lower cap = pricier / safer.</p>
+      <p class="lead" style="margin-bottom:6px"><b>But it’s used for more than a quick return check:</b></p>
+      <ul>
+        <li><b>Valuing a property:</b> Value = NOI ÷ cap rate. If a place throws off $12,000 NOI a year and similar deals trade at an 8% cap, it’s worth about <b>$150,000</b> ($12,000 ÷ 0.08).
+          <div class="eg">Same NOI at a 6% cap → <b>$200,000</b>. At a 10% cap → <b>$120,000</b>. The cap rate the market uses moves the price a lot.</div>
+        </li>
+        <li><b>Entry vs. exit cap rate:</b> <b>Entry</b> = the cap rate you buy at (your NOI ÷ purchase price). <b>Exit</b> = the cap rate you assume when you sell (a future buyer’s NOI ÷ sale price). Good underwriting uses a slightly <b>higher exit cap than entry</b> — caps can drift up over time, so assuming a higher one lowers your projected sale price and keeps you honest.
+          <div class="eg">Buy at a 7% entry cap; underwrite an <b>8% exit cap</b>. If you don’t grow NOI, that alone shaves your projected resale value — a built-in margin of safety.</div>
+        </li>
+        <li><b>Value-add / forcing appreciation:</b> because Value = NOI ÷ cap rate, <b>raising NOI raises value</b> at the same cap rate — independent of the market. Renovate, raise rents, or cut expenses to grow NOI.
+          <div class="eg">Bump rents and trim costs to add <b>$2,000</b> of annual NOI. At an 8% cap that’s <b>+$25,000</b> in value ($2,000 ÷ 0.08). Add $6,000 NOI → <b>+$75,000</b>. That’s how a reno or rent increase “forces” equity.</div>
+        </li>
+        <li><b>Comparing deals &amp; markets:</b> cap rates put very different properties and areas on the same return footing — apples to apples — so you can rank where your dollar works hardest for the risk.</li>
+      </ul>
+      <div class="rule-thumb">Rule of thumb: 8%+ is solid for a rental in our markets — but “good” depends on the area, the condition, and how much work it takes. Cap rate ignores your loan; it’s the property’s return on its own (use cash-on-cash and DSCR once the mortgage is in the picture).</div>
+    </div>
   </div>
 
   <div class="wire-note" style="text-align:center;margin-top:14px">The “explain this” button lives on every tile. Coach remembers what you already know, so it never over-explains. Free-form answers turn on when the live model is connected. Sample content.</div>
 </div>
 
 <script>
+  // Expandable glossary term (inline "dig in" explainer).
+  function toggleTerm(id){
+    var d = document.getElementById('term-'+id);
+    var b = document.getElementById('term-'+id+'-btn');
+    if(!d) return;
+    var open = d.style.display==='none' || !d.style.display;
+    d.style.display = open ? 'block' : 'none';
+    if(b) b.classList.toggle('term-open', open);
+    if(open) d.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
   // In-tile view config from the core: show/hide sections. Never touches data.
   function applyViewCfg(ops){
     document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });

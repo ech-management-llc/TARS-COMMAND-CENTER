@@ -127,13 +127,24 @@ function layerById(id){ return (STATE.registry.layers||[]).find(l => l.id === id
    CHROME (verbar, global TARS button, header, AI summary, footer)
    ════════════════════════════════════════════════════════════════ */
 function renderChrome(){
-  // source ribbon — distinct source tags present in the registry
-  const tags = [];
-  visibleLayers().forEach(l => { if (l.source_tag && !tags.includes(l.source_tag)) tags.push(l.source_tag); });
-  if (!tags.includes('FL')) tags.unshift('FL');
-  const pillCls = { FRED:'src-fred', REV:'src-rev', CEN:'src-cen', DEALCHECK:'src-dc', FL:'src-fl' };
-  $('verbar').innerHTML = '<b>PLATFORM v1</b>' +
-    tags.map(t => '<span class="srcpill '+(pillCls[t]||'src-fl')+'">'+esc(t)+'</span>').join('');
+  const b = (STATE.tenant.branding)||{};
+  const u = STATE.user || {};
+  const roleLabel = { owner:'Owner', admin:'Admin', staff:'Staff', viewer:'Read-only', tenant:'Tenant', field:'Field' }[STATE.role] || STATE.role;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  const scopeStr = (STATE.role==='field'&&STATE.scope) ? ' · '+esc((layerById(STATE.scope)||{}).title||STATE.scope) : '';
+
+  // TOP RIBBON — brand · who/when · live + refresh + sign out.
+  // (Source chips moved DOWN onto each group's header — see groupChipsInner.)
+  $('verbar').innerHTML =
+    '<div class="vb-brand"><b>PLATFORM v1</b></div>'+
+    '<div class="vb-meta"><b>'+dateStr+'</b><span>'+timeOfDay()+(u.name?' · '+esc(u.name):'')+' · '+esc(roleLabel)+scopeStr+'</span></div>'+
+    '<div class="vb-status">'+
+      '<span class="live" id="live-wrap"><span class="pulse"></span> <span id="live-label">Live</span></span>'+
+      '<button class="aibtn" id="refresh-btn" type="button">↻ REFRESH</button>'+
+      '<button type="button" id="signout-btn" class="vb-signout">sign out</button>'+
+    '</div>';
+  $('signout-btn').onclick = () => { Auth.signOut(); location.reload(); };
 
   // global TARS button — pinned at top; hidden for the scoped Field role
   const g = STATE.tenant.global_agent || {};
@@ -148,19 +159,9 @@ function renderChrome(){
       '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
   }
 
-  // header + account chip (name · role · sign out)
-  const op = (STATE.tenant.operator)||{};
-  const b = (STATE.tenant.branding)||{};
-  const u = STATE.user || {};
-  const roleLabel = { owner:'Owner', admin:'Admin', staff:'Staff', viewer:'Read-only', tenant:'Tenant', field:'Field' }[STATE.role] || STATE.role;
-  const now = new Date();
+  // header — tenant title only (date / role / sign-out moved up into the ribbon)
   $('head').innerHTML =
-    '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>'+
-    '<div class="when"><b>'+now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+'</b>'+
-    timeOfDay()+(u.name?' · '+esc(u.name):'')+
-    '<div class="acct">'+esc(roleLabel)+(STATE.role==='field'&&STATE.scope?' · '+esc((layerById(STATE.scope)||{}).title||STATE.scope):'')+
-    ' · <button type="button" id="signout-btn">sign out</button></div></div>';
-  $('signout-btn').onclick = () => { Auth.signOut(); location.reload(); };
+    '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>';
 
   // AI summary (static for v1 — honest)
   const ai = STATE.tenant.ai_summary || {};
@@ -256,6 +257,37 @@ function tarsSvg(s){
 function groupDef(id){ return (STATE.registry.groups||[]).find(g => g.id === id) || { id, render:'card' }; }
 function collapsedSet(){ try { return new Set(JSON.parse(localStorage.getItem('tcc_collapsed')||'[]')); } catch(e){ return new Set(); } }
 
+/* ── source connection chips (per-group; GREEN = connected/live, RED = not connected) ──
+   The chips sit on the header of the group whose tiles the source actually feeds:
+   MARKET → REV/CEN/FRED/DEALCHECK · OVERVIEW → FL (Capital Rules + System). */
+function srcConnected(tag){
+  switch(tag){
+    case 'FL':        return STATE.status.fl === 'ok';   // FL ledger API answered
+    case 'REV':       return !!STATE.data.reventure;      // Reventure snapshot present
+    case 'CEN':       return !!STATE.data.census;         // Census snapshot present
+    case 'FRED':      return !!STATE.data.fred;           // FRED snapshot present
+    case 'DEALCHECK': return !!STATE.data.dealcheck;      // DealCheck snapshot present
+    default:          return false;
+  }
+}
+function groupSrcTags(grpId){
+  const tags = [];
+  layersInGroup(grpId).forEach(l => { if (l.source_tag && !tags.includes(l.source_tag)) tags.push(l.source_tag); });
+  if (grpId === 'overview' && !tags.includes('FL')) tags.unshift('FL');   // FL feeds Capital Rules + System
+  return tags;
+}
+function srcChip(tag){
+  const on = srcConnected(tag);
+  return '<span class="srcpill conn-'+(on?'on':'off')+'" title="'+(on?'Connected · live':'Not connected')+'">'+
+    '<span class="cdot"></span>'+esc(tag)+'</span>';
+}
+function groupChipsInner(grpId){ return groupSrcTags(grpId).map(srcChip).join(''); }
+function refreshGroupChips(){
+  document.querySelectorAll('[data-srcgrp]').forEach(el => {
+    el.innerHTML = groupChipsInner(el.getAttribute('data-srcgrp'));
+  });
+}
+
 function renderHome(){
   const groups = STATE.registry.groups || [];
   const collapsed = collapsedSet();
@@ -271,7 +303,9 @@ function renderHome(){
     const isCol = collapsed.has(grp.id);
     html += '<section class="grp'+(isCol?' collapsed':'')+'" data-group="'+esc(grp.id)+'">'+
       '<button type="button" class="grp-head" data-grp="'+esc(grp.id)+'">'+
-      '<span class="grp-label">'+esc(grp.label||grp.id)+'</span><span class="grp-chev">▾</span></button>'+
+      '<span class="grp-label">'+esc(grp.label||grp.id)+'</span>'+
+      '<span class="grp-srcs" data-srcgrp="'+esc(grp.id)+'">'+groupChipsInner(grp.id)+'</span>'+
+      '<span class="grp-chev">▾</span></button>'+
       '<div class="grp-body">'+body+'</div></section>';
   });
   $('home').innerHTML = html;
@@ -366,6 +400,7 @@ function refreshDataTiles(){
   });
   // market picker may need (re)populating once data arrives
   if (!$('county-picker') || $('county-picker').disabled) bindMarketPicker();
+  refreshGroupChips();   // repaint source connection chips as live data lands
   bindTileClicks();
 }
 
@@ -407,26 +442,29 @@ function tileSystem(l){
   return tileWrap(l, inner, !!l.drilldown);
 }
 
-/* CAPITAL RULES — FL API */
+/* FINANCIAL HEALTH — FL API (plain-English read of the capital rules) */
 function tileCapitalRules(l){
+  const lbl = esc(l.title || 'FINANCIAL HEALTH');
   const fl = STATE.data.fl;
   if (STATE.status.fl === 'down'){
-    const inner = '<div class="top"><span class="lbl">CAPITAL RULES</span>'+badge('b-red','API DOWN')+'</div>'+
-      '<div class="big muted">unreachable</div><div class="sub">last-good held · never faked</div>';
+    const inner = '<div class="top"><span class="lbl">'+lbl+'</span>'+badge('b-red','OFFLINE')+'</div>'+
+      '<div class="big muted">Can’t reach it</div><div class="sub">showing last known · never faked</div>';
     return tileWrap(l, inner, !!l.drilldown);
   }
-  if (!fl){ return tileWrap(l, '<div class="top"><span class="lbl">CAPITAL RULES</span>'+badge('b-gray','…')+'</div><div class="big muted">loading…</div>', !!l.drilldown); }
+  if (!fl){ return tileWrap(l, '<div class="top"><span class="lbl">'+lbl+'</span>'+badge('b-gray','…')+'</div><div class="big muted">Checking…</div>', !!l.drilldown); }
   const cr = fl.capital_rules || {};
   const keys = ['ltv','dscr','liquidity','per_door'];
   const statuses = keys.map(k => (cr[k]&&cr[k].status)||'UNKNOWN');
   let bcls, btxt, big;
-  if (statuses.includes('RED')){ bcls='b-red'; btxt='BREACH'; big='Breach'; }
-  else if (statuses.includes('YELLOW')){ bcls='b-yellow'; btxt='ATTENTION'; big='Attention'; }
-  else if (statuses.every(s=>s==='GREEN')){ bcls='b-green'; btxt='PASSING'; big='Passing'; }
-  else { bcls='b-gray'; btxt='STRUCTURE LIVE'; big='Pending'; }   // some UNKNOWN
+  // roll-up colour: worst KNOWN status wins. red > yellow > green.
+  // white (b-white) only when NOTHING is known yet (all UNKNOWN) = no info given.
+  if (statuses.includes('RED')){ bcls='b-red'; btxt='ACTION NEEDED'; big='Needs action'; }
+  else if (statuses.includes('YELLOW')){ bcls='b-yellow'; btxt='HEADS UP'; big='Worth a look'; }
+  else if (statuses.includes('GREEN')){ bcls='b-green'; btxt='HEALTHY'; big='Healthy'; }
+  else { bcls='b-white'; btxt='NO DATA YET'; big='No data yet'; }   // all UNKNOWN → white
   const nPend = statuses.filter(s=>s==='UNKNOWN').length;
-  const sub = nPend ? ('LTV · DSCR · Liq · /door ('+nPend+' pending)') : 'LTV · DSCR · Liq · /door';
-  const inner = '<div class="top"><span class="lbl">CAPITAL RULES</span>'+badge(bcls,btxt)+'</div>'+
+  const sub = nPend ? ('Debt · loan coverage · cash cushion · per-door ('+nPend+' still setting up)') : 'Debt · loan coverage · cash cushion · per-door';
+  const inner = '<div class="top"><span class="lbl">'+lbl+'</span>'+badge(bcls,btxt)+'</div>'+
     '<div class="big">'+esc(big)+'</div><div class="sub">'+esc(sub)+'</div>'+
     '<div class="stamp">FL API · '+esc(fmtTs(fl.generated_at))+'</div>';
   return tileWrap(l, inner, !!l.drilldown);
@@ -540,7 +578,7 @@ function loadSnapshot(url, set){
 }
 
 function updLiveBar(){
-  const live = document.querySelector('#updbar .live');
+  const live = $('live-wrap');
   const lbl = $('live-label');
   if (STATE.status.fl === 'down'){
     let last='';
