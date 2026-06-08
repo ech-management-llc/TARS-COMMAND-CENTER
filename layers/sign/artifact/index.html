@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">✍️ Sign — e-Signature</div>
+
+  <div class="preview-banner"><b>PREVIEW — sample data.</b> The live source (DocuSign connector) isn't wired yet, so the envelopes below are illustrative — honest sample state until the connector phase lands.<div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Avery</b> and say "remove the envelopes section" — the employee reshapes this view and it sticks.</div></div>
+
+  <div class="ruleg">
+    <div class="rule ry"><div class="rn">OUT FOR SIGNATURE</div><div class="rv" style="color:var(--yellow)">2</div><div class="rt">awaiting</div></div>
+    <div class="rule rg"><div class="rn">COMPLETED</div><div class="rv">5</div><div class="rt">this month</div></div>
+    <div class="rule rg"><div class="rn">DRAFTS</div><div class="rv">1</div><div class="rt">from Legal</div></div>
+    <div class="rule rg"><div class="rn">FILED</div><div class="rv">auto</div><div class="rt">→ Documents</div></div>
+  </div>
+
+  <div class="card" data-view-section="envelopes"><div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">ENVELOPES</div>
+    <table><tr><th>DOCUMENT</th><th>SIGNER</th><th>STATUS</th></tr>
+      <tr><td>Lease — 102 Remington</td><td>K. Alvarez</td><td><span class="tag b-yellow">sent · awaiting</span></td></tr>
+      <tr><td>Closing docs — 415 Skiles</td><td>Seller + title</td><td><span class="tag b-yellow">2 of 3 signed</span></td></tr>
+      <tr><td>Notice to vacate — 408 Kaufman</td><td>T. Brooks</td><td><span class="tag b-green">completed</span></td></tr></table>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Leases and closing docs come straight from Legal (or a screening approval), go out for legally-binding e-signature, and the signed copy files itself into Document Navigator under the right property. Sample data.</div>
+  </div>
+
+</div>
+
+<script>
+  var viewOps = [];
+
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    document.querySelectorAll('[data-view-row]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
+      document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+</body>
+</html>

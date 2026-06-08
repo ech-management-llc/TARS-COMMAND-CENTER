@@ -78,4 +78,11 @@ label{font-size:11px; color:var(--mut); font-weight:600; display:block; margin-b
 .muted{color:var(--mut)} .dim{color:var(--dim)} .small{font-size:11px}
 .row-sb{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 
+/* demo-parity classes — let drill-in content from the V2 reference drop in unchanged */
+.fbtn{background:var(--surf2);border:1px solid var(--line);color:var(--mut);font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;cursor:pointer}
+.fbtn.on{background:var(--surf2);border-color:var(--green);color:var(--green)}
+.doccard{background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12.5px}
+.note{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--mut);margin-top:12px;line-height:1.55}
+.note b{color:var(--teal)}
+
 @media(max-width:560px){ .ruleg{grid-template-columns:1fr 1fr} .fgrid{grid-template-columns:1fr} }

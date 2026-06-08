@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learn & Coach — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🎓 Learn &amp; Coach</div>
+
+  <div class="card" data-view-section="intro" style="background:#10211b;border-color:var(--greenln);font-size:13px;line-height:1.55">
+    Your copilot. Built by someone who started from scratch with no money and no clue — so nothing here
+    assumes you already know the lingo. Ask me anything, anytime, on any tile. The <b>💡 Explain this</b>
+    button at the top of every tile brings you here.
+  </div>
+
+  <div class="card" data-view-section="roadmap">
+    <div class="section-label">YOUR FIRST-DEAL ROADMAP — you are on step 2</div>
+    <table>
+      <thead><tr><th>STEP</th><th>WHAT IT MEANS</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>1 · Find</td><td>Get a property under contract</td><td><span class="tag b-green">done</span></td></tr>
+        <tr><td>2 · Analyze</td><td>Make sure the numbers work</td><td><span class="tag b-yellow">here</span></td></tr>
+        <tr><td>3 · Fund</td><td>Line up the loan</td><td><span class="tag b-gray">next</span></td></tr>
+        <tr><td>4 · Close</td><td>Sign and take ownership</td><td><span class="tag b-gray">—</span></td></tr>
+        <tr><td>5 · Fix</td><td>Renovate to rent-ready</td><td><span class="tag b-gray">—</span></td></tr>
+        <tr><td>6 · Lease</td><td>Get a paying tenant in</td><td><span class="tag b-gray">—</span></td></tr>
+      </tbody>
+    </table>
+    <div class="small dim" style="margin-top:6px">Roadmap step reads from your actual progress — a deal under contract marks step 1 done. Sample state.</div>
+  </div>
+
+  <div class="card" data-view-section="glossary">
+    <div class="section-label">PLAIN-ENGLISH GLOSSARY — tap a term</div>
+    <div class="filt">
+      <button class="btn" onclick="alert('Cap rate = a property’s yearly profit divided by its price. Higher = better return. 8%+ is solid for a rental.')">Cap rate</button>
+      <button class="btn" onclick="alert('ARV = After Repair Value — what the home is worth once you fix it up. You buy and borrow against this number.')">ARV</button>
+      <button class="btn" onclick="alert('DSCR = does the rent cover the mortgage? Above 1.2 means yes, with cushion. Lenders love it.')">DSCR</button>
+      <button class="btn" onclick="alert('LTV = how much you borrow vs. what the home is worth. 70% LTV on a $185k home = a $129.5k loan.')">LTV</button>
+      <button class="btn" onclick="alert('Escrow = a neutral third party that holds the money and keys until everyone has done their part at closing.')">Escrow</button>
+      <button class="btn" onclick="alert('NOI = Net Operating Income — rent minus operating expenses, before the mortgage. It’s what the property earns on its own.')">NOI</button>
+      <button class="btn" onclick="alert('Per-door = monthly cash flow divided by the number of units. ECH targets $400–500/door, with a $300 floor.')">Per-door</button>
+    </div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">The “explain this” button lives on every tile. Coach remembers what you already know, so it never over-explains. Free-form answers turn on when the live model is connected. Sample content.</div>
+</div>
+
+<script>
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  function applyViewCfg(ops){
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    (ops||[]).forEach(function(op){
+      if(op.target_type!=='section') return;
+      document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try { if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'}, '*'); } catch(err){}
+</script>
+</body>
+</html>

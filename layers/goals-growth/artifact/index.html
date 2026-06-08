@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Goals &amp; Growth — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🎯 Goals &amp; Growth</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample data.</b> The live source isn't wired yet, so figures below are illustrative — honest sample state until the connector phase lands.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Sage</b> and say "remove the goals section" — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="ruleg">
+    <div class="rule rg"><div class="rn">NET WORTH</div><div class="rv">$612K</div><div class="rt">+$84K YTD</div></div>
+    <div class="rule rg"><div class="rn">EQUITY</div><div class="rv">$410K</div><div class="rt">portfolio</div></div>
+    <div class="rule rg"><div class="rn">CASH FLOW</div><div class="rv">$4,010</div><div class="rt">/mo</div></div>
+    <div class="rule ry"><div class="rn">NEXT DEAL</div><div class="rv" style="color:var(--yellow)">~2 mo</div><div class="rt">to ready</div></div>
+  </div>
+
+  <div class="card" data-view-section="goals">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:10px">YOUR GOALS</div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>10 doors by 2027</span><span style="color:var(--green)">9 / 10</span></div>
+      <div style="background:var(--surf2);border-radius:6px;height:9px"><div style="background:var(--green);width:90%;height:9px;border-radius:6px"></div></div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>$5,000/mo cash flow</span><span style="color:var(--yellow)">$4,010 / $5,000</span></div>
+      <div style="background:var(--surf2);border-radius:6px;height:9px"><div style="background:var(--yellow);width:80%;height:9px;border-radius:6px"></div></div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>$200K liquidity</span><span style="color:var(--green)">$185K / $200K</span></div>
+      <div style="background:var(--surf2);border-radius:6px;height:9px"><div style="background:var(--green);width:92%;height:9px;border-radius:6px"></div></div>
+    </div>
+  </div>
+
+  <div style="font-size:11px;color:var(--dim);margin-top:10px">At your current pace you hit $5K/mo by Q1 2027. Next-deal readiness pulls from Capital Rules + liquidity. Sample data.</div>
+
+</div>
+
+<script>
+  var viewOps = [];
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      var sel = '[data-view-section="'+op.target+'"]';
+      document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+</body>
+</html>

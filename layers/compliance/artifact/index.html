@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance &amp; Inspections — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">✅ Compliance &amp; Inspections</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample data.</b> The live source isn't wired yet, so the items below are illustrative — honest sample state until the connector phase lands.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Frances</b> and say "remove the registrations section" — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="ruleg">
+    <div class="rule rg"><div class="rn">ITEMS OK</div><div class="rv">7</div><div class="rt">current</div></div>
+    <div class="rule ry"><div class="rn">DUE SOON</div><div class="rv" style="color:var(--yellow)">2</div><div class="rt">act</div></div>
+    <div class="rule rg"><div class="rn">OVERDUE</div><div class="rv">0</div></div>
+    <div class="rule rg"><div class="rn">ENTITIES</div><div class="rv">4</div><div class="rt">tracked</div></div>
+  </div>
+
+  <div class="card" data-view-section="registrations">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">REGISTRATIONS · LICENSES · INSPECTIONS</div>
+    <table><tr><th>ITEM</th><th>WHO</th><th>STATUS</th></tr>
+      <tr><td>Smoke/CO detectors</td><td>all properties</td><td><span class="tag b-green">OK</span></td></tr>
+      <tr><td>Certificate of occupancy</td><td>102 Remington (post-reno)</td><td><span class="tag b-yellow">before lease</span></td></tr>
+      <tr><td>Business license</td><td>ECH Mabank LLC</td><td><span class="tag b-yellow">renew Aug 1</span></td></tr>
+      <tr><td>TX franchise / annual report</td><td>all entities</td><td><span class="tag b-green">filed</span></td></tr>
+      <tr><td>Rental registration</td><td>415 Skiles</td><td><span class="tag b-green">OK</span></td></tr>
+    </table>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Tracks every registration, license, inspection, and safety rule per property and entity, with reminders. Ties to Legal + Calendar. Sample data.</div>
+  </div>
+
+</div>
+
+<script>
+  function applyViewCfg(ops){
+    ops = ops || [];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    document.querySelectorAll('[data-view-row]').forEach(function(el){ el.style.display=''; });
+    ops.forEach(function(op){
+      var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
+      document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+</body>
+</html>

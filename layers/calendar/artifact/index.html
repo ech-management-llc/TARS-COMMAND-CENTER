@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendar & Deadlines — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">📅 Calendar &amp; Deadlines</div>
+
+  <div class="preview-banner">
+    <b>Every deadline from every layer, in one place.</b> This is a <b>live read</b> of the shared
+    deadline feed (<code>data/STUB_DEADLINES.json</code>) — each row carries the source layer it came
+    from, and the counters are computed live against today. Honest SAMPLE entries until the source
+    layers go live; syncs to the manager@ Google Calendar in a later connector phase.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Bell</b> and say “remove the synced row” — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="ruleg" id="cal-kpis" data-view-section="kpis"></div>
+
+  <div class="card" data-view-section="table">
+    <div class="section-label">EVERY DEADLINE — pulled from every layer</div>
+    <table><thead><tr><th>DATE</th><th>ITEM</th><th>FROM</th></tr></thead>
+      <tbody id="cal-rows"></tbody>
+    </table>
+    <div class="small dim" id="cal-foot" style="margin-top:8px">Every deadline from every layer in one place, synced to the manager@ Google Calendar, with automatic reminders. Sample data.</div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: shared deadline feed (sample). Real entries arrive as Vendors / Legal / Sign / Inbox / Taxes / Rent Roll / Insurance / Compliance go live.</div>
+</div>
+
+<script>
+  var viewOps = [];
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function fmt(d){ var dt=new Date(d+'T00:00:00'); if(isNaN(dt)) return esc(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+  function days(d){ var dt=new Date(d+'T00:00:00'); return Math.round((dt-new Date(new Date().toDateString()))/86400000); }
+
+  function render(data){
+    var ds = (data.deadlines||[]).slice().sort(function(a,b){ return a.date<b.date?-1:1; });
+    var overdue = ds.filter(function(x){ return days(x.date)<0; });
+    var thisWeek = ds.filter(function(x){ var n=days(x.date); return n>=0 && n<=7; });
+    var next30 = ds.filter(function(x){ var n=days(x.date); return n>=0 && n<=30; });
+
+    document.getElementById('cal-kpis').innerHTML =
+      '<div class="rule ry"><div class="rn">THIS WEEK</div><div class="rv" style="color:var(--yellow)">'+thisWeek.length+'</div><div class="rt">due</div></div>'+
+      '<div class="rule '+(overdue.length?'rr':'rg')+'"><div class="rn">OVERDUE</div><div class="rv">'+overdue.length+'</div><div class="rt">'+(overdue.length?esc(overdue[0].item.split(' $')[0]):'clear')+'</div></div>'+
+      '<div class="rule rg"><div class="rn">NEXT 30D</div><div class="rv">'+next30.length+'</div></div>'+
+      '<div class="rule rg"><div class="rn">SYNCED</div><div class="rv">✓</div><div class="rt">'+esc(data.synced_calendar||'Google')+'</div></div>';
+
+    document.getElementById('cal-rows').innerHTML = ds.map(function(x){
+      var od = days(x.date)<0;
+      return '<tr><td'+(od?' style="color:var(--red)"':'')+'>'+fmt(x.date)+(od?' · overdue':'')+'</td><td>'+esc(x.item)+'</td><td class="small muted">'+esc(x.from)+'</td></tr>';
+    }).join('');
+    applyViewCfg(viewOps);
+  }
+
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      if(op.target_type!=='section') return;
+      document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ render(d);
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
+    .catch(function(){ document.getElementById('cal-rows').innerHTML='<tr><td colspan="3" class="muted">Awaiting deadline feed — shared source not reachable.</td></tr>'; });
+</script>
+</body>
+</html>

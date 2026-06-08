@@ -212,6 +212,7 @@ function renderLoginGate(){
         '<select id="gate-role"><option value="owner">Owner (full)</option><option value="admin">Admin / Staff</option><option value="viewer">Read-only / Viewer</option><option value="field">Field (one job)</option></select>'+
         '<div id="gate-scope-wrap" style="display:none"><label>Field scope — one layer/job</label><select id="gate-scope">'+scopeOpts+'</select></div>'+
       '</div>'+
+      '<a class="gate-link" href="./onboarding/" style="display:inline-block;margin-top:6px">New here? Get set up →</a>'+
       '<div class="gate-note">Light, plug-and-play sign-in. Real verification (Supabase / magic-link) wires at production — this build uses a local demo session.</div>'+
     '</div>';
   document.body.appendChild(el);
@@ -575,12 +576,31 @@ function pbar(l){
     '<div class="ptitle">'+esc(l.icon||'')+' '+esc(l.title)+'</div></div></div>';
 }
 
+// "Explain this" — the Learn & Coach copilot affordance on every tile (§2.7).
+// Routes to the Learn & Coach layer so the user can get a plain-English read of
+// whatever they're looking at. Omitted on Learn & Coach itself.
+function injectExplainThis(panel, l){
+  if (l.id === 'learn-coach') return;
+  const learn = layerById('learn-coach');
+  if (!learn || !Entitlement.isEntitled(learn) || learn.enabled === false) return;
+  const bar = panel.querySelector('.pbar'); if (!bar) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'empchip explain-chip';
+  b.style.background = 'var(--greenbg)'; b.style.borderColor = 'var(--greenln)'; b.style.color = 'var(--green)';
+  b.innerHTML = '💡 Explain this';
+  b.title = 'Open Learn & Coach for a plain-English explanation';
+  b.addEventListener('click', () => openLayer('learn-coach'));
+  bar.appendChild(b);
+}
+
 function openDrill(l){
   const panel = $('panel');
   STATE.openLayer = l.id;
   panel.innerHTML = pbar(l) +
     '<iframe class="drillframe" id="drill-iframe" src="'+esc(l.drilldown)+'" title="'+esc(l.title)+'" loading="lazy"></iframe>';
-  // per-layer employee chat (core-rendered into the overlay chrome)
+  // "Explain this" copilot affordance (routes to Learn & Coach), then the per-layer
+  // employee chat (both core-rendered into the overlay chrome).
+  injectExplainThis(panel, l);
   if (window.Agents) Agents.injectLayerEmployee(panel, l);
   // push any saved in-tile view edits once the drill-in loads
   const fr = $('drill-iframe');

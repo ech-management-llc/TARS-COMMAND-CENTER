@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Property File — TARS Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🏡 Property File</div>
+
+  <div class="preview-banner">
+    <b>One page per property — the hub.</b> Every row below is a <b>live read</b> from the shared
+    property record (<code>data/STUB_PROPERTIES.json</code>) — the same source the other property
+    tiles use, so a change there changes here. Values are honest SAMPLE data until the source layers
+    go live (RentRedi rent, Plaid cash flow, DealCheck value, lender LTV).
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Quinn</b> and say “remove the documents row” or “add a notes section” — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="card" data-view-section="header" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <div id="prop-head"><div style="font-size:16px;font-weight:800">…</div></div>
+    <select id="prop-picker"></select>
+  </div>
+
+  <div class="ruleg" id="prop-kpis" data-view-section="kpis"></div>
+
+  <div class="card" data-view-section="everything">
+    <div class="section-label">EVERYTHING ON THIS PROPERTY — pulled from every layer</div>
+    <table><thead><tr><th>AREA</th><th>STATUS</th><th>FROM</th></tr></thead>
+      <tbody id="prop-rows"></tbody>
+    </table>
+    <div class="small dim" style="margin-top:8px">One page per property. Every number is the live value from its source layer — change it there, it changes here. Sample data.</div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: shared property record (sample). Real values arrive via RentRedi / Plaid / DealCheck / lender in later phases.</div>
+</div>
+
+<script>
+  var PROPS = [], current = 0, viewOps = [];
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function money(n){ if(n==null||isNaN(n)) return '—'; n=Number(n); return (n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US'); }
+
+  function render(){
+    var p = PROPS[current]; if(!p) return;
+    document.getElementById('prop-head').innerHTML =
+      '<div style="font-size:16px;font-weight:800">'+esc(p.address)+'</div>'+
+      '<div class="small muted">'+esc(p.beds)+' bed / '+esc(p.baths)+' bath · '+esc(p.sqft)+' sqft · '+esc(p.entity)+' · '+esc(p.status)+'</div>';
+
+    var ltvCls = (p.ltv_pct<=50)?'rg':'ry';
+    var cfCls = (p.cash_flow_monthly>0)?'rg':'ry';
+    document.getElementById('prop-kpis').innerHTML =
+      '<div class="rule rg"><div class="rn">RENT</div><div class="rv">'+money(p.rent)+'</div><div class="rt">Rent Roll</div></div>'+
+      '<div class="rule '+cfCls+'"><div class="rn">CASH FLOW</div><div class="rv">'+(p.cash_flow_monthly>0?'+':'')+money(p.cash_flow_monthly)+'</div><div class="rt">Financial · /mo</div></div>'+
+      '<div class="rule '+ltvCls+'"><div class="rn">VALUE / LTV</div><div class="rv">'+money(p.value)+'</div><div class="rt">'+esc(p.ltv_pct)+'% · Lender</div></div>'+
+      '<div class="rule rg"><div class="rn">RANK</div><div class="rv">'+esc(p.rank||'—')+'</div><div class="rt">Deal Analyzer</div></div>';
+
+    var rows = [];
+    var lease = p.lease&&p.lease.tenant ? esc(p.lease.tenant)+' · exp '+esc(p.lease.expires) : 'vacant';
+    rows.push(['lease','Lease',lease,(p.lease&&p.lease.from)||'Rent Roll / Legal']);
+    if(p.insurance) rows.push(['insurance','Insurance',esc(p.insurance.carrier)+' '+esc(p.insurance.form)+' · renews '+esc(p.insurance.renews),p.insurance.from||'Insurance']);
+    if(p.property_tax) rows.push(['tax','Property tax',money(p.property_tax.amount)+' due '+esc(p.property_tax.due)+' ('+esc(p.property_tax.county)+')',p.property_tax.from||'Taxes']);
+    rows.push(['workorders','Open work orders',String(p.open_work_orders),'Maintenance']);
+    rows.push(['documents','Documents',esc(p.documents)+' files (deed, lease, policy…)','Document Navigator']);
+    var bills = (p.bills&&p.bills.length) ? p.bills.map(function(b){return esc(b.vendor)+' '+money(b.amount)+' due '+esc(b.due);}).join('; ') : 'none due';
+    rows.push(['bills','Bills',bills,'Vendors & Payables']);
+
+    document.getElementById('prop-rows').innerHTML = rows.map(function(r){
+      return '<tr data-view-row="'+r[0]+'"><td>'+r[1]+'</td><td>'+r[2]+'</td><td class="small muted">'+esc(r[3])+'</td></tr>';
+    }).join('');
+    applyViewCfg(viewOps);
+  }
+
+  function buildPicker(){
+    var sel = document.getElementById('prop-picker');
+    sel.innerHTML = PROPS.map(function(p,i){ return '<option value="'+i+'">'+esc(p.address.split(' · ')[0])+'</option>'; }).join('');
+    sel.onchange = function(){ current = +sel.value; render(); };
+  }
+
+  // In-tile view config from the core: show/hide sections + table rows. Never touches data.
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    document.querySelectorAll('[data-view-row]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
+      document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  fetch('../../../data/STUB_PROPERTIES.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ PROPS = d.properties||[]; if(!PROPS.length) throw 0; buildPicker(); render();
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
+    .catch(function(){ document.getElementById('prop-head').innerHTML='<div class="muted">Awaiting property record — shared source not reachable.</div>'; });
+</script>
+</body>
+</html>

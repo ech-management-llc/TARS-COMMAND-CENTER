@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE aggregated deadlines for the ECH reference install. Honest placeholders — NOT live. This is the single shared source the Calendar tile reads; each entry carries the source layer it came from (connection matrix §4). Real entries arrive as the source layers go live (Vendors bills, Legal/Sign closings, Inbox tours, Taxes due dates, Rent Roll renewals, Insurance renewals, Compliance, Sell-Exit 1031). Synced to manager@ Google Calendar in a later connector phase.",
+  "generated_at": "2026-06-07",
+  "synced_calendar": "manager@ Google Calendar",
+  "deadlines": [
+    { "date": "2026-06-04", "item": "Lone Star Plumbing $1,200", "from": "Vendors", "state": "overdue" },
+    { "date": "2026-06-11", "item": "TXU electric $640", "from": "Vendors", "state": "upcoming" },
+    { "date": "2026-06-12", "item": "415 Skiles option period ends", "from": "Legal", "state": "upcoming" },
+    { "date": "2026-06-13", "item": "Tour: K. Alvarez · 102 Remington", "from": "Inbox", "state": "upcoming" },
+    { "date": "2026-06-24", "item": "415 Skiles financing contingency", "from": "Legal", "state": "upcoming" },
+    { "date": "2026-07-01", "item": "415 Skiles closing", "from": "Legal / Sign", "state": "upcoming" },
+    { "date": "2026-07-05", "item": "410 Scott property tax $1,930", "from": "Taxes", "state": "upcoming" },
+    { "date": "2026-07-31", "item": "415 Skiles lease renewal window", "from": "Rent Roll", "state": "upcoming" },
+    { "date": "2026-09-14", "item": "415 Skiles insurance renewal", "from": "Insurance", "state": "upcoming" }
+  ]
+}
