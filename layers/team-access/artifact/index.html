@@ -38,15 +38,17 @@
   </div>
 
   <div class="card">
-    <div class="section-label">INVITE</div>
+    <div class="section-label">ADD TEAM MEMBER</div>
     <div class="fgrid">
       <div><label>Name</label><input placeholder="e.g. Marcus (site lead)"></div>
-      <div><label>Email or phone</label><input placeholder="email for staff · phone for field magic-link"></div>
       <div><label>Role</label><select><option>Owner</option><option>Admin / Staff</option><option>Read-only / Viewer</option><option selected>Field (one job)</option></select></div>
-      <div><label>Scope (if field)</label><select><option>Build &amp; Renovate — 415 Skiles</option><option>Build &amp; Renovate — 102 Remington</option></select></div>
+      <div><label>Cell phone</label><input placeholder="(555) 123-4567 · SMS magic-link + job texts"></div>
+      <div><label>Email</label><input placeholder="name@company.com · email magic-link"></div>
+      <div><label>Physical address</label><input placeholder="street, city, ST ZIP"></div>
+      <div><label>Scope (if field)</label><select><option>Build &amp; Renovate — 415 Skiles</option><option>Build &amp; Renovate — 102 Remington</option><option>Maintenance — all properties</option></select></div>
     </div>
-    <button class="btn primary" style="margin-top:10px" onclick="document.getElementById('invnote').innerHTML='<b style=\'color:var(--green)\'>Draft invite prepared.</b> Live build: sends a magic-link (email) or SMS code; the field user lands scoped only to their job.'">Send invite</button>
-    <div class="wire-note" id="invnote">Field users get a phone/email magic-link and land scoped to a single job — they never see the rest of the command center.</div>
+    <button class="btn primary" style="margin-top:10px" onclick="document.getElementById('invnote').innerHTML='<b style=\'color:var(--green)\'>Team member added (draft).</b> Live build: saves name, cell, email &amp; address to the team directory, then sends a magic-link (email) or SMS code; field users land scoped only to their job.'">Add team member</button>
+    <div class="wire-note" id="invnote">We store each member's <b>cell phone, email, and physical address</b> in the team directory — that's how Maintenance and Build dispatch jobs by text/email, and how field users sign in (phone/email magic-link) scoped to a single job.</div>
   </div>
 
   <div class="wire-note" style="text-align:center;margin-top:14px">App-level auth structure (roles + entitlement + isolation). Hard login-gating held pending spec. Sample data — no real emails/phones.</div>

@@ -43,8 +43,8 @@
 
 <script>
   var ENT_KEY = 'tcc_entitlements';
-  var BASE = 49;                 // Foundation base (sample $/mo)
-  var TIER = { L1:0, L2:19, L3:39 };  // sample add-on $/mo by tier
+  var BASE = 15;                 // Foundation base (sample $/mo)
+  var TIER = { L0:0, L1:15, L2:15, L3:15 };  // sample add-on $/mo by tier
   function ents(){ try { return JSON.parse(localStorage.getItem(ENT_KEY)||'{}'); } catch(e){ return {}; } }
   function isOwned(l){ return l.entitled !== false || ents()[l.id] === true; }
   function priceOf(l){ return (typeof l.price === 'number') ? l.price : (TIER[l.tier]||0); }

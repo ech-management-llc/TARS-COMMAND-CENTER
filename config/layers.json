@@ -287,7 +287,7 @@
       "tier": "L2",
       "enabled": true,
       "entitled": false,
-      "price": 49,
+      "price": 15,
       "data": { "type": "static" },
       "status_rules": "neutral",
       "drilldown": "./layers/investor-reporting/artifact/index.html",
@@ -352,7 +352,7 @@
       "data": { "type": "static" },
       "status_rules": "neutral",
       "drilldown": "./layers/build-renovate/artifact/index.html",
-      "employee": { "name": "Avery", "role": "Project architect · build team lead", "avatar": "A" },
+      "employee": { "name": "Mason", "role": "Project architect · build team lead", "avatar": "M" },
       "chips": ["Design a renovation for this address", "Estimate the reno budget", "Send the budget to Deal Analyzer"]
     },
     {
@@ -429,7 +429,7 @@
       "data": { "type": "static" },
       "status_rules": "neutral",
       "drilldown": "./layers/website-it/artifact/index.html",
-      "employee": { "name": "Quinn", "role": "Web & marketing", "avatar": "Q" },
+      "employee": { "name": "Iris", "role": "Web & marketing", "avatar": "I" },
       "chips": ["Publish a new listing", "Stage these photos", "Syndicate to Zillow + Facebook"]
     },
 
@@ -562,7 +562,7 @@
       "tier": "L1",
       "enabled": true,
       "entitled": false,
-      "price": 29,
+      "price": 15,
       "data": { "type": "static" },
       "status_rules": "neutral",
       "drilldown": "./layers/tenant-portal/artifact/index.html",
