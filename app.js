@@ -24,7 +24,7 @@ if ('serviceWorker' in navigator) {
 /* ── tiny helpers ── */
 const $ = (id) => document.getElementById(id);
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function pct(v){ if (v==null||isNaN(v)) return '—'; const r = Math.round(Number(v)*100)/100; return (Number.isInteger(r) ? r : parseFloat(r.toFixed(2))) + '%'; }
+function pct(v){ if (v==null||isNaN(v)) return '—'; return (Math.round(Number(v)*10)/10).toFixed(1) + '%'; }
 function fmtMoney(n){
   if (n===null||n===undefined||n===''||isNaN(n)) return '—';
   n = Number(n); const a = Math.abs(n);
@@ -163,16 +163,8 @@ function renderChrome(){
   $('head').innerHTML =
     '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>';
 
-  // AI summary (static for v1 — honest)
-  const ai = STATE.tenant.ai_summary || {};
-  if (ai.enabled){
-    $('ai-summary').innerHTML =
-      '<div class="ttl"><div class="l"><span class="dot"></span> STATE · AI SUMMARY</div>'+
-      '<button class="toggle" id="ai-toggle" type="button">AI: ON</button></div>'+
-      '<p id="aitxt">'+esc(ai.text||'')+'</p>'+
-      (ai.live ? '' : '<div class="src-note">'+esc(ai.note||'Static for v1 — not a live model call.')+'</div>');
-    $('ai-toggle').onclick = () => { const p=$('aitxt'); p.style.display = p.style.display==='none'?'block':'none'; };
-  } else { $('ai-summary').style.display='none'; }
+  // Daily Brief now renders as its own lasso (renderBriefGroup); hide the legacy summary block.
+  $('ai-summary').style.display = 'none';
 
   // footer
   $('foot').innerHTML = 'Foundation Layer · Command Center · tenant: '+esc(STATE.tenant.name||'')+
@@ -268,6 +260,19 @@ function flMark(s, bar){
    HOME — groups + tiles
    ════════════════════════════════════════════════════════════════ */
 function groupDef(id){ return (STATE.registry.groups||[]).find(g => g.id === id) || { id, render:'card' }; }
+
+// Per-group visual identity — distinct accent + faint tint + icon, so each lasso
+// reads as its own area without flood-coloring (status green/yellow/red keep their meaning).
+const GROUP_STYLE = {
+  brief:       { a:'#8b7ff0', bg:'rgba(139,127,240,.06)', ico:'🗞️' },
+  overview:    { a:'#22d3ee', bg:'rgba(34,211,238,.05)',  ico:'🧭' },
+  market:      { a:'#f59e0b', bg:'rgba(245,158,11,.06)',  ico:'📊' },
+  portfolio:   { a:'#10b981', bg:'rgba(16,185,129,.06)',  ico:'🏠' },
+  financial:   { a:'#3b82f6', bg:'rgba(59,130,246,.06)',  ico:'💰' },
+  deals:       { a:'#2dd4bf', bg:'rgba(45,212,191,.06)',  ico:'🏗️' },
+  it:          { a:'#ec4899', bg:'rgba(236,72,153,.06)',  ico:'🌐' },
+  admin:       { a:'#94a3b8', bg:'rgba(148,163,184,.06)', ico:'🗂️' }
+};
 function collapsedSet(){ try { return new Set(JSON.parse(localStorage.getItem('tcc_collapsed')||'[]')); } catch(e){ return new Set(); } }
 
 /* ── source connection chips (per-group; GREEN = connected/live, RED = not connected) ──
@@ -320,14 +325,23 @@ function renderHome(){
     const ls = layersInGroup(grp.id);
     if (!ls.length) return;
     let body;
-    if (grp.id === 'market')           body = renderMarketGroup(ls);
+    if (grp.id === 'brief')            body = renderBriefGroup(ls);
+    else if (grp.id === 'market')      body = renderMarketGroup(ls);
     else if (grp.render === 'card')  { body = renderCardGroup(ls, firstCard); firstCard = false; }
-    else                               body = '<div class="grid2">'+ls.map(tileShell).join('')+'</div>'; // glance (overview)
+    else {                             // glance (overview): data tiles as value tiles, static tiles as cards
+      const dataT = ls.filter(l => !(l.data && l.data.type === 'static'));
+      const cardT = ls.filter(l =>  (l.data && l.data.type === 'static'));
+      body = '<div class="grid2">'+dataT.map(tileShell).join('')+'</div>';
+      if (cardT.length) body += '<div class="gridA" style="margin-top:12px">'+cardT.map(artTile).join('')+'</div>';
+    }
     const isCol = collapsed.has(grp.id);
-    html += '<section class="grp'+(isCol?' collapsed':'')+'" data-group="'+esc(grp.id)+'">'+
+    const gs = GROUP_STYLE[grp.id] || {};
+    const styleAttr = gs.a ? ' style="--ga:'+gs.a+';--gabg:'+gs.bg+'"' : '';
+    const ico = gs.ico ? '<span class="grp-ico">'+gs.ico+'</span>' : '';
+    html += '<section class="grp'+(isCol?' collapsed':'')+'" data-group="'+esc(grp.id)+'"'+styleAttr+'>'+
       '<div class="grp-head">'+
         '<button type="button" class="grp-toggle" data-grp="'+esc(grp.id)+'">'+
-          '<span class="grp-label">'+esc(grp.label||grp.id)+'</span><span class="grp-chev">▾</span>'+
+          ico+'<span class="grp-label">'+esc(grp.label||grp.id)+'</span><span class="grp-chev">▾</span>'+
         '</button>'+
         '<span class="grp-srcs" data-srcgrp="'+esc(grp.id)+'">'+groupChipsInner(grp.id)+'</span>'+
       '</div>'+
@@ -339,6 +353,53 @@ function renderHome(){
   bindTileClicks();
   bindMarketPicker();
   bindGroupHeaders();
+  bindBrief();
+}
+
+/* ── DAILY BRIEF lasso — bullet items (expand + discuss w/ TARS), a Needs-Attention
+   section, and the Punch List + Recurring tiles docked at the bottom. ── */
+function renderBriefGroup(ls){
+  const ai = STATE.tenant.ai_summary || {};
+  const attn = ai.attention || [];
+  const brief = ai.brief || [];
+  let h = '';
+  if (attn.length){
+    h += '<div class="brief-h urg">⚠ NEEDS ATTENTION</div>' + attn.map((it,i)=>briefItem(it,'a'+i,true)).join('');
+  }
+  h += '<div class="brief-h">TODAY’S BRIEF</div>' + brief.map((it,i)=>briefItem(it,'b'+i,false)).join('');
+  if (!ai.live) h += '<div class="src-note" style="margin:8px 2px 4px">'+esc(ai.note||'Static for v1.')+'</div>';
+  // Punch List + Recurring docked at the bottom
+  if (ls.length) h += '<div class="gridA" style="margin-top:12px">'+ls.map(artTile).join('')+'</div>';
+  return h;
+}
+function briefItem(it, id, urgent){
+  return '<div class="brief-item'+(urgent?' urg':'')+'" data-briefkey="'+esc(id)+'">'+
+    '<button type="button" class="bi-head">'+
+      '<span class="bi-dot"></span>'+
+      '<span class="bi-t">'+esc(it.t)+'</span>'+
+      '<span class="bi-chev">▾</span>'+
+    '</button>'+
+    '<div class="bi-body">'+
+      '<p>'+esc(it.d||'')+'</p>'+
+      '<button type="button" class="bi-ask" data-ask="'+esc(it.t)+'">💬 Discuss with TARS</button>'+
+    '</div>'+
+  '</div>';
+}
+function bindBrief(){
+  document.querySelectorAll('.brief-item .bi-head').forEach(b => {
+    if (b.__b) return; b.__b = true;
+    b.addEventListener('click', () => b.closest('.brief-item').classList.toggle('open'));
+  });
+  document.querySelectorAll('.brief-item .bi-ask').forEach(b => {
+    if (b.__b) return; b.__b = true;
+    b.addEventListener('click', e => { e.stopPropagation(); askTarsAbout(b.getAttribute('data-ask')); });
+  });
+}
+function askTarsAbout(topic){
+  if (!window.Agents) return;
+  Agents.openGlobal();
+  const i = $('ginput'), s = $('gsend');
+  if (i && s){ i.value = 'About the brief — “'+topic+'”: what do I need to know and what should I do?'; s.click(); }
 }
 
 function bindGroupHeaders(){
@@ -379,17 +440,20 @@ function artTile(l){
 /* ── MARKET group: county picker + market tiles + full-width Portfolio ── */
 function renderMarketGroup(ls){
   const portfolio = ls.find(l => l.id === 'portfolio');
-  const market = ls.filter(l => l.id !== 'portfolio');
+  // market-DATA tiles (FRED/REV/CEN/gap) vs DEAL card tiles (static, with employees)
+  const dataTiles = ls.filter(l => l.id !== 'portfolio' && !(l.data && l.data.type === 'static'));
+  const dealCards = ls.filter(l => (l.data && l.data.type === 'static'));
   // State + County/Parish cascade
   const picker = '<div class="pickrow">'+
     '<select class="picker" id="state-picker" aria-label="State"></select>'+
     '<select class="picker" id="county-picker" aria-label="County or parish"></select></div>';
   // split market value tiles: first 4 in a grid4, remainder in grid2 (mirrors the visual target)
-  const top = market.slice(0,4), rest = market.slice(4);
-  let h = picker + '<div class="grid4">'+top.map(tileShell).join('')+'</div>';
+  const top = dataTiles.slice(0,4), rest = dataTiles.slice(4);
+  let h = '<div class="mkt-intro">Your area at a glance — context, not chores. Tap any tile to see what it means.</div>' +
+    picker + '<div class="grid4">'+top.map(tileShell).join('')+'</div>';
   if (rest.length) h += '<div class="grid2" style="margin-top:10px">'+rest.map(tileShell).join('')+'</div>';
   // gap explanation note (from the gap layer's note, if present)
-  const gap = market.find(l => l.data && l.data.source==='vacancy_gap');
+  const gap = dataTiles.find(l => l.data && l.data.source==='vacancy_gap');
   if (gap && gap.note) h += '<div class="note" id="market-note"><b>Why two vacancy numbers?</b> '+esc(gap.note)+'</div>';
   // "Information Tiles" — catalog of more market indicators you can add to this lasso
   h += '<button type="button" class="infotiles" data-tile="market-info-catalog">'+
@@ -398,6 +462,8 @@ function renderMarketGroup(ls){
     '<span class="it-arrow">▸</span></button>';
   // Portfolio (DealCheck) renders full-width under the market tiles
   if (portfolio) h += '<div style="margin-top:12px">'+tileShell(portfolio)+'</div>';
+  // Deals — the deal-flow tiles (Finder → Analyzer → Screener) live in this lasso now
+  if (dealCards.length) h += '<div class="subhead">DEALS</div><div class="gridA">'+dealCards.map(artTile).join('')+'</div>';
   return h;
 }
 
@@ -545,27 +611,34 @@ function tileJsonFile(l){
   return tileGeneric(l);
 }
 
+// calm status pill (Version A): "In range" / "Just context" / "Healthy" etc.
+function marketTag(l){
+  if (!l.tag) return '';
+  const tone = l.tag.tone || 'fyi';
+  return '<span class="mtag t-'+esc(tone)+'"><span class="mtdot"></span>'+esc(l.tag.label)+'</span>';
+}
+
 function tileMarketValue(l, src){
-  const tag = l.source_tag || '';
-  const tagCls = {REV:'src-rev',CEN:'src-cen'}[tag]||'src-rev';
-  const head = '<div class="top"><span class="lbl">'+esc(l.title)+'</span><span class="srcpill '+tagCls+'">'+esc(tag)+'</span></div>';
+  const stag = l.source_tag || '';
+  const tagCls = {REV:'src-rev',CEN:'src-cen'}[stag]||'src-rev';
+  const head = '<div class="top"><span class="lbl">'+esc(l.title)+'</span><span class="srcpill '+tagCls+'">'+esc(stag)+'</span></div>';
   if (!src || !src.counties || !STATE.county || !src.counties[STATE.county]){
-    return tileWrap(l, head+'<div class="big muted">—</div><div class="sub">awaiting snapshot</div>', !!l.drilldown);
+    return tileWrap(l, head+'<div class="big muted">—</div><div class="mean">'+esc(l.plain||'awaiting snapshot')+'</div>'+marketTag(l), !!l.drilldown);
   }
   const c = src.counties[STATE.county];
-  let val='—', sub='';
-  if (l.data.select==='cap_rate'){ val=pct(c.cap_rate&&c.cap_rate.value); sub='county blended · '+esc((c.cap_rate&&c.cap_rate.source_period)||''); }
-  else if (l.data.select==='vacancy_rate'){ val=pct(c.vacancy_rate&&c.vacancy_rate.value); sub='incl. seasonal · '+esc((c.vacancy_rate&&c.vacancy_rate.source_period)||''); }
-  else if (l.data.select==='rental_vacancy_rate_pct'){ val=pct(c.rental_vacancy_rate_pct); sub='ACS 5-yr · '+esc(src.data_year||''); }
-  const stale = isStale(src.scraped_at, 48*30); // monthly data; only flag if very old
-  return tileWrap(l, head+'<div class="big">'+esc(val)+'</div><div class="sub">'+sub+(stale?' · <span style="color:var(--yellow)">stale</span>':'')+'</div>', !!l.drilldown);
+  let val='—';
+  if (l.data.select==='cap_rate'){ val=pct(c.cap_rate&&c.cap_rate.value); }
+  else if (l.data.select==='vacancy_rate'){ val=pct(c.vacancy_rate&&c.vacancy_rate.value); }
+  else if (l.data.select==='rental_vacancy_rate_pct'){ val=pct(c.rental_vacancy_rate_pct); }
+  return tileWrap(l, head+'<div class="big">'+esc(val)+'</div><div class="mean">'+esc(l.plain||'')+'</div>'+marketTag(l), !!l.drilldown);
 }
 
 function tileMarketAbsent(l, tag){
   const tagCls = {FRED:'src-fred'}[tag]||'src-fl';
   return tileWrap(l,
     '<div class="top"><span class="lbl">'+esc(l.title)+'</span><span class="srcpill '+tagCls+'">'+esc(tag)+'</span></div>'+
-    '<div class="big muted">—</div><div class="sub">'+esc(tag)+' unavailable</div>', !!l.drilldown);
+    '<div class="big muted">—</div><div class="mean">'+esc(l.plain||'')+'</div>'+
+    '<span class="mtag t-connect"><span class="mtdot"></span>Tap to connect</span>', !!l.drilldown);
 }
 
 /* CENSUS vs REV GAP — computed */
@@ -580,7 +653,7 @@ function tileGap(l){
   if (total==null||rental==null) return tileWrap(l, head+'<div class="big muted">—</div>', !!l.drilldown);
   const gap = Math.round((rental-total)*10)/10;
   const sign = gap>0?'+':'';
-  return tileWrap(l, head+'<div class="big" style="color:var(--teal)">'+sign+gap+'pp</div><div class="sub">seasonal stock</div>', !!l.drilldown);
+  return tileWrap(l, head+'<div class="big" style="color:var(--teal)">'+sign+gap+'pp</div><div class="mean">'+esc(l.plain||'seasonal stock')+'</div>'+marketTag(l), !!l.drilldown);
 }
 
 /* PORTFOLIO — DealCheck (file absent for v1 → graceful) */

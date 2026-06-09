@@ -23,6 +23,7 @@
   .illus{color:var(--yellow);font-size:11px;margin-top:8px}
   .spark{width:100%;height:88px}
   .disc{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.5}
+  .connect-btn{display:inline-block;margin-top:12px;background:#0c2444;border:1px solid #16335c;color:#7fb2f0;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:20px;text-decoration:none}
 </style>
 </head>
 <body>
@@ -131,8 +132,9 @@
     var county = qp('c'); // optional current county key from the home
     if(m.chart==='fred'){
       document.getElementById('mi-val').textContent = '—';
-      document.getElementById('mi-sub').textContent = 'FRED not connected yet';
-      document.getElementById('mi-chart').innerHTML = illustrativeSpark();
+      document.getElementById('mi-sub').textContent = 'Not connected yet';
+      document.getElementById('mi-chart').innerHTML = illustrativeSpark() +
+        '<a class="connect-btn" href="https://fredaccount.stlouisfed.org/apikeys" target="_blank" rel="noopener">🔌 Connect FRED — free, ~2 min ↗</a>';
       return;
     }
     // data-backed charts
