@@ -46,7 +46,7 @@
       "entitled": true,
       "data": { "type": "json_file", "source": "./data/FRED_LATEST.json", "select": "treasury_10y" },
       "status_rules": "market_value",
-      "drilldown": null,
+      "drilldown": "./layers/market-info/artifact/index.html?m=treasury_10y",
       "source_tag": "FRED"
     },
     {
@@ -58,7 +58,7 @@
       "entitled": true,
       "data": { "type": "json_file", "source": "./data/FRED_LATEST.json", "select": "mortgage_30y" },
       "status_rules": "market_value",
-      "drilldown": null,
+      "drilldown": "./layers/market-info/artifact/index.html?m=mortgage_30y",
       "source_tag": "FRED"
     },
     {
@@ -70,7 +70,7 @@
       "entitled": true,
       "data": { "type": "json_file", "source": "./data/REVENTURE_LATEST.json", "select": "cap_rate", "county_keyed": true },
       "status_rules": "market_value",
-      "drilldown": null,
+      "drilldown": "./layers/market-info/artifact/index.html?m=cap_rate",
       "source_tag": "REV"
     },
     {
@@ -82,7 +82,7 @@
       "entitled": true,
       "data": { "type": "json_file", "source": "./data/REVENTURE_LATEST.json", "select": "vacancy_rate", "county_keyed": true },
       "status_rules": "market_value",
-      "drilldown": null,
+      "drilldown": "./layers/market-info/artifact/index.html?m=vacancy_all",
       "source_tag": "REV"
     },
     {
@@ -94,7 +94,7 @@
       "entitled": true,
       "data": { "type": "json_file", "source": "./data/CENSUS_VACANCY_LATEST.json", "select": "rental_vacancy_rate_pct", "county_keyed": true },
       "status_rules": "market_value",
-      "drilldown": null,
+      "drilldown": "./layers/market-info/artifact/index.html?m=rental_vacancy",
       "source_tag": "CEN"
     },
     {
@@ -106,7 +106,7 @@
       "entitled": true,
       "data": { "type": "computed", "source": "vacancy_gap", "county_keyed": true },
       "status_rules": "neutral",
-      "drilldown": null,
+      "drilldown": "./layers/market-info/artifact/index.html?m=census_rev_gap",
       "note": "Reventure shows TOTAL housing vacancy (incl. seasonal lake stock). Census ACS shows RENTAL-specific vacancy — what ECH actually operates against. The gap = seasonal / vacation housing not in the rental pool."
     },
     {

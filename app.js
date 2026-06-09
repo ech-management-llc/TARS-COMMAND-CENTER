@@ -137,7 +137,7 @@ function renderChrome(){
   // TOP RIBBON — brand · who/when · live + refresh + sign out.
   // (Source chips moved DOWN onto each group's header — see groupChipsInner.)
   $('verbar').innerHTML =
-    '<div class="vb-brand"><b>PLATFORM v1</b></div>'+
+    '<div class="vb-brand">'+flMark(24)+'<b>FL&nbsp;CC</b></div>'+
     '<div class="vb-meta"><b>'+dateStr+'</b><span>'+timeOfDay()+(u.name?' · '+esc(u.name):'')+' · '+esc(roleLabel)+scopeStr+'</span></div>'+
     '<div class="vb-status">'+
       '<span class="live" id="live-wrap"><span class="pulse"></span> <span id="live-label">Live</span></span>'+
@@ -175,7 +175,7 @@ function renderChrome(){
   } else { $('ai-summary').style.display='none'; }
 
   // footer
-  $('foot').innerHTML = 'TCC · PLATFORM v1 · tenant: '+esc(STATE.tenant.name||'')+
+  $('foot').innerHTML = 'Foundation Layer · Command Center · tenant: '+esc(STATE.tenant.name||'')+
     (STATE.tenant.reference_install?' (reference install)':'')+'<br>layers render from the registry · honest display always';
 }
 
@@ -197,9 +197,9 @@ function renderLoginGate(){
   el.className = 'gate'; el.id = 'login-gate';
   el.innerHTML =
     '<div class="gate-card">'+
-      '<div class="gate-logo"><span class="tarsav" style="width:54px;height:54px">'+tarsSvg(32)+'</span></div>'+
-      '<h2>'+esc(b.title||STATE.tenant.name||'TARS')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h2>'+
-      '<p class="gate-sub">Sign in to your command center.</p>'+
+      '<div class="gate-logo">'+flMark(58)+'</div>'+
+      '<h2>'+esc(b.title||STATE.tenant.name||'Foundation Layer')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h2>'+
+      '<p class="gate-sub">Your real-estate investing co-pilot.</p>'+
       '<label>Email or phone</label>'+
       '<input id="gate-id" placeholder="you@company.com  ·  or  +1 555…" autocomplete="username">'+
       '<button class="gate-btn primary" type="button" id="gate-send">Send magic link</button>'+
@@ -251,6 +251,19 @@ function tarsSvg(s){
   return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/><circle cx="12" cy="7" r="3.6" stroke="#0a0a0b"/></svg>';
 }
 
+/* Foundation Layer product mark — stacked strata bars + orange foundation underline
+   (on-dark lockup form; bars light, base bar = brand orange). Used for FL CC product
+   branding (ribbon + login). TARS (tarsSvg) stays the on-call ASSISTANT avatar. */
+function flMark(s, bar){
+  bar = bar || '#f4f4f5';
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Foundation Layer">'+
+    '<rect x="8" y="8"  width="14" height="4.4" rx="1.4" fill="'+bar+'"/>'+
+    '<rect x="8" y="15" width="20" height="4.4" rx="1.4" fill="'+bar+'"/>'+
+    '<rect x="8" y="22" width="26" height="4.4" rx="1.4" fill="'+bar+'"/>'+
+    '<rect x="8" y="29.5" width="20" height="3.6" rx="1.8" fill="#f59e0b"/>'+
+  '</svg>';
+}
+
 /* ════════════════════════════════════════════════════════════════
    HOME — groups + tiles
    ════════════════════════════════════════════════════════════════ */
@@ -276,10 +289,20 @@ function groupSrcTags(grpId){
   if (grpId === 'overview' && !tags.includes('FL')) tags.unshift('FL');   // FL feeds Capital Rules + System
   return tags;
 }
+// Where each source goes to (re)connect — so if a feed drops, the chip is the way back in.
+const SRC_CONNECT = {
+  FL:'https://api.foundationlayerhq.com/api/dashboard/latest',
+  FRED:'https://fredaccount.stlouisfed.org/apikeys',
+  REV:'https://www.reventure.app/',
+  CEN:'https://api.census.gov/data/key_signup.html',
+  DEALCHECK:'https://app.dealcheck.io/'
+};
 function srcChip(tag){
   const on = srcConnected(tag);
-  return '<span class="srcpill conn-'+(on?'on':'off')+'" title="'+(on?'Connected · live':'Not connected')+'">'+
-    '<span class="cdot"></span>'+esc(tag)+'</span>';
+  const url = SRC_CONNECT[tag] || '#';
+  return '<a class="srcpill conn-'+(on?'on':'off')+'" href="'+url+'" target="_blank" rel="noopener" '+
+    'title="'+(on?'Connected · live — open '+esc(tag)+' ↗':'Not connected — open '+esc(tag)+' to connect ↗')+'" '+
+    'onclick="event.stopPropagation()"><span class="cdot"></span>'+esc(tag)+' ↗</a>';
 }
 function groupChipsInner(grpId){ return groupSrcTags(grpId).map(srcChip).join(''); }
 function refreshGroupChips(){
@@ -302,10 +325,12 @@ function renderHome(){
     else                               body = '<div class="grid2">'+ls.map(tileShell).join('')+'</div>'; // glance (overview)
     const isCol = collapsed.has(grp.id);
     html += '<section class="grp'+(isCol?' collapsed':'')+'" data-group="'+esc(grp.id)+'">'+
-      '<button type="button" class="grp-head" data-grp="'+esc(grp.id)+'">'+
-      '<span class="grp-label">'+esc(grp.label||grp.id)+'</span>'+
-      '<span class="grp-srcs" data-srcgrp="'+esc(grp.id)+'">'+groupChipsInner(grp.id)+'</span>'+
-      '<span class="grp-chev">▾</span></button>'+
+      '<div class="grp-head">'+
+        '<button type="button" class="grp-toggle" data-grp="'+esc(grp.id)+'">'+
+          '<span class="grp-label">'+esc(grp.label||grp.id)+'</span><span class="grp-chev">▾</span>'+
+        '</button>'+
+        '<span class="grp-srcs" data-srcgrp="'+esc(grp.id)+'">'+groupChipsInner(grp.id)+'</span>'+
+      '</div>'+
       '<div class="grp-body">'+body+'</div></section>';
   });
   $('home').innerHTML = html;
@@ -317,7 +342,7 @@ function renderHome(){
 }
 
 function bindGroupHeaders(){
-  document.querySelectorAll('.grp-head').forEach(h => {
+  document.querySelectorAll('.grp-toggle').forEach(h => {
     if (h.__bound) return; h.__bound = true;
     h.addEventListener('click', () => toggleGroup(h.getAttribute('data-grp')));
   });
@@ -355,7 +380,10 @@ function artTile(l){
 function renderMarketGroup(ls){
   const portfolio = ls.find(l => l.id === 'portfolio');
   const market = ls.filter(l => l.id !== 'portfolio');
-  const picker = '<div class="pickrow"><select class="picker" id="county-picker"></select></div>';
+  // State + County/Parish cascade
+  const picker = '<div class="pickrow">'+
+    '<select class="picker" id="state-picker" aria-label="State"></select>'+
+    '<select class="picker" id="county-picker" aria-label="County or parish"></select></div>';
   // split market value tiles: first 4 in a grid4, remainder in grid2 (mirrors the visual target)
   const top = market.slice(0,4), rest = market.slice(4);
   let h = picker + '<div class="grid4">'+top.map(tileShell).join('')+'</div>';
@@ -363,30 +391,59 @@ function renderMarketGroup(ls){
   // gap explanation note (from the gap layer's note, if present)
   const gap = market.find(l => l.data && l.data.source==='vacancy_gap');
   if (gap && gap.note) h += '<div class="note" id="market-note"><b>Why two vacancy numbers?</b> '+esc(gap.note)+'</div>';
+  // "Information Tiles" — catalog of more market indicators you can add to this lasso
+  h += '<button type="button" class="infotiles" data-tile="market-info-catalog">'+
+    '<span class="it-l"><span class="it-ico">➕</span><span class="it-tx"><b>Information Tiles</b>'+
+    '<span class="it-d">add more market indicators to this section</span></span></span>'+
+    '<span class="it-arrow">▸</span></button>';
   // Portfolio (DealCheck) renders full-width under the market tiles
   if (portfolio) h += '<div style="margin-top:12px">'+tileShell(portfolio)+'</div>';
   return h;
 }
 
+const STATE_NAMES = { TX:'Texas', LA:'Louisiana', OK:'Oklahoma', AR:'Arkansas', NM:'New Mexico', MS:'Mississippi' };
 function countyOptions(){
   // union of counties present in BOTH market files, so every market tile has a value
   const rev = STATE.data.reventure && STATE.data.reventure.counties || {};
   const cen = STATE.data.census && STATE.data.census.counties || {};
   const keys = Object.keys(rev).filter(k => cen[k]);
-  return keys.map(k => ({ key:k, label: (rev[k] && rev[k].label) || (cen[k] && cen[k].label) || k }));
+  return keys.map(k => ({ key:k, label: (rev[k] && rev[k].label) || (cen[k] && cen[k].label) || k, state: (rev[k] && rev[k].state) || 'TX' }));
 }
+function stateOptions(){ const seen={}, out=[]; countyOptions().forEach(o=>{ if(!seen[o.state]){ seen[o.state]=1; out.push(o.state); } }); return out; }
 
 function bindMarketPicker(){
-  const sel = $('county-picker'); if (!sel) return;
+  const ssel = $('state-picker'), csel = $('county-picker');
+  if (!csel) return;
   const opts = countyOptions();
-  if (!opts.length){ sel.innerHTML = '<option>loading…</option>'; sel.disabled = true; return; }
-  if (!STATE.county || !opts.find(o=>o.key===STATE.county)){
-    const def = (STATE.tenant.market && STATE.tenant.market.default_county) || opts[0].key;
-    STATE.county = opts.find(o=>o.key===def) ? def : opts[0].key;
+  if (!opts.length){
+    if (ssel){ ssel.innerHTML='<option>…</option>'; ssel.disabled=true; }
+    csel.innerHTML='<option>loading…</option>'; csel.disabled=true; return;
   }
-  sel.disabled = false;
-  sel.innerHTML = opts.map(o => '<option value="'+esc(o.key)+'"'+(o.key===STATE.county?' selected':'')+'>📍 '+esc(o.label)+'</option>').join('');
-  sel.onchange = () => { STATE.county = sel.value; refreshDataTiles(); };
+  const states = stateOptions();
+  // default the State from the tenant's default county
+  if (!STATE.stateSel || !states.includes(STATE.stateSel)){
+    const defC = (STATE.tenant.market && STATE.tenant.market.default_county) || opts[0].key;
+    STATE.stateSel = (opts.find(o=>o.key===defC) || opts[0]).state;
+  }
+  if (ssel){
+    ssel.disabled = false;
+    ssel.innerHTML = states.map(s => '<option value="'+esc(s)+'"'+(s===STATE.stateSel?' selected':'')+'>'+esc(STATE_NAMES[s]||s)+'</option>').join('');
+    ssel.onchange = () => {
+      STATE.stateSel = ssel.value;
+      const inSt = opts.filter(o=>o.state===STATE.stateSel);
+      STATE.county = inSt[0] ? inSt[0].key : null;
+      bindMarketPicker(); refreshDataTiles();
+    };
+  }
+  // counties for the selected state
+  const inState = opts.filter(o => o.state === STATE.stateSel);
+  if (!STATE.county || !inState.find(o=>o.key===STATE.county)){
+    const defC = (STATE.tenant.market && STATE.tenant.market.default_county);
+    STATE.county = (defC && inState.find(o=>o.key===defC)) ? defC : (inState[0] ? inState[0].key : null);
+  }
+  csel.disabled = false;
+  csel.innerHTML = inState.map(o => '<option value="'+esc(o.key)+'"'+(o.key===STATE.county?' selected':'')+'>📍 '+esc(o.label)+'</option>').join('');
+  csel.onchange = () => { STATE.county = csel.value; refreshDataTiles(); };
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -493,7 +550,7 @@ function tileMarketValue(l, src){
   const tagCls = {REV:'src-rev',CEN:'src-cen'}[tag]||'src-rev';
   const head = '<div class="top"><span class="lbl">'+esc(l.title)+'</span><span class="srcpill '+tagCls+'">'+esc(tag)+'</span></div>';
   if (!src || !src.counties || !STATE.county || !src.counties[STATE.county]){
-    return tileWrap(l, head+'<div class="big muted">—</div><div class="sub">awaiting snapshot</div>', false);
+    return tileWrap(l, head+'<div class="big muted">—</div><div class="sub">awaiting snapshot</div>', !!l.drilldown);
   }
   const c = src.counties[STATE.county];
   let val='—', sub='';
@@ -501,14 +558,14 @@ function tileMarketValue(l, src){
   else if (l.data.select==='vacancy_rate'){ val=pct(c.vacancy_rate&&c.vacancy_rate.value); sub='incl. seasonal · '+esc((c.vacancy_rate&&c.vacancy_rate.source_period)||''); }
   else if (l.data.select==='rental_vacancy_rate_pct'){ val=pct(c.rental_vacancy_rate_pct); sub='ACS 5-yr · '+esc(src.data_year||''); }
   const stale = isStale(src.scraped_at, 48*30); // monthly data; only flag if very old
-  return tileWrap(l, head+'<div class="big">'+esc(val)+'</div><div class="sub">'+sub+(stale?' · <span style="color:var(--yellow)">stale</span>':'')+'</div>', false);
+  return tileWrap(l, head+'<div class="big">'+esc(val)+'</div><div class="sub">'+sub+(stale?' · <span style="color:var(--yellow)">stale</span>':'')+'</div>', !!l.drilldown);
 }
 
 function tileMarketAbsent(l, tag){
   const tagCls = {FRED:'src-fred'}[tag]||'src-fl';
   return tileWrap(l,
     '<div class="top"><span class="lbl">'+esc(l.title)+'</span><span class="srcpill '+tagCls+'">'+esc(tag)+'</span></div>'+
-    '<div class="big muted">—</div><div class="sub">'+esc(tag)+' unavailable</div>', false);
+    '<div class="big muted">—</div><div class="sub">'+esc(tag)+' unavailable</div>', !!l.drilldown);
 }
 
 /* CENSUS vs REV GAP — computed */
@@ -516,14 +573,14 @@ function tileGap(l){
   const rev = STATE.data.reventure, cen = STATE.data.census, k = STATE.county;
   const head = '<div class="top"><span class="lbl">'+esc(l.title)+'</span></div>';
   if (!rev||!cen||!k||!rev.counties[k]||!cen.counties[k]){
-    return tileWrap(l, head+'<div class="big muted">—</div><div class="sub">awaiting snapshot</div>', false);
+    return tileWrap(l, head+'<div class="big muted">—</div><div class="sub">awaiting snapshot</div>', !!l.drilldown);
   }
   const total = rev.counties[k].vacancy_rate && rev.counties[k].vacancy_rate.value;
   const rental = cen.counties[k].rental_vacancy_rate_pct;
-  if (total==null||rental==null) return tileWrap(l, head+'<div class="big muted">—</div>', false);
+  if (total==null||rental==null) return tileWrap(l, head+'<div class="big muted">—</div>', !!l.drilldown);
   const gap = Math.round((rental-total)*10)/10;
   const sign = gap>0?'+':'';
-  return tileWrap(l, head+'<div class="big" style="color:var(--teal)">'+sign+gap+'pp</div><div class="sub">seasonal stock</div>', false);
+  return tileWrap(l, head+'<div class="big" style="color:var(--teal)">'+sign+gap+'pp</div><div class="sub">seasonal stock</div>', !!l.drilldown);
 }
 
 /* PORTFOLIO — DealCheck (file absent for v1 → graceful) */
@@ -602,11 +659,23 @@ function bindTileClicks(){
 }
 
 function openLayer(id){
+  if (id === 'market-info-catalog') return openDrillURL('./layers/market-catalog/artifact/index.html','Information Tiles','➕');
   const l = layerById(id); if (!l) return;
   if (l.kind === 'add') return openAddLayer();
   if (l.status_rules === 'soon') return openSoon(l);
   if (!l.drilldown) return;                         // glance-only tile (market/system)
   openDrill(l);
+}
+
+// open an arbitrary drill-in URL (used by the Market "Information Tiles" catalog)
+function openDrillURL(url, title, icon){
+  const panel = $('panel');
+  STATE.openLayer = null;
+  panel.innerHTML =
+    '<div class="pbar"><div class="pbar-l"><button class="back" type="button" id="drill-back">← Back</button><div class="ptitle">'+esc(icon||'')+' '+esc(title)+'</div></div></div>'+
+    '<iframe class="drillframe" id="drill-iframe" src="'+esc(url)+'" title="'+esc(title)+'" loading="lazy"></iframe>';
+  $('drill-back').onclick = closeDrill;
+  showOverlay('ov');
 }
 
 function pbar(l){
@@ -634,8 +703,11 @@ function injectExplainThis(panel, l){
 function openDrill(l){
   const panel = $('panel');
   STATE.openLayer = l.id;
+  let src = l.drilldown;
+  // market-indicator explainer: pass the currently-selected county so it highlights yours
+  if (src.indexOf('market-info') > -1 && STATE.county) src += (src.indexOf('?')>-1?'&':'?') + 'c=' + encodeURIComponent(STATE.county);
   panel.innerHTML = pbar(l) +
-    '<iframe class="drillframe" id="drill-iframe" src="'+esc(l.drilldown)+'" title="'+esc(l.title)+'" loading="lazy"></iframe>';
+    '<iframe class="drillframe" id="drill-iframe" src="'+esc(src)+'" title="'+esc(l.title)+'" loading="lazy"></iframe>';
   // "Explain this" copilot affordance (routes to Learn & Coach), then the per-layer
   // employee chat (both core-rendered into the overlay chrome).
   injectExplainThis(panel, l);
