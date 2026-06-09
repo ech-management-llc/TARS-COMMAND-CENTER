@@ -308,6 +308,7 @@
     {
       "id": "deal-finder",
       "title": "Deal Finder",
+      "step": "START HERE",
       "icon": "🔭",
       "desc": "find deals · feeds Analyzer",
       "group": "market",
@@ -323,6 +324,7 @@
     {
       "id": "deal-analyzer",
       "title": "Deal Analyzer",
+      "step": "STEP 2",
       "icon": "🔍",
       "desc": "novice + pro mode",
       "group": "market",
@@ -337,7 +339,8 @@
     },
     {
       "id": "deal-screener",
-      "title": "Deal Screener",
+      "title": "Deal Decider",
+      "step": "DECISION",
       "icon": "💼",
       "desc": "Capital Rules gate",
       "group": "market",
@@ -457,6 +460,21 @@
       "drilldown": "./layers/team-access/artifact/index.html",
       "employee": { "name": "Robin", "role": "Access admin", "avatar": "R" },
       "chips": ["Invite a field supervisor", "What can Ashley see?", "Add a read-only viewer"]
+    },
+    {
+      "id": "entities",
+      "title": "Entities",
+      "icon": "🏢",
+      "desc": "companies · LLCs · filings",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": { "type": "static" },
+      "status_rules": "neutral",
+      "drilldown": "./layers/entities/artifact/index.html",
+      "employee": { "name": "Blair", "role": "Corporate secretary", "avatar": "B" },
+      "chips": ["List my entities and their doors", "Which annual reports are due?", "What does ECH Mabank LLC own?"]
     },
     {
       "id": "inbox",

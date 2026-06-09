@@ -47,7 +47,7 @@
       '<div style="font-size:16px;font-weight:800">'+esc(p.address)+'</div>'+
       '<div class="small muted">'+esc(p.beds)+' bed / '+esc(p.baths)+' bath · '+esc(p.sqft)+' sqft · '+esc(p.entity)+' · '+esc(p.status)+'</div>';
 
-    var ltvCls = (p.ltv_pct<=50)?'rg':'ry';
+    var ltvCls = (p.ltv_pct>65)?'rr':((p.ltv_pct<=50)?'rg':'ry'); // Capital Rules: >65 RED / 55-65 YELLOW / <=50 GREEN
     var cfCls = (p.cash_flow_monthly>0)?'rg':'ry';
     document.getElementById('prop-kpis').innerHTML =
       '<div class="rule rg"><div class="rn">RENT</div><div class="rv">'+money(p.rent)+'</div><div class="rt">Rent Roll</div></div>'+

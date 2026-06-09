@@ -431,7 +431,8 @@ function artTile(l){
   const add  = l.kind === 'add';
   const cls = 'art'+(l.featured?' feat':'')+(soon||add?' disabled':'')+(add?' add':'');
   const corner = soon ? '<span class="soon">SOON</span>' : add ? '<span class="soon">+ ADD</span>' : (l.tier?'<span class="L">'+esc(l.tier)+'</span>':'');
-  return '<button type="button" class="'+cls+'" data-tile="'+esc(l.id)+'">'+corner+
+  const step = l.step ? '<span class="stepb">'+esc(l.step)+'</span>' : '';
+  return '<button type="button" class="'+cls+'" data-tile="'+esc(l.id)+'">'+corner+step+
     '<div class="ico">'+esc(l.icon||'▫')+'</div>'+
     '<div class="nm">'+esc(l.title)+'</div>'+
     '<div class="ds">'+esc(l.desc||'')+'</div></button>';
@@ -462,7 +463,7 @@ function renderMarketGroup(ls){
     '<span class="it-arrow">▸</span></button>';
   // Portfolio (DealCheck) renders full-width under the market tiles
   if (portfolio) h += '<div style="margin-top:12px">'+tileShell(portfolio)+'</div>';
-  // Deals — the deal-flow tiles (Finder → Analyzer → Screener) live in this lasso now
+  // Deals — the deal-flow tiles (Finder → Analyzer → Decider) live in this lasso now
   if (dealCards.length) h += '<div class="subhead">DEALS</div><div class="gridA">'+dealCards.map(artTile).join('')+'</div>';
   return h;
 }

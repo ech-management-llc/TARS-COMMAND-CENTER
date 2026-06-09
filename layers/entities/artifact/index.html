@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entities — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🏢 Entities</div>
+
+  <div class="preview-banner">
+    <b>Your companies — one place.</b> Every row is a <b>live read</b> from the shared entity record
+    (<code>data/STUB_ENTITIES.json</code>). Entity names, roles, and primary bank reflect the real ECH
+    stack; door counts mirror the property record. EIN, formation dates, registered agent, and filing
+    dates are <b>honest SAMPLE</b> values until the legal/records source is wired (Secretary of State + vault).
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Blair</b> and say “flag annual reports due in 90 days” or “add a column for franchise tax” — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="ruleg" id="ent-kpis" data-view-section="kpis"></div>
+
+  <div class="card" data-view-section="detail" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <div id="ent-head"><div style="font-size:16px;font-weight:800">…</div></div>
+    <select id="ent-picker"></select>
+  </div>
+  <div class="card" data-view-section="detail-rows">
+    <div class="section-label">ENTITY DETAIL — pulled from every layer</div>
+    <table><tbody id="ent-detail-rows"></tbody></table>
+    <div class="small dim" style="margin-top:8px">Sample data until the records source is wired. EIN masked on purpose — never faked.</div>
+  </div>
+
+  <div class="card" data-view-section="roster">
+    <div class="section-label">ALL ENTITIES</div>
+    <table><thead><tr><th>ENTITY</th><th>ROLE</th><th>STATE</th><th>DOORS</th><th>BANK</th><th>ANNUAL REPORT</th></tr></thead>
+      <tbody id="ent-rows"></tbody>
+    </table>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: shared entity record (sample). Real values arrive via the Secretary-of-State / records source in a later phase. Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only.</div>
+</div>
+
+<script>
+  var ENTS = [], current = 0, viewOps = [];
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function arStatus(ar){
+    var s = (ar&&ar.status)||'';
+    if(s==='overdue')  return {cls:'rr', txt:'Overdue'+(ar.next_due?' · was '+esc(ar.next_due):'')};
+    if(s==='due-soon') return {cls:'ry', txt:'Due soon'+(ar.next_due?' · '+esc(ar.next_due):'')};
+    if(s==='current')  return {cls:'rg', txt:'Current'+(ar.next_due?' · next '+esc(ar.next_due):'')};
+    return {cls:'', txt:'—'};
+  }
+
+  function render(){
+    var e = ENTS[current]; if(!e) return;
+    document.getElementById('ent-head').innerHTML =
+      '<div style="font-size:16px;font-weight:800">'+esc(e.name)+'</div>'+
+      '<div class="small muted">'+esc(e.role_tag||e.type)+' · '+esc(e.type)+' · '+esc(e.state)+' · '+esc(e.doors)+' door'+(e.doors===1?'':'s')+'</div>';
+
+    var ar = arStatus(e.annual_report);
+    var det = [
+      ['Role', esc(e.role)],
+      ['Type / State', esc(e.type)+' · '+esc(e.state)],
+      ['Formed', esc(e.formed)],
+      ['Registered agent', esc(e.registered_agent)],
+      ['EIN', esc(e.ein)],
+      ['Primary bank', esc(e.bank)],
+      ['Doors owned', esc(e.doors)],
+      ['Annual report', '<span class="pill '+ar.cls+'">'+ar.txt+'</span>']
+    ];
+    document.getElementById('ent-detail-rows').innerHTML = det.map(function(r){
+      return '<tr><td style="white-space:nowrap;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td></tr>';
+    }).join('');
+
+    document.getElementById('ent-rows').innerHTML = ENTS.map(function(x){
+      var a = arStatus(x.annual_report);
+      return '<tr data-view-row="'+esc(x.id)+'"><td style="font-weight:700">'+esc(x.name)+'</td>'+
+        '<td class="small muted">'+esc(x.role_tag||'')+'</td>'+
+        '<td>'+esc(x.state)+'</td>'+
+        '<td>'+esc(x.doors)+'</td>'+
+        '<td>'+esc(x.bank)+'</td>'+
+        '<td><span class="pill '+a.cls+'">'+a.txt+'</span></td></tr>';
+    }).join('');
+    applyViewCfg(viewOps);
+  }
+
+  function renderKpis(){
+    var total = ENTS.length;
+    var doors = ENTS.reduce(function(s,e){ return s+(Number(e.doors)||0); },0);
+    var flagged = ENTS.filter(function(e){ var s=(e.annual_report&&e.annual_report.status)||''; return s==='due-soon'||s==='overdue'; }).length;
+    var bank = ENTS.length ? (ENTS[0].bank||'—') : '—';
+    var flagCls = flagged>0 ? 'ry' : 'rg';
+    document.getElementById('ent-kpis').innerHTML =
+      '<div class="rule rg"><div class="rn">ENTITIES</div><div class="rv">'+total+'</div><div class="rt">companies</div></div>'+
+      '<div class="rule rg"><div class="rn">TOTAL DOORS</div><div class="rv">'+doors+'</div><div class="rt">across the stack</div></div>'+
+      '<div class="rule '+flagCls+'"><div class="rn">FILINGS DUE</div><div class="rv">'+flagged+'</div><div class="rt">annual reports</div></div>'+
+      '<div class="rule rg"><div class="rn">PRIMARY BANK</div><div class="rv">'+esc(bank)+'</div><div class="rt">all entities</div></div>';
+  }
+
+  function buildPicker(){
+    var sel = document.getElementById('ent-picker');
+    sel.innerHTML = ENTS.map(function(e,i){ return '<option value="'+i+'">'+esc(e.name)+'</option>'; }).join('');
+    sel.onchange = function(){ current = +sel.value; render(); };
+  }
+
+  // In-tile view config from the core: show/hide sections + roster rows. Never touches data.
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    document.querySelectorAll('[data-view-row]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
+      document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  fetch('../../../data/STUB_ENTITIES.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ ENTS = d.entities||[]; if(!ENTS.length) throw 0; renderKpis(); buildPicker(); render();
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
+    .catch(function(){ document.getElementById('ent-head').innerHTML='<div class="muted">Awaiting entity record — shared source not reachable.</div>'; });
+</script>
+</body>
+</html>
