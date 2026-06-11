@@ -473,7 +473,7 @@
       "data": { "type": "static" },
       "status_rules": "neutral",
       "drilldown": "./layers/entities/artifact/index.html",
-      "employee": { "name": "Blair", "role": "Corporate secretary", "avatar": "B" },
+      "employee": { "name": "Ellis", "role": "Corporate secretary", "avatar": "E" },
       "chips": ["List my entities and their doors", "Which annual reports are due?", "What does ECH Mabank LLC own?"]
     },
     {
