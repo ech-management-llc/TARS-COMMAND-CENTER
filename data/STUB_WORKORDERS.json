@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE work-order tracking for the ECH reference install. Honest placeholders — NOT live. Single shared source the Maintenance tile reads (and Property File's open-work-order counts mirror). Property strings match STUB_PROPERTIES.json addresses exactly; the closed/billed example reuses the Lone Star Plumbing $1,200 bill already in STUB_DEADLINES.json so the close→bill story is coherent across tiles. Real entries arrive via the intake connectors (Inbox email, Tenant Portal, SMS).",
+  "generated_at": "2026-06-10",
+  "work_orders": [
+    {
+      "id": "WO-1041",
+      "property": "102 Remington · Mabank, TX",
+      "opened": "2026-06-06",
+      "due": "2026-06-15",
+      "status": "open",
+      "priority": "normal",
+      "summary": "Make-ready: interior paint + carpet clean before listing",
+      "assigned_to": { "type": "team", "name": "Field supervisor" },
+      "est_cost": 1800,
+      "bill": null
+    },
+    {
+      "id": "WO-1038",
+      "property": "415 Skiles St · Mabank, TX",
+      "opened": "2026-05-28",
+      "due": "2026-06-02",
+      "status": "done",
+      "priority": "urgent",
+      "summary": "Water heater leak — replace T&P valve",
+      "assigned_to": { "type": "vendor", "name": "Lone Star Plumbing" },
+      "est_cost": 1200,
+      "bill": { "vendor": "Lone Star Plumbing", "amount": 1200, "posted_to": "vendors-payables", "due": "2026-06-04" }
+    }
+  ]
+}

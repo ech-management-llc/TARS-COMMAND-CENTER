@@ -14,12 +14,7 @@
     <b>PREVIEW — sample work orders.</b> Intake (often from the Inbox), dispatch by SMS + email, status replies, and the close→bill handoff are real designs; connectors (Gmail · SMS · Vendors · Team) aren't wired yet, so rows are illustrative.
   </div>
 
-  <div class="ruleg">
-    <div class="rule ry"><div class="rn">OPEN</div><div class="rv" style="color:var(--yellow)">4</div><div class="rt">across 3 entities</div></div>
-    <div class="rule rr"><div class="rn">URGENT</div><div class="rv">1</div><div class="rt">AC down</div></div>
-    <div class="rule"><div class="rn">AWAITING VENDOR</div><div class="rv">2</div><div class="rt">dispatched</div></div>
-    <div class="rule rg"><div class="rn">DONE (MO)</div><div class="rv">9</div><div class="rt">this month</div></div>
-  </div>
+  <div class="ruleg" id="wo-kpis" data-view-section="kpis"></div>
 
   <div class="row-sb" style="margin-bottom:10px">
     <div class="section-label" style="margin:0">WORK ORDERS</div>
@@ -29,18 +24,14 @@
     </div>
   </div>
 
-  <div class="card flush">
+  <div class="card flush" data-view-section="orders">
     <table>
       <tr><th>WO</th><th>PROPERTY · ISSUE</th><th>ASSIGNED</th><th>STATUS</th></tr>
-      <tr><td>WO-118</td><td>408 E Kaufman · AC not cooling</td><td>Cool Air TX (vendor)</td><td><span class="tag b-red">urgent · dispatched</span></td></tr>
-      <tr><td>WO-117</td><td>1301 E Royall · leak under sink</td><td>Lone Star Plumbing</td><td><span class="tag b-yellow">awaiting vendor</span></td></tr>
-      <tr><td>WO-116</td><td>124 Pierce · garage door</td><td>D. Reed (team)</td><td><span class="tag b-yellow">in-progress</span></td></tr>
-      <tr><td>WO-115</td><td>500 Reynolds · gutter clean</td><td>GreenScape</td><td><span class="tag b-gray">scheduled</span></td></tr>
-      <tr><td>WO-110</td><td>410 Scott · breaker trip</td><td>Hill Electric</td><td><span class="tag b-green">done → billed</span></td></tr>
+      <tbody id="wo-rows"></tbody>
     </table>
   </div>
 
-  <div class="card">
+  <div class="card" data-view-section="lifecycle">
     <div class="section-label">LIFECYCLE</div>
     <div class="flow">
       <div class="fstep"><span class="fdot fdone">1</span><div><div class="ft">Intake</div><div class="fs">auto-created from an Inbox email ("AC not cooling — 408 E Kaufman") or entered by hand</div></div></div>
@@ -50,7 +41,9 @@
     </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Intake from Inbox · dispatch via SMS + email · close becomes a Vendors &amp; Payables bill (accounts contract). Sample data.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Intake from Inbox · dispatch via SMS + email · close becomes a Vendors &amp; Payables bill (accounts contract). Sample data.
+    <span style="display:block;margin-top:6px">Scheduled work lands on the <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar &amp; Deadlines">Calendar</button> · big repairs inform the <button class="xref" type="button" onclick="flOpen('reserves-capex')" title="Open Reserves &amp; CapEx">Reserves &amp; CapEx</button> forecast</span>
+  </div>
 </div>
 
 <script>
@@ -59,6 +52,70 @@
     document.querySelectorAll('#dispatchmode button').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
   }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function money(n){ if(n==null||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
+  function fmt(d){ var dt=new Date(d+'T00:00:00'); if(isNaN(dt)) return esc(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+  function xref(label,id){ return '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(label)+'">'+esc(label)+'</button>'; }
+  var viewOps = [];
+
+  function isOpen(w){ return w.status!=='done' && w.status!=='closed'; }
+
+  function statusCell(w){
+    if(!isOpen(w)){
+      var billed = w.bill ? ' → billed' : '';
+      var billChip = w.bill ? ' '+xref(money(w.bill.amount)+' bill','vendors-payables') : '';
+      return '<span class="tag b-green">done'+esc(billed)+'</span>'+billChip;
+    }
+    if(w.priority==='urgent') return '<span class="tag b-red">urgent'+(w.due?' · due '+fmt(w.due):'')+'</span>';
+    var label = (w.assigned_to&&w.assigned_to.type==='vendor') ? 'awaiting vendor' : w.status;
+    return '<span class="tag b-yellow">'+esc(label)+(w.due?' · due '+fmt(w.due):'')+'</span>';
+  }
+
+  function render(wos){
+    var open = wos.filter(isOpen);
+    var urgent = open.filter(function(w){ return w.priority==='urgent'; });
+    var vendor = open.filter(function(w){ return w.assigned_to&&w.assigned_to.type==='vendor'; });
+    var billed = wos.filter(function(w){ return !isOpen(w)&&w.bill; });
+    var openProps = {}; open.forEach(function(w){ openProps[w.property]=1; });
+    var nProps = Object.keys(openProps).length;
+
+    document.getElementById('wo-kpis').innerHTML =
+      '<div class="rule '+(open.length?'ry':'rg')+'"><div class="rn">OPEN</div><div class="rv"'+(open.length?' style="color:var(--yellow)"':'')+'>'+open.length+'</div><div class="rt">across '+nProps+' propert'+(nProps===1?'y':'ies')+'</div></div>'+
+      '<div class="rule '+(urgent.length?'rr':'')+'"><div class="rn">URGENT</div><div class="rv">'+urgent.length+'</div><div class="rt">'+(urgent.length?esc(urgent[0].summary.split(':')[0]):'none')+'</div></div>'+
+      '<div class="rule"><div class="rn">AWAITING VENDOR</div><div class="rv">'+vendor.length+'</div><div class="rt">'+(vendor.length?'dispatched':'none dispatched')+'</div></div>'+
+      '<div class="rule rg"><div class="rn">DONE · BILLED</div><div class="rv">'+billed.length+'</div><div class="rt">this month</div></div>';
+
+    // each row: property name → its Property File; billed WOs → Vendors & Payables (cross-tile nav)
+    document.getElementById('wo-rows').innerHTML = wos.map(function(w){
+      var short = String(w.property||'').split(' · ')[0];
+      return '<tr data-view-row="'+esc(w.id)+'"><td>'+esc(w.id)+'</td>'+
+        '<td>'+xref(short,'property-file')+' '+esc(w.summary)+'</td>'+
+        '<td>'+esc(w.assigned_to?w.assigned_to.name:'—')+(w.assigned_to&&w.assigned_to.type==='vendor'?' (vendor)':' (team)')+'</td>'+
+        '<td>'+statusCell(w)+'</td></tr>';
+    }).join('');
+    applyViewCfg(viewOps);
+  }
+
+  // In-tile view config from the core: show/hide sections + table rows. Never touches data.
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    document.querySelectorAll('[data-view-row]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
+      document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  fetch('../../../data/STUB_WORKORDERS.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ var wos = d.work_orders||[]; if(!wos.length) throw 0; render(wos);
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
+    .catch(function(){
+      document.getElementById('wo-kpis').innerHTML='<div class="muted">Awaiting work-order record — shared source not reachable.</div>';
+      document.getElementById('wo-rows').innerHTML='';
+    });
 </script>
 </body>
 </html>

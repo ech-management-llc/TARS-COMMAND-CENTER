@@ -37,8 +37,10 @@
 </div>
 
 <script>
-  var PROPS = [], current = 0, viewOps = [];
+  var PROPS = [], current = 0, viewOps = [], WO_OPEN = null;
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  // open work-order count: live-derived from the shared WO source once loaded; stored field until then
+  function woCount(p){ if(!WO_OPEN) return p.open_work_orders; var n = WO_OPEN[p.address]; return n==null?0:n; }
   function money(n){ if(n==null||isNaN(n)) return '—'; n=Number(n); return (n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US'); }
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
@@ -66,7 +68,7 @@
     rows.push(['lease','Lease',lease,[['Rent Roll','rent-roll'],['Legal','legal']]]);
     if(p.insurance) rows.push(['insurance','Insurance',esc(p.insurance.carrier)+' '+esc(p.insurance.form)+' · renews '+esc(p.insurance.renews),[['Insurance','insurance']]]);
     if(p.property_tax) rows.push(['tax','Property tax',money(p.property_tax.amount)+' due '+esc(p.property_tax.due)+' ('+esc(p.property_tax.county)+')',[['Taxes','taxes']]]);
-    rows.push(['workorders','Open work orders',String(p.open_work_orders),[['Maintenance','maintenance']]]);
+    rows.push(['workorders','Open work orders',String(woCount(p)),[['Maintenance','maintenance']]]);
     rows.push(['documents','Documents',esc(p.documents)+' files (deed, lease, policy…)',[['Document Navigator','document-navigator']]]);
     var bills = (p.bills&&p.bills.length) ? p.bills.map(function(b){return esc(b.vendor)+' '+money(b.amount)+' due '+esc(b.due);}).join('; ') : 'none due';
     rows.push(['bills','Bills',bills,[['Vendors & Payables','vendors-payables']]]);
@@ -101,6 +103,13 @@
     .then(function(d){ PROPS = d.properties||[]; if(!PROPS.length) throw 0; buildPicker(); render();
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('prop-head').innerHTML='<div class="muted">Awaiting property record — shared source not reachable.</div>'; });
+
+  // live-derive open work-order counts from the shared WO source ("change it there, it changes here");
+  // on any failure the stored open_work_orders field stands — honest fallback, no error surface
+  fetch('../../../data/STUB_WORKORDERS.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ WO_OPEN = {}; (d.work_orders||[]).forEach(function(w){ if(w.status!=='done'&&w.status!=='closed') WO_OPEN[w.property]=(WO_OPEN[w.property]||0)+1; }); if(PROPS.length) render(); })
+    .catch(function(){ WO_OPEN = null; });
 </script>
 </body>
 </html>
