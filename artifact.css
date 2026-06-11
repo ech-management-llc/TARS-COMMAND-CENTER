@@ -79,6 +79,12 @@ label{font-size:11px; color:var(--mut); font-weight:600; display:block; margin-b
 /* lender packet photo placeholders */
 .lpx{width:62px;height:46px;background:var(--surf2);border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:10px}
 
+/* cross-tile reference chip — opens another tile via the shell (tcc:open-layer).
+   Renders as a quiet link; inert when the artifact is viewed standalone. */
+.xref{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--blue);background:transparent;border:1px solid var(--line);border-radius:999px;padding:2px 9px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.xref:hover{border-color:var(--blue);background:rgba(59,130,246,.08)}
+.xref::after{content:'↗';font-size:10px;opacity:.8}
+
 .muted{color:var(--mut)} .dim{color:var(--dim)} .small{font-size:11px}
 .row-sb{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 

@@ -830,7 +830,13 @@ function wireGlobalControls(){
   ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov') $('panel').innerHTML=''; } }));
   document.addEventListener('keydown', e => { if (e.key==='Escape'){ hideOverlay('ov'); hideOverlay('gov'); } });
   // a Plans & Billing purchase flips entitlement → re-render the home so the new tile appears
-  window.addEventListener('message', e => { const d = e.data || {}; if (d && d.type === 'tcc:purchase') renderHome(); });
+  window.addEventListener('message', e => {
+    const d = e.data || {};
+    if (d && d.type === 'tcc:purchase') renderHome();
+    // cross-tile nav: a drill-in iframe asks the shell to open another tile
+    // (front-end cross-reference only — artifacts post {type:'tcc:open-layer', layer:'<id>'})
+    if (d && d.type === 'tcc:open-layer' && typeof d.layer === 'string') openLayer(d.layer);
+  });
 }
 
 function forceRefresh(){
