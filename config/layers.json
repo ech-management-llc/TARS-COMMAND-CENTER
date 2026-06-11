@@ -462,6 +462,21 @@
       "chips": ["Invite a field supervisor", "What can Ashley see?", "Add a read-only viewer"]
     },
     {
+      "id": "connections",
+      "title": "Connections",
+      "icon": "🔌",
+      "desc": "email · team phones · apps · TARS line",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": { "type": "static" },
+      "status_rules": "neutral",
+      "drilldown": "./layers/connections/artifact/index.html",
+      "employee": { "name": "Linc", "role": "Connections steward", "avatar": "L" },
+      "chips": ["What's connected right now?", "Who can text-command TARS?", "Connect the accounting inbox"]
+    },
+    {
       "id": "entities",
       "title": "Entities",
       "icon": "🏢",
