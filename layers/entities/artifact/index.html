@@ -43,6 +43,9 @@
 <script>
   var ENTS = [], current = 0, viewOps = [];
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function xref(label,id){ return '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(label)+'">'+esc(label)+'</button>'; }
 
   function arStatus(ar){
     var s = (ar&&ar.status)||'';
@@ -56,18 +59,19 @@
     var e = ENTS[current]; if(!e) return;
     document.getElementById('ent-head').innerHTML =
       '<div style="font-size:16px;font-weight:800">'+esc(e.name)+'</div>'+
-      '<div class="small muted">'+esc(e.role_tag||e.type)+' · '+esc(e.type)+' · '+esc(e.state)+' · '+esc(e.doors)+' door'+(e.doors===1?'':'s')+'</div>';
+      '<div class="small muted">'+esc(e.role_tag||e.type)+' · '+esc(e.type)+' · '+esc(e.state)+' · '+esc(e.doors)+' door'+(e.doors===1?'':'s')+' '+xref('Financials','financials')+'</div>';
 
+    // detail rows cross-reference their source tiles (formation docs, doors, filing dates)
     var ar = arStatus(e.annual_report);
     var det = [
       ['Role', esc(e.role)],
       ['Type / State', esc(e.type)+' · '+esc(e.state)],
-      ['Formed', esc(e.formed)],
+      ['Formed', esc(e.formed)+' '+xref('Document Navigator','document-navigator')],
       ['Registered agent', esc(e.registered_agent)],
       ['EIN', esc(e.ein)],
       ['Primary bank', esc(e.bank)],
-      ['Doors owned', esc(e.doors)],
-      ['Annual report', '<span class="pill '+ar.cls+'">'+ar.txt+'</span>']
+      ['Doors owned', esc(e.doors)+' '+xref('Property File','property-file')],
+      ['Annual report', '<span class="pill '+ar.cls+'">'+ar.txt+'</span> '+xref('Calendar','calendar')+' '+xref('Compliance','compliance')]
     ];
     document.getElementById('ent-detail-rows').innerHTML = det.map(function(r){
       return '<tr><td style="white-space:nowrap;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td></tr>';

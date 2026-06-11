@@ -14,11 +14,16 @@
   </div>
   <div class="card flush"><table>
     <tr><th>TENANT ACTION</th><th>ROUTES TO</th></tr>
-    <tr><td>Pay rent</td><td>RentRedi · app.rentredi.com/pay</td></tr>
-    <tr><td>Submit a maintenance request</td><td>Maintenance (work order)</td></tr>
-    <tr><td>View lease + documents</td><td>Document Navigator (their unit only)</td></tr>
+    <tr><td>Pay rent</td><td>RentRedi · app.rentredi.com/pay <button class="xref" type="button" onclick="flOpen('rent-roll')" title="Open Rent Roll — payments update rent status">Rent Roll</button></td></tr>
+    <tr><td>Submit a maintenance request</td><td><button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance — tenant requests become work orders">Maintenance</button> (work order)</td></tr>
+    <tr><td>View lease + documents</td><td><button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button> (their unit only)</td></tr>
   </table></div>
   <div class="wire-note" style="text-align:center">Add-on layer · activated by purchase · tenant role is scoped to their own unit.</div>
 </div>
+
+<script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+</script>
 </body>
 </html>

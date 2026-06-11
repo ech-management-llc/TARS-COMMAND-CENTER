@@ -18,11 +18,11 @@
     <div class="rule rg"><div class="rn">CONTRACTS</div><div class="rv">6</div><div class="rt">on file</div></div>
     <div class="rule ry"><div class="rn">CLOSING</div><div class="rv" style="color:var(--yellow)">1</div><div class="rt">415 Skiles</div></div>
     <div class="rule rg"><div class="rn">LEASES</div><div class="rv">9</div><div class="rt">active</div></div>
-    <div class="rule rg"><div class="rn">COMPLIANCE</div><div class="rv">OK</div><div class="rt">TX · fair housing</div></div>
+    <div class="rule rg" onclick="flOpen('compliance')" style="cursor:pointer" title="Open Compliance"><div class="rn">COMPLIANCE</div><div class="rv">OK</div><div class="rt">TX · fair housing ↗</div></div>
   </div>
 
   <div class="card" data-view-section="closing">
-    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">CLOSING — 415 SKILES (contract → close)</div>
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">CLOSING — 415 SKILES (contract → close) <button class="xref" type="button" onclick="flOpen('sign')" title="Open Sign — send for signature">Sign</button></div>
     <table><tr><th>STEP</th><th>DEADLINE</th><th>STATUS</th></tr>
       <tr><td>Earnest money deposited</td><td>done</td><td><span class="tag b-green">done</span></td></tr>
       <tr><td>Option / inspection ends</td><td>Jun 12</td><td><span class="tag b-yellow">5 days</span></td></tr>
@@ -37,10 +37,12 @@
     <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px"><button class="fbtn" onclick="alert('TX: a landlord must return the security deposit within 30 days of move-out, itemizing any deductions. Plain-English summary — verify with counsel.')">Security deposit (TX)</button><button class="fbtn" onclick="alert('TX eviction: written notice to vacate (usually 3 days) → file in JP court → hearing → writ of possession. Timeline varies by county. Summary — confirm with an attorney.')">Eviction (TX)</button></div>
   </div>
 
-  <div style="font-size:11px;color:var(--dim);margin-top:10px">Docs live in Document Navigator; this layer explains, tracks deadlines, and looks up law. Sample data.</div>
+  <div style="font-size:11px;color:var(--dim);margin-top:10px">Docs live in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button>; this layer explains, tracks deadlines, and looks up law. Sample data.</div>
 </div>
 
 <script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function applyViewCfg(ops){
     ops = ops||[];
     document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });

@@ -53,11 +53,25 @@
       <div class="card">
         <div class="section-label">HOW IT STAYS ONE TRUTH</div>
         <div class="small muted">The agents' memory store and this Navigator point at the <b>same folder</b>. Humans browse and search it here; agents query it as context each session. Edits land in one place; the backup mirror keeps a redundant copy. No separate "navigator copy" to drift.</div>
+        <!-- back-links: every document category opens the tile it comes from (cross-tile nav) -->
+        <div class="small" style="margin-top:8px">Documents arrive from:
+          <button class="xref" type="button" onclick="flOpen('rent-roll')" title="Open Rent Roll">Rent Roll</button> leases ·
+          <button class="xref" type="button" onclick="flOpen('insurance')" title="Open Insurance">Insurance</button> policies ·
+          <button class="xref" type="button" onclick="flOpen('legal')" title="Open Legal">Legal</button> contracts ·
+          <button class="xref" type="button" onclick="flOpen('sign')" title="Open Sign">Sign</button> envelopes ·
+          <button class="xref" type="button" onclick="flOpen('taxes')" title="Open Taxes">Taxes</button> returns ·
+          <button class="xref" type="button" onclick="flOpen('entities')" title="Open Entities">Entities</button> formation docs
+        </div>
       </div>
     </div>
   </div>
 
   <div class="wire-note" style="text-align:center;margin-top:14px">Standalone public view — sample structure only, no credentials or personal data. Live vault indexing wires to your chosen store.</div>
 </div>
+
+<script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+</script>
 </body>
 </html>

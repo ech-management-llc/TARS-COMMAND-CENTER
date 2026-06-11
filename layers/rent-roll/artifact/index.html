@@ -25,15 +25,15 @@
   <div class="card flush">
     <table>
       <tr><th>UNIT</th><th>TENANT</th><th>RENT</th><th>STATUS</th><th data-view-col="late-fee" style="display:none">LATE FEE</th></tr>
-      <tr><td>500 Reynolds</td><td>A. Carter</td><td>$1,800</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
-      <tr><td>410 Scott</td><td>L. Nguyen</td><td>$1,500</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
-      <tr><td>1301 E Royall</td><td>M. Davis</td><td>$1,650</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
-      <tr><td>415 Skiles</td><td>J. Morales</td><td>$1,450</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
-      <tr><td>124 Pierce</td><td>R. Patel</td><td>$1,700</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
-      <tr><td>103 Mary Beth</td><td>S. Kim</td><td>$1,900</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
-      <tr><td>408 E Kaufman</td><td>T. Brooks</td><td>$1,700</td><td><span class="tag b-yellow">late 6d</span></td><td data-view-col="late-fee" style="display:none">$85</td></tr>
-      <tr><td>204 W Mt Vernon</td><td>D. Reed</td><td>$1,800</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
-      <tr><td>102 Remington</td><td>—</td><td>$1,900</td><td><span class="tag b-gray">vacant</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">500 Reynolds</button></td><td>A. Carter</td><td>$1,800</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">410 Scott</button></td><td>L. Nguyen</td><td>$1,500</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">1301 E Royall</button></td><td>M. Davis</td><td>$1,650</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">415 Skiles</button></td><td>J. Morales</td><td>$1,450</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">124 Pierce</button></td><td>R. Patel</td><td>$1,700</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">103 Mary Beth</button></td><td>S. Kim</td><td>$1,900</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">408 E Kaufman</button></td><td>T. Brooks</td><td>$1,700</td><td><span class="tag b-yellow">late 6d</span></td><td data-view-col="late-fee" style="display:none">$85</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">204 W Mt Vernon</button></td><td>D. Reed</td><td>$1,800</td><td><span class="tag b-green">paid</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
+      <tr><td><button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">102 Remington</button></td><td>—</td><td>$1,900</td><td><span class="tag b-gray">vacant</span></td><td data-view-col="late-fee" style="display:none">—</td></tr>
     </table>
   </div>
 
@@ -43,7 +43,7 @@
     <div class="wire-note">Each tenant's expected rent reconciles against inflows on the operating account. Real inflows + balances arrive at Plaid production (gated on Nov compliance); until then this reads an honest sandbox $0 rather than a fabricated balance.</div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: RentRedi rent roll (not yet wired). Tenant names + amounts are placeholders.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: RentRedi rent roll (not yet wired). Tenant names + amounts are placeholders. Leases file in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button> · tenants self-serve in <button class="xref" type="button" onclick="flOpen('tenant-portal')" title="Open Tenant Portal">Tenant Portal</button>.</div>
 </div>
 
 <script>

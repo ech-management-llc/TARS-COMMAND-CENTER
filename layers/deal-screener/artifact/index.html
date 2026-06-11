@@ -99,6 +99,8 @@
     <div class="verdict-label">Verdict</div>
     <div class="verdict-headline" id="verdict-headline">Enter deal data</div>
     <div class="verdict-reasons" id="verdict-reasons">Capital Rules apply automatically as you type.</div>
+    <!-- PROCEED-only next step: open the contract step in Legal (front-end nav; inert standalone) -->
+    <button type="button" id="verdict-next" onclick="flOpen('legal')" style="display:none;margin-top:12px;align-items:center;gap:6px;background:#16a34a;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer">Next step: open the contract → Legal ↗</button>
   </div>
 
   <div class="gates">
@@ -369,6 +371,10 @@ function compute() {
     verdictHeadline.textContent = '✓ PROCEED';
     verdictReasons.textContent = `All Capital Rules within target: ${greens.join(', ')}.`;
   }
+
+  // the contract step only offers itself on a PROCEED verdict
+  const nextBtn = document.getElementById('verdict-next');
+  if (nextBtn) nextBtn.style.display = (verdictEl.className === 'verdict green') ? 'inline-flex' : 'none';
 
   saveState();
 }

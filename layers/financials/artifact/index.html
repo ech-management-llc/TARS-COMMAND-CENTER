@@ -26,7 +26,7 @@
   <div class="section-label">HEADLINE METRICS</div>
   <div class="hm" id="headline"></div>
 
-  <div class="section-label">BY ENTITY</div>
+  <div class="section-label">BY ENTITY <button class="xref" type="button" onclick="flOpen('entities')" title="Open Entities — companies behind these sections">Entities</button></div>
   <div class="card flush"><table id="entities"><tbody><tr><td class="muted">loading…</td></tr></tbody></table></div>
 
   <div class="card">
@@ -52,6 +52,8 @@
 <script>
   var FL = "https://api.foundationlayerhq.com/api/dashboard/latest";
   var LS = "tcc_fin_artifact_lastgood";
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function money(n){ if(n==null||isNaN(n)) return '—'; n=Number(n); var a=Math.abs(n); if(a>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+(n/1e3).toFixed(1)+'K'; return '$'+n.toLocaleString('en-US'); }
   function ts(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d.getTime())) return iso; return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}); }
@@ -74,7 +76,9 @@
       var st = r.status||'UNKNOWN';
       var cls = ruleColor(st);
       var sub = st==='UNKNOWN' ? 'pending (sandbox)' : ('thresh '+o[2](r.threshold)+(r.headroom!=null?' · head '+o[2](r.headroom):''));
-      return '<div class="rule '+cls+'"><div class="rn">'+o[1]+'</div><div class="rv">'+(st==='UNKNOWN'?'—':o[2](r.value))+'</div><div class="rt">'+esc(sub)+'</div></div>';
+      // per-door numbers live per property — that rule card clicks through to Property File
+      var click = o[0]==='per_door' ? ' onclick="flOpen(\'property-file\')" style="cursor:pointer" title="Open Property File — per-door numbers"' : '';
+      return '<div class="rule '+cls+'"'+click+'><div class="rn">'+o[1]+'</div><div class="rv">'+(st==='UNKNOWN'?'—':o[2](r.value))+'</div><div class="rt">'+esc(sub)+(o[0]==='per_door'?' ↗':'')+'</div></div>';
     }).join('');
 
     // headline

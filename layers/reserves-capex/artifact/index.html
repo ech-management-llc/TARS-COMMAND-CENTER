@@ -23,19 +23,21 @@
   </div>
 
   <div class="card" data-view-section="forecast">
-    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">BIG-TICKET FORECAST — so nothing blindsides you</div>
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">BIG-TICKET FORECAST — so nothing blindsides you <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar — forecasted big-ticket dates">Calendar</button></div>
     <table><tr><th>PROPERTY</th><th>COMPONENT</th><th>LIFE LEFT</th><th>EST. COST</th></tr>
       <tr><td>410 Scott</td><td>Roof</td><td>~2 yrs</td><td>$9,500</td></tr>
       <tr><td>1301 E Royall</td><td>HVAC</td><td>~1 yr</td><td>$6,200</td></tr>
       <tr><td>415 Skiles</td><td>Water heater</td><td>~3 yrs</td><td>$1,400</td></tr>
       <tr><td>500 Reynolds</td><td>Exterior paint</td><td>~2 yrs</td><td>$4,000</td></tr>
     </table>
-    <div style="font-size:11px;color:var(--dim);margin-top:8px">Forecasts big replacements from component ages in the Property File and recommends a monthly set-aside so capital costs never wreck cash flow. Sample data.</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Forecasts big replacements from component ages in the <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">Property File</button> and work-order history in <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance — big repairs inform this forecast">Maintenance</button>, and recommends a monthly set-aside <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financial Dashboard — set-aside vs balance">Financials</button> so capital costs never wreck cash flow. Sample data.</div>
   </div>
 
 </div>
 
 <script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   // In-tile view config from the core: show/hide sections. Never touches data.
   function applyViewCfg(ops){
     ops = ops||[];

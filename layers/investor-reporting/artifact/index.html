@@ -18,8 +18,13 @@
     <div class="rule"><div class="rn">DISTRIBUTED</div><div class="rv">$0</div><div class="rt">sandbox</div></div>
     <div class="rule"><div class="rn">NET IRR</div><div class="rv">—</div><div class="rt">pending</div></div>
   </div>
-  <div class="card"><div class="section-label">QUARTERLY LP UPDATE</div><div class="small muted">Blair (investor relations) drafts the per-LP statement + narrative from the ledger. Ask in chat: “draft this quarter’s LP update.”</div></div>
+  <div class="card"><div class="section-label">QUARTERLY LP UPDATE</div><div class="small muted">Blair (investor relations) drafts the per-LP statement <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator — LP statements file here">Document Navigator</button> + narrative from the ledger <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financial Dashboard — distributions come from the ledger">Financials</button>. Ask in chat: “draft this quarter’s LP update.”</div></div>
   <div class="wire-note" style="text-align:center">Add-on layer · activated by purchase · honest sandbox state.</div>
 </div>
+
+<script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+</script>
 </body>
 </html>
