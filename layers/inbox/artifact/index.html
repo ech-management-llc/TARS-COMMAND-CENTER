@@ -5,97 +5,264 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inbox — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+/* ── inbox v2 (pass #5, per the Jerry-approved concept) ── */
+.split{display:flex;gap:12px;align-items:flex-start}
+.msgs{width:300px;flex-shrink:0}
+.msg{background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:7px;cursor:pointer;font-size:12px}
+.msg:hover{border-color:var(--blue)}
+.msg.sel{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.msg .from{font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.msg .pv{color:var(--mut);font-size:11px;margin-top:2px}
+.srcpill2{font-size:9px;font-weight:800;border-radius:5px;padding:1px 6px;border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+.srcpill2.zillow{color:#60a5fa;border-color:#2a4a78}
+.srcpill2.realtor{color:#f87171;border-color:#5a1f1f}
+.srcpill2.rentredi{color:#34d399;border-color:#1c4d3e}
+.srcpill2.email{color:#fbbf24;border-color:#54470f}
+.flowbox{flex:1;min-width:0}
+.step{display:flex;gap:9px;margin-bottom:10px;align-items:flex-start}
+.step .av{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.av.nadia{background:var(--purplebg);color:var(--purple);border:1px solid var(--purpleln)}
+.av.sys{background:var(--surf2);color:var(--dim);border:1px solid var(--line)}
+.av.ash{background:var(--greenbg);color:var(--green);border:1px solid var(--greenln)}
+.step .bub{background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:12px;line-height:1.5;max-width:520px}
+.step .who{font-size:10px;font-weight:800;color:var(--dim);margin-bottom:2px;letter-spacing:.4px}
+.bub.sms{background:#0d1f16;border-color:var(--greenln)}
+.bub.draft{border-style:dashed;border-color:var(--yellowln)}
+.bub .slot{display:inline-block;background:var(--surf);border:1px solid var(--blue);color:var(--blue);font-weight:700;border-radius:7px;padding:2px 8px;margin:3px 4px 0 0;font-size:11px}
+.draftb{font-size:9px;font-weight:800;border-radius:4px;padding:1px 6px;background:var(--yellowbg);color:var(--yellow);border:1px solid var(--yellowln);margin-left:6px}
+.flowctl{display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap}
+.fbtn2{background:var(--surf2);border:1px solid var(--line);color:var(--mut);font-size:12px;font-weight:700;padding:7px 13px;border-radius:18px;cursor:pointer}
+.fbtn2.pri{background:var(--green);border-color:var(--green);color:#06150f}
+.fbtn2.appr{background:var(--yellowbg);border-color:var(--yellowln);color:var(--yellow)}
+@media(max-width:760px){ .split{flex-direction:column} .msgs{width:100%} }
+</style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">✉️ Inbox — all locations</div>
 
   <div class="preview-banner">
-    <b>PREVIEW — sample inbox.</b> Connectors (Gmail · Google Calendar <code>manager@echmanagement.services</code> · SMS via Twilio/Zapier) are not wired yet, so the emails, lead, and tour steps below are illustrative. The automations are real designs — they run once the connectors are connected.
+    <b>PREVIEW — sample inbox.</b> Messages read from the shared sample source; the connected accounts (Zillow · Realtor.com · RentRedi · email) wire at the connector phase — see <button class="xref" type="button" onclick="flOpen('connections')" title="Open Connections">Connections</button>. The Nadia flow below is the real logic (slot search runs against the live calendar feed); only the transport (real SMS, real replies) is pending. Nothing fakes a live connection.
   </div>
 
-  <!-- external-send mode: draft-for-approval (default) vs full-auto -->
-  <div class="card">
+  <div class="card" data-view-section="sendmode">
     <div class="row-sb">
       <div>
         <div class="section-label" style="margin-bottom:2px">EXTERNAL SENDS</div>
-        <div class="small muted">Applications, walkthrough links, scheduling emails + SMS</div>
+        <div class="small muted">Team SMS, client replies, applications — everything that leaves the building</div>
       </div>
       <div class="modetoggle" id="sendmode">
-        <button class="on" data-mode="draft" onclick="setMode(this)">Draft for approval</button>
-        <button data-mode="auto" onclick="setMode(this)">Full auto</button>
+        <button class="on" data-mode="draft" onclick="setMode(this)">Draft dispatch</button>
+        <button data-mode="auto" onclick="setMode(this)">Auto dispatch</button>
       </div>
     </div>
-    <div class="wire-note" id="modenote">Default: <b>draft for approval</b> — nothing leaves without your OK. Flip to full-auto once you trust it.</div>
+    <div class="wire-note" id="modenote">Default: <b>draft dispatch</b> — external sends hold for your approval inside the flow. Flip to auto once you trust it.</div>
   </div>
 
-  <!-- AUTOMATION (a): inbound-lead auto-match -->
-  <div class="card" style="background:var(--greenbg);border-color:var(--greenln)">
-    <div class="row-sb" style="margin-bottom:6px">
-      <div style="color:var(--green);font-weight:700;font-size:11px;letter-spacing:.5px">⚡ AUTO-MATCHED LEAD · PINNED TO TOP</div>
-      <span class="tag b-green">available</span>
-    </div>
-    <div style="font-size:13.5px">New email — <b>K. Alvarez</b>: "Looking for a 3-bed in Mabank around $1,800, any openings?"</div>
-    <div style="font-size:12.5px;color:var(--mut);margin-top:6px">Read intent (3-bed · Mabank · ~$1,800) → checked against the website's live availability → matched <b>102 Remington · Mabank · 4/2 · $1,900</b> (available ~1 mo). <button class="xref" type="button" onclick="flOpen('website-it')" title="Open Website &amp; IT">Website</button></div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
-      <span class="tag b-green">✓ RentRedi application drafted</span><span class="tag b-green">✓ 360 walkthrough link drafted</span><span class="tag b-green">✓ pinned + tagged 102 Remington</span> <button class="xref" type="button" onclick="flOpen('tenant-screening')" title="Open Tenant Screening">Screening</button>
-    </div>
-    <div class="wire-note" style="margin-top:8px">Application link: <code>app.rentredi.com/apply</code> · rent pay: <code>app.rentredi.com/pay</code>. Sent draft-for-approval by default (toggle above).</div>
-  </div>
-
-  <!-- AUTOMATION (b): in-person tour scheduling handshake (Ashley-first gate) -->
-  <div class="card">
-    <div class="section-label">🗓️ TOUR SCHEDULING · K. ALVAREZ → 102 REMINGTON <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar">Calendar</button></div>
-    <div class="flow">
-      <div class="fstep"><span class="fdot fdone">✓</span><div><div class="ft">Emailed prospect — "want an in-person tour?"</div><div class="fs">sent 8:09a · reply: "yes, this week"</div></div></div>
-      <div class="fstep"><span class="fdot fdone">✓</span><div><div class="ft">Read manager@echmanagement.services calendar</div><div class="fs">found 3 open windows</div></div></div>
-      <div class="fstep"><span class="fdot fdone">✓</span><div><div class="ft">Sent 3 options to <b>Ashley for approval — hers first</b></div><div class="fs">Tue 2:00p · Wed 11:00a · Thu 4:00p</div></div></div>
-      <div class="fstep"><span class="fdot factive">●</span><div><div class="ft">Awaiting Ashley's pick</div><div class="fs">prospect sees times only after Ashley confirms (hard gate)</div></div></div>
-      <div class="fstep"><span class="fdot fwait">5</span><div><div class="ft">Send approved time(s) to prospect → they select</div></div></div>
-      <div class="fstep"><span class="fdot fwait">6</span><div><div class="ft">Create calendar event + 1-hour-before reminder</div></div></div>
-      <div class="fstep"><span class="fdot fwait">7</span><div><div class="ft">At the reminder: SMS both Ashley and the prospect</div></div></div>
+  <div class="card" data-view-section="messages">
+    <div class="split">
+      <div class="msgs">
+        <div class="section-label">INCOMING — all linked accounts, one place</div>
+        <div id="msglist"></div>
+      </div>
+      <div class="flowbox">
+        <div class="row-sb" style="margin-bottom:10px">
+          <div class="section-label" style="margin:0" id="flowtitle">NADIA'S FLOW — Zillow lead → booked tour</div>
+        </div>
+        <div id="flow"></div>
+        <div class="flowctl" id="flowctl">
+          <button class="fbtn2 pri" id="nextbtn" onclick="advance()">▶ Play next step</button>
+          <button class="fbtn2" onclick="resetFlow()">↺ Reset</button>
+          <span class="small dim" id="flowhint"></span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="ruleg">
-    <div class="rule ry"><div class="rn">UNREAD</div><div class="rv" style="color:var(--yellow)">7</div><div class="rt">across 4 entities</div></div>
-    <div class="rule rg"><div class="rn">NEEDS REPLY</div><div class="rv">3</div><div class="rt">flagged</div></div>
-    <div class="rule rg"><div class="rn">LEADS</div><div class="rv" style="color:var(--green)">2</div><div class="rt">new today</div></div>
-    <div class="rule rg"><div class="rn">SOURCES</div><div class="rv">5</div><div class="rt">inboxes merged</div></div>
-  </div>
-
-  <div class="filt">
-    <button class="btn on">All locations</button><button class="btn">Mabank</button><button class="btn">Athens</button><button class="btn">Malakoff</button><button class="btn">4E Dev</button>
-  </div>
-  <div class="filt">
-    <button class="btn on">All types</button><button class="btn">Tenant</button><button class="btn">Vendor</button><button class="btn">Lender</button><button class="btn">Lead</button>
-  </div>
-
-  <div class="card flush">
-    <table>
-      <tr><th>FROM</th><th>SUBJECT</th><th>TAG</th><th>TIME</th></tr>
-      <tr><td>T. Brooks</td><td>AC not cooling — 408 E Kaufman</td><td><span class="tag b-red">tenant · urgent</span></td><td>9:12a</td></tr>
-      <tr><td>Lone Star Plumbing</td><td>Invoice #4471 — 1301 E Royall <button class="xref" type="button" onclick="flOpen('vendors-payables')" title="Open Vendors &amp; Payables — vendor invoices route here">Vendors &amp; Payables</button></td><td><span class="tag" style="background:#2e2206;color:#f0b65a">vendor</span></td><td>8:40a</td></tr>
-      <tr><td>website form</td><td>Waitlist — 102 Remington</td><td><span class="tag b-green">lead</span></td><td>8:05a</td></tr>
-      <tr><td>Altra Bank</td><td>Statement ready — ECH Mabank <button class="xref" type="button" onclick="flOpen('lender-packet')" title="Open Lender Packet — lender emails route here">Lender Packet</button></td><td><span class="tag" style="background:#11203a;color:#6fa8f0">lender</span></td><td>7:30a</td></tr>
-      <tr><td>S. Kim</td><td>Rent receipt question — 103 Mary Beth</td><td><span class="tag b-yellow">tenant</span></td><td>Yest</td></tr>
-      <tr><td>City of Athens</td><td>Permit notice — 410 Scott</td><td><span class="tag" style="background:#2e2206;color:#f0b65a">vendor · gov</span></td><td>Yest</td></tr>
-    </table>
-  </div>
-
-  <div class="wire-note" style="text-align:center;margin-top:14px">Pulls every property + entity inbox into one filtered view, auto-tagged by property, sender type, and urgency. Connectors: Gmail · Google Calendar (manager@) · SMS. Sample data.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Leads run Nadia's tour flow. Tenant messages route to <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance">Maintenance</button> · bank messages route to <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financial Dashboard">Financials</button> · screening hand-off via <button class="xref" type="button" onclick="flOpen('tenant-screening')" title="Open Tenant Screening">Screening</button>. Texting the TARS line (Rule 27) lands here too when it isn't a command.</div>
 </div>
 
 <script>
+  // ── the real seams (backend swaps the transport, NOT this logic) ──
+  // proposeSlots(feed, constraints) -> 3 conflict-free slots from the live calendar feed
+  // bookSlot(slot, lead)            -> writes the appointment into the shared deadline overlay
+  // shared overlay contract = same as the Calendar tile: localStorage fl_deadlines_overlay_v1
+  //   { added:[entry…], removed:["date|item"…], hard:{key:bool} } merged over data/STUB_DEADLINES.json
+  var OVKEY = 'fl_deadlines_overlay_v1';
+  var DLBASE = [], MSGS = [], selMsg = null, MODE = 'draft';
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  function setMode(btn){
-    document.querySelectorAll('#sendmode button').forEach(b=>b.classList.remove('on'));
-    btn.classList.add('on');
-    var auto = btn.getAttribute('data-mode')==='auto';
-    document.getElementById('modenote').innerHTML = auto
-      ? 'Full auto — the agent sends applications, walkthrough links, and scheduling messages on its own. The Ashley-first tour gate still holds.'
-      : 'Default: <b>draft for approval</b> — nothing leaves without your OK. Flip to full-auto once you trust it.';
+  function loadOverlay(){ try{ return JSON.parse(localStorage.getItem(OVKEY)) || {added:[],removed:[],hard:{}}; }catch(e){ return {added:[],removed:[],hard:{}}; } }
+  function saveOverlay(ov){ try{ localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){} }
+  function mergedFeed(){
+    var ov = loadOverlay(), rm = {};
+    (ov.removed||[]).forEach(function(k){ rm[k]=1; });
+    return DLBASE.concat(ov.added||[]).filter(function(e){ return !rm[e.date+'|'+e.item]; });
   }
+
+  function parseMin(t){ // "2:30 PM" -> minutes since midnight; null if blank
+    var m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(t||'').trim()); if(!m) return null;
+    var h = (+m[1])%12; if(/pm/i.test(m[3])) h += 12; return h*60 + (+m[2]);
+  }
+  function fmtDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function niceDay(ds){ return new Date(ds+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+
+  // real seam #1: find open slots against the live feed, avoiding existing appointments (±90 min)
+  function proposeSlots(feed, constraints){
+    var times = (constraints&&constraints.window==='afternoon') ? ['2:00 PM','2:30 PM','4:30 PM'] : ['10:00 AM','1:00 PM','3:00 PM'];
+    var out = [], day = new Date(); day.setDate(day.getDate()+1);
+    for(var d=0; d<10 && out.length<3; d++){
+      var ds = fmtDate(day);
+      for(var t=0; t<times.length; t++){
+        var cand = parseMin(times[t]);
+        var clash = feed.some(function(e){
+          if(e.date!==ds || e.type!=='appointment') return false;
+          var em = parseMin(e.time); return em!=null && Math.abs(em-cand) < 90;
+        });
+        if(!clash){ out.push({date:ds, time:times[t], label:niceDay(ds)+' · '+times[t]}); break; }
+      }
+      day.setDate(day.getDate()+1);
+    }
+    return out;
+  }
+
+  // real seam #2: book the slot into the shared deadline overlay -> it appears on the Calendar tile
+  function bookSlot(slot, lead){
+    var entry = { date:slot.date, time:slot.time, item:'Tour: '+lead.from+' · '+String(lead.property||'').split(' · ')[0]+' (Ashley)',
+      type:'appointment', hard:false, from:'Inbox · Zillow · booked by Nadia', state:'upcoming', assigned:'Ashley' };
+    var ov = loadOverlay(); ov.added = ov.added||[];
+    if(!ov.added.some(function(e){ return e.date===entry.date && e.item===entry.item; })) ov.added.push(entry);
+    saveOverlay(ov);
+    return entry;
+  }
+
+  /* ── message list ── */
+  function renderMsgs(){
+    document.getElementById('msglist').innerHTML = MSGS.map(function(m,i){
+      return '<div class="msg'+(i===selMsg?' sel':'')+'" onclick="selectMsg('+i+')">'+
+        '<div class="from">'+esc(m.from)+' <span class="srcpill2 '+esc(m.source)+'">'+esc(m.source.toUpperCase())+'</span></div>'+
+        '<div class="pv">"'+esc(m.preview)+'"'+(m.route?' → routes to '+esc(m.route==='maintenance'?'Maintenance':'Financials'):'')+'</div></div>';
+    }).join('');
+  }
+  function selectMsg(i){ selMsg=i; renderMsgs(); startFlowFor(MSGS[i]); }
+
+  /* ── Nadia flow (scripted walkthrough over the real seams) ── */
+  var STEPS=[], stepIdx=0, SLOTS=[], LEAD=null;
+  function buildLeadSteps(lead){
+    SLOTS = proposeSlots(mergedFeed(), {window:'afternoon', property:lead.property});
+    var sl = SLOTS.map(function(s,i){ return '<span class="slot">'+String.fromCharCode(65+i)+' · '+esc(s.label)+'</span>'; }).join('');
+    var abc = SLOTS.map(function(s,i){ return '<b>'+String.fromCharCode(65+i)+')</b> '+esc(s.label); }).join(' ');
+    return [
+      {av:'sys',name:'INBOX',html:'New message from <b>'+esc(lead.source==='zillow'?'Zillow':lead.source)+'</b> → <b>'+esc(lead.from)+'</b>: "'+esc(lead.body||lead.preview)+'"'},
+      {av:'nadia',name:'NADIA (inbox employee)',html:'Lead parsed: wants <b>'+esc(String(lead.property||'').split(' · ')[0])+'</b> (status: vacant — ready ~1 mo ✓ listable). Checking the <b>Calendar</b> feed for open tour slots, avoiding existing appointments… <button class="xref" type="button" onclick="flOpen(\'calendar\')" title="Open Calendar">Calendar</button>'},
+      {av:'nadia',name:'NADIA',html:(SLOTS.length?SLOTS.length:'No')+' open options found (live slot search against the shared feed):<br>'+sl+'<br>Drafting text to <b>Ashley (903) 555-0142</b>…'},
+      {av:'nadia',name:'NADIA → ASHLEY (SMS)',sms:true,ext:true,html:'"New Zillow lead: '+esc(lead.from.split(' ')[0])+' M. wants a tour of '+esc(String(lead.property||'').split(' · ')[0])+' this week, afternoons. Open slots: '+abc+'. Reply A/B/C to book, X to pass to Jerry."'},
+      {av:'ash',name:'ASHLEY (SMS reply)',sms:true,html:'"B"'},
+      {av:'nadia',name:'NADIA',book:1,html:''},
+      {av:'nadia',name:'NADIA → SARAH (Zillow reply)',ext:true,html:'"Hi '+esc(lead.from.split(' ')[0])+' — yes, '+esc(String(lead.property||'').split(' · ')[0])+' is available! Ashley can show it <b>{SLOT}</b>. I\'ve attached our rental application so you can get a head start: <span class="slot">📎 ECH Rental Application (RentRedi)</span> See you then!"'},
+      {av:'sys',name:'DONE',html:'Logged: lead → live slot search → team confirm by SMS → calendar booked → client confirmed + application sent. Total Jerry involvement: <b>zero</b>. Open the <button class="xref" type="button" onclick="flOpen(\'calendar\')" title="Open Calendar">Calendar</button> — the tour is on it.'}
+    ];
+  }
+  function startFlowFor(m){
+    document.getElementById('flow').innerHTML='';
+    stepIdx=0;
+    if(m.kind==='lead'){
+      LEAD=m; STEPS=buildLeadSteps(m);
+      document.getElementById('flowtitle').textContent="NADIA'S FLOW — "+m.source.toUpperCase()+" lead → booked tour";
+      document.getElementById('flowctl').style.display='';
+      document.getElementById('flowhint').textContent='';
+      advance();
+    } else {
+      STEPS=[]; LEAD=null;
+      document.getElementById('flowtitle').textContent='ROUTING — non-lead message';
+      document.getElementById('flowctl').style.display='none';
+      var route = m.route==='maintenance'
+        ? 'Tenant message → becomes a work order in <button class="xref" type="button" onclick="flOpen(\'maintenance\')" title="Open Maintenance">Maintenance</button> (Jordan dispatches).'
+        : m.route==='financials'
+          ? 'Bank message → files to the <button class="xref" type="button" onclick="flOpen(\'financials\')" title="Open Financial Dashboard">Financial Dashboard</button> side (statements feed the ledger).'
+          : 'Inquiry → Nadia drafts a reply (deposit, terms, availability) and holds it for approval under draft dispatch.';
+      addStep({av:'sys',name:'ROUTE',html:'<b>'+esc(m.from)+'</b>: "'+esc(m.preview)+'"<br>'+route});
+    }
+  }
+  function addStep(s, draftHeld){
+    var d=document.createElement('div'); d.className='step';
+    var letter = s.av==='nadia'?'N':(s.av==='ash'?'A':'⚙');
+    d.innerHTML='<div class="av '+s.av+'">'+letter+'</div>'+
+      '<div><div class="who">'+s.name+(draftHeld?'<span class="draftb">DRAFT — held for approval</span>':'')+'</div>'+
+      '<div class="bub'+(s.sms?' sms':'')+(draftHeld?' draft':'')+'">'+s.html+
+      (draftHeld?'<br><button class="fbtn2 appr" onclick="approveSend(this)">✓ Approve &amp; send</button>':'')+'</div></div>';
+    document.getElementById('flow').appendChild(d);
+  }
+  function advance(){
+    if(stepIdx>=STEPS.length) return;
+    var s=STEPS[stepIdx];
+    if(s.book){ // the booking step writes through the real seam
+      var slot=SLOTS[1]; // Ashley replied "B"
+      var entry=bookSlot(slot, LEAD);
+      s={av:'nadia',name:'NADIA',html:'Booked ✔ <b>'+esc(slot.label)+' — '+esc(entry.item)+'</b> is now on the shared calendar feed (Ashley assigned). Open the <button class="xref" type="button" onclick="flOpen(\'calendar\')" title="Open Calendar">Calendar</button> tile — it\'s on '+esc(niceDay(slot.date))+'.'};
+    }
+    if(s.html.indexOf('{SLOT}')>=0) s={av:s.av,name:s.name,sms:s.sms,ext:s.ext,html:s.html.replace('{SLOT}', esc(SLOTS[1]?SLOTS[1].label:''))};
+    // the dispatch gate: external sends hold as drafts in draft mode
+    if(s.ext && MODE==='draft'){ addStep(s, true); }
+    else addStep(s);
+    stepIdx++;
+    document.getElementById('flowhint').textContent = stepIdx>=STEPS.length ? 'Flow complete — the tour is on the Calendar tile.' : (STEPS.length-stepIdx)+' step(s) left';
+  }
+  function approveSend(btn){
+    var bub=btn.closest('.bub'); bub.classList.remove('draft');
+    var who=bub.parentElement.querySelector('.who .draftb'); if(who) who.remove();
+    btn.outerHTML='<span class="small" style="color:var(--green);font-weight:700">✓ sent</span>';
+  }
+  function resetFlow(){
+    // pull this lead's booking back out of the shared overlay (front-end demo reset)
+    if(LEAD){
+      var ov=loadOverlay();
+      ov.added=(ov.added||[]).filter(function(e){ return String(e.item).indexOf(LEAD.from)===-1; });
+      saveOverlay(ov);
+    }
+    if(selMsg!=null) startFlowFor(MSGS[selMsg]);
+  }
+  function setMode(btn){
+    document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.remove('on'); });
+    btn.classList.add('on');
+    MODE = btn.getAttribute('data-mode');
+    try{ localStorage.setItem('fl_inbox_dispatch', MODE); }catch(e){}
+    document.getElementById('modenote').innerHTML = MODE==='auto'
+      ? 'Auto dispatch — Nadia sends team texts, client replies, and applications on her own. Flip back to draft any time.'
+      : 'Default: <b>draft dispatch</b> — external sends hold for your approval inside the flow. Flip to auto once you trust it.';
+  }
+
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  var viewOps=[];
+  function applyViewCfg(ops){
+    viewOps=ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  try{ MODE = localStorage.getItem('fl_inbox_dispatch')==='auto' ? 'auto' : 'draft'; }catch(e){}
+  if(MODE==='auto'){ document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')==='auto'); }); }
+
+  Promise.all([
+    fetch('../../../data/STUB_INBOX.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+    fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  ]).then(function(res){
+    MSGS = res[0].messages||[]; DLBASE = res[1].deadlines||[];
+    if(!MSGS.length) throw 0;
+    selMsg = MSGS.findIndex(function(m){ return m.kind==='lead'; }); if(selMsg<0) selMsg=0;
+    renderMsgs(); startFlowFor(MSGS[selMsg]);
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+  }).catch(function(){
+    document.getElementById('msglist').innerHTML='<div class="muted small">Awaiting inbox record — shared source not reachable.</div>';
+    document.getElementById('flowctl').style.display='none';
+  });
 </script>
 </body>
 </html>
