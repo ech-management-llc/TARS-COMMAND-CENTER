@@ -1,4 +1,4 @@
-// TARS Command Center — Service Worker
+// Foundation Layer Command Center — Service Worker
 // Platform v1 (tile-home). Offline shell: precache the core + registry + drill-ins.
 // Cache-first for same-origin assets; live sources (FL API, data snapshots) fall
 // through to the network when online.
