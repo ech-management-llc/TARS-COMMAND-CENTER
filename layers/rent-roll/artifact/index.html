@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rent Roll — TARS Command Center</title>
+<title>Rent Roll — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -38,7 +38,7 @@
   </div>
 
   <div class="card" data-view-section="reconciliation">
-    <div class="section-label">RECONCILIATION (accounts contract)</div>
+    <div class="section-label">RECONCILIATION (accounts contract) <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financials">Financials</button></div>
     <div class="row-sb"><span class="muted small">Operating account for rent inflows</span><span class="tag b-gray">ECH MGMT · Altra · sandbox $0</span></div>
     <div class="wire-note">Each tenant's expected rent reconciles against inflows on the operating account. Real inflows + balances arrive at Plaid production (gated on Nov compliance); until then this reads an honest sandbox $0 rather than a fabricated balance.</div>
   </div>
@@ -47,6 +47,7 @@
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   // In-tile view config: the core (parent) posts the saved view ops; we apply them
   // to this view only (show/hide marked columns + sections). Never touches data.
   function applyViewCfg(ops){

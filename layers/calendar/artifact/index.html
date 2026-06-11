@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calendar & Deadlines — TARS Command Center</title>
+<title>Calendar & Deadlines — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -36,6 +36,16 @@
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function fmt(d){ var dt=new Date(d+'T00:00:00'); if(isNaN(dt)) return esc(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
   function days(d){ var dt=new Date(d+'T00:00:00'); return Math.round((dt-new Date(new Date().toDateString()))/86400000); }
+  // cross-tile nav: each FROM chip opens its source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  var FROM_LAYER = { 'Vendors':'vendors-payables', 'Legal':'legal', 'Sign':'sign', 'Inbox':'inbox', 'Taxes':'taxes',
+                     'Rent Roll':'rent-roll', 'Insurance':'insurance', 'Compliance':'compliance', 'Maintenance':'maintenance' };
+  function fromChips(from){
+    return String(from||'').split(' / ').map(function(t){
+      var id = FROM_LAYER[t];
+      return id ? '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(t)+'">'+esc(t)+'</button>' : esc(t);
+    }).join(' ');
+  }
 
   function render(data){
     var ds = (data.deadlines||[]).slice().sort(function(a,b){ return a.date<b.date?-1:1; });
@@ -51,7 +61,7 @@
 
     document.getElementById('cal-rows').innerHTML = ds.map(function(x){
       var od = days(x.date)<0;
-      return '<tr><td'+(od?' style="color:var(--red)"':'')+'>'+fmt(x.date)+(od?' · overdue':'')+'</td><td>'+esc(x.item)+'</td><td class="small muted">'+esc(x.from)+'</td></tr>';
+      return '<tr><td'+(od?' style="color:var(--red)"':'')+'>'+fmt(x.date)+(od?' · overdue':'')+'</td><td>'+esc(x.item)+'</td><td class="small">'+fromChips(x.from)+'</td></tr>';
     }).join('');
     applyViewCfg(viewOps);
   }

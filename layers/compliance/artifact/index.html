@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Compliance &amp; Inspections — TARS Command Center</title>
+<title>Compliance &amp; Inspections — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -28,15 +28,16 @@
       <tr><td>Smoke/CO detectors</td><td>all properties</td><td><span class="tag b-green">OK</span></td></tr>
       <tr><td>Certificate of occupancy</td><td>102 Remington (post-reno)</td><td><span class="tag b-yellow">before lease</span></td></tr>
       <tr><td>Business license</td><td>ECH Mabank LLC</td><td><span class="tag b-yellow">renew Aug 1</span></td></tr>
-      <tr><td>TX franchise / annual report</td><td>all entities</td><td><span class="tag b-green">filed</span></td></tr>
+      <tr><td>TX franchise / annual report</td><td>all entities</td><td><span class="tag b-green">filed</span> <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Documents</button></td></tr>
       <tr><td>Rental registration</td><td>415 Skiles</td><td><span class="tag b-green">OK</span></td></tr>
     </table>
-    <div style="font-size:11px;color:var(--dim);margin-top:8px">Tracks every registration, license, inspection, and safety rule per property and entity, with reminders. Ties to Legal + Calendar. Sample data.</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Tracks every registration, license, inspection, and safety rule per property and entity, with reminders. Ties to Legal + Calendar <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar">Calendar</button>. Sample data.</div>
   </div>
 
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function applyViewCfg(ops){
     ops = ops || [];
     document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });

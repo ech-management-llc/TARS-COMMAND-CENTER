@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tenant Screening — TARS Command Center</title>
+<title>Tenant Screening — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -25,12 +25,13 @@
       <tr><td>K. Alvarez</td><td>102 Remington</td><td>Credit 712 · income 3.4× · clean</td><td><span class="tag b-green">approve</span></td></tr>
       <tr><td>D. Pham</td><td>102 Remington</td><td>Credit 631 · income 2.6× · 1 eviction</td><td><span class="tag b-yellow">review</span></td></tr>
     </table>
-    <div style="font-size:11px;color:var(--dim);margin-top:8px">Applications arrive from the Inbox lead-matcher. I run credit, background, income, and rental history, then recommend — fair-housing rules applied, the decision is yours. Approve → it drafts the lease in Legal, sends it to Sign, and adds the tenant to Rent Roll. Sample data.</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Applications arrive from the Inbox lead-matcher. I run credit, background, income, and rental history, then recommend — fair-housing rules applied, the decision is yours. Approve → it drafts the lease in Legal, sends it to Sign <button class="xref" type="button" onclick="flOpen('sign')" title="Open Sign">Sign</button>, and adds the tenant to Rent Roll <button class="xref" type="button" onclick="flOpen('rent-roll')" title="Open Rent Roll">Rent Roll</button>. Sample data.</div>
   </div>
 
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   // In-tile view config from the core: show/hide sections. Never touches data.
   function applyViewCfg(ops){
     (ops||[]).forEach(function(op){

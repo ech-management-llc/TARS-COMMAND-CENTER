@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign — TARS Command Center</title>
+<title>Sign — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -24,12 +24,13 @@
       <tr><td>Lease — 102 Remington</td><td>K. Alvarez</td><td><span class="tag b-yellow">sent · awaiting</span></td></tr>
       <tr><td>Closing docs — 415 Skiles</td><td>Seller + title</td><td><span class="tag b-yellow">2 of 3 signed</span></td></tr>
       <tr><td>Notice to vacate — 408 Kaufman</td><td>T. Brooks</td><td><span class="tag b-green">completed</span></td></tr></table>
-    <div style="font-size:11px;color:var(--dim);margin-top:8px">Leases and closing docs come straight from Legal (or a screening approval), go out for legally-binding e-signature, and the signed copy files itself into Document Navigator under the right property. Sample data.</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Leases and closing docs come straight from Legal <button class="xref" type="button" onclick="flOpen('legal')" title="Open Legal">Legal</button> (or a screening approval), go out for legally-binding e-signature, and the signed copy files itself into Document Navigator <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Documents</button> under the right property. Sample data.</div>
   </div>
 
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   var viewOps = [];
 
   function applyViewCfg(ops){

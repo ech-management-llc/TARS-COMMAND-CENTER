@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Build &amp; Renovate — TARS Command Center</title>
+<title>Build &amp; Renovate — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 <style>
   .team{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
@@ -77,8 +77,8 @@
       </table>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <button class="btn primary" onclick="note('sent')">→ Send $35,000 budget to Deal Analyzer</button>
-      <button class="btn" onclick="note('seed')">Seed line items into Vendors &amp; Payables</button>
+      <button class="btn primary" onclick="note('sent');flOpen('deal-analyzer')">→ Send $35,000 budget to Deal Analyzer</button>
+      <button class="btn" onclick="note('seed');flOpen('vendors-payables')">Seed line items into Vendors &amp; Payables</button>
     </div>
     <div class="wire-note" id="budgetnote">Line items seed Vendors &amp; Payables; actuals reconcile against the estimate (variance) as receipts come in from the field.</div>
   </div>
@@ -100,6 +100,7 @@
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function note(k){
     var el=document.getElementById(k==='approve'||k==='edit'?'fieldnote':'budgetnote');
     var msg={

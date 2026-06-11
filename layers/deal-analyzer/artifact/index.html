@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>ECH Deal Analyzer · Prototype v0.1</title>
+<title>Deal Analyzer — Foundation Layer Command Center</title>
 <style>
   :root {
     color-scheme: dark;
@@ -674,13 +674,20 @@
     </div>
   </div>
 
+  <!-- DEAL PATH — cross-tile nav (front-end; inert when viewed standalone) -->
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0;font-size:12px">
+    <button type="button" onclick="flOpen('deal-finder')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #2a2a2e;border-radius:999px;padding:3px 10px;cursor:pointer">← 1 · Deal Finder</button>
+    <span style="font-weight:700;color:#9a9aa2">2 · Deal Analyzer — you are here</span>
+    <button type="button" onclick="flOpen('deal-screener')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #2a2a2e;border-radius:999px;padding:3px 10px;cursor:pointer">3 · Deal Decider ↗</button>
+  </div>
+
   <!-- DISCLAIMER -->
   <div class="disclaimer">
     Educational analysis only. Not investment advice. ECH Management is not a registered investment advisor. Numbers reflect assumptions that may not match your situation. Consult a qualified professional before committing capital.
   </div>
 
   <div class="footer">
-    ECH Deal Analyzer · prototype v0.1 · pre-loaded with 415 Skiles St for demo<br>
+    Deal Analyzer · preview · pre-loaded with 415 Skiles St for demo<br>
     Built 2026-05-15 PM-3 · Source: DealCheck data + ECH portfolio benchmarks + Capital Rules
   </div>
 
@@ -695,6 +702,8 @@
   function toggleGlossary() {
     document.getElementById("glossary").classList.toggle("open");
   }
+  // cross-tile nav: ask the shell to open another tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
 </script>
 </body>
 </html>

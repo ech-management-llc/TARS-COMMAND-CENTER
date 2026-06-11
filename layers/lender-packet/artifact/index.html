@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lender Packet — TARS Command Center</title>
+<title>Lender Packet — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -40,7 +40,7 @@
       <div>
         <div id="lp-h" style="font-size:17px;font-weight:700">415 Skiles St, Malakoff TX</div>
         <div style="font-size:12.5px;color:var(--mut)">3 bed · 1.5 bath · 1,180 sqft · single-family · built 1974</div>
-        <div style="margin-top:6px"><span class="tag b-green">BRRRR candidate</span> <span class="tag b-gray">Henderson Co.</span></div>
+        <div style="margin-top:6px"><span class="tag b-green">BRRRR candidate</span> <span class="tag b-gray">Henderson Co.</span> <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">Property File</button></div>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
@@ -77,10 +77,11 @@
     </div>
   </div>
 
-  <div class="wire-note" style="text-align:center">Source: DealCheck property numbers + photos (not yet wired) and manual fill where missing.</div>
+  <div class="wire-note" style="text-align:center">Source: DealCheck property numbers + photos (not yet wired) and manual fill where missing. <button class="xref" type="button" onclick="flOpen('deal-analyzer')" title="Open Deal Analyzer">Deal Analyzer</button></div>
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function money(n){ if(isNaN(n)) return '—'; var a=Math.abs(n); if(a>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+(n/1e3).toFixed(n%1000?1:0)+'K'; return '$'+Math.round(n).toLocaleString('en-US'); }
   function full(n){ return '$'+Math.round(n).toLocaleString('en-US'); }
   function recompute(){

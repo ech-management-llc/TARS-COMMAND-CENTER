@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Deal Finder — TARS Command Center</title>
+<title>Deal Finder — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -24,17 +24,28 @@
 
   <div class="card" data-view-section="candidates">
     <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">YOUR BUY BOX: 3-bed · Mabank/Athens · ≤ $150K · ≥ 8% cap</div>
-    <table><tr><th>PROPERTY</th><th>PRICE</th><th>EST. CAP</th><th>SOURCE</th></tr>
-      <tr><td>118 Pierce, Mabank</td><td>$132,000</td><td>11.2%</td><td>Off-market</td></tr>
-      <tr><td>904 Tolleson, Athens</td><td>$119,500</td><td>9.8%</td><td>MLS</td></tr>
-      <tr><td>22 Oak Hollow, Mabank</td><td>$145,000</td><td>8.6%</td><td>Wholesaler</td></tr>
-      <tr><td>610 Larkin, Athens</td><td>$98,000</td><td>8.1%</td><td>County / tax</td></tr>
+    <table><tr><th>PROPERTY</th><th>PRICE</th><th>EST. CAP</th><th>SOURCE</th><th></th></tr>
+      <tr><td>118 Pierce, Mabank</td><td>$132,000</td><td>11.2%</td><td>Off-market</td><td><button class="xref" type="button" onclick="flOpen('deal-analyzer')" title="Open Deal Analyzer">Analyze</button></td></tr>
+      <tr><td>904 Tolleson, Athens</td><td>$119,500</td><td>9.8%</td><td>MLS</td><td><button class="xref" type="button" onclick="flOpen('deal-analyzer')" title="Open Deal Analyzer">Analyze</button></td></tr>
+      <tr><td>22 Oak Hollow, Mabank</td><td>$145,000</td><td>8.6%</td><td>Wholesaler</td><td><button class="xref" type="button" onclick="flOpen('deal-analyzer')" title="Open Deal Analyzer">Analyze</button></td></tr>
+      <tr><td>610 Larkin, Athens</td><td>$98,000</td><td>8.1%</td><td>County / tax</td><td><button class="xref" type="button" onclick="flOpen('deal-analyzer')" title="Open Deal Analyzer">Analyze</button></td></tr>
     </table>
-    <div style="font-size:11px;color:var(--dim);margin-top:8px">Scans MLS + off-market + wholesaler lists + county records against your buy box. One tap sends a candidate to the Deal Analyzer to underwrite. Sample data.</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Scans MLS + off-market + wholesaler lists + county records against your buy box. <b>Analyze</b> opens the Deal Analyzer; candidate data carries over when the backend lands. Sample data.</div>
+  </div>
+
+  <div class="card" data-view-section="next-steps">
+    <div class="section-label">YOUR DEAL PATH</div>
+    <div class="row-sb" style="justify-content:flex-start;gap:8px">
+      <span class="pill ry">1 · Deal Finder — you are here</span>
+      <button class="xref" type="button" onclick="flOpen('deal-analyzer')" title="Open Deal Analyzer">2 · Deal Analyzer</button>
+      <button class="xref" type="button" onclick="flOpen('deal-screener')" title="Open Deal Decider">3 · Deal Decider</button>
+    </div>
   </div>
 </div>
 
 <script>
+  // cross-tile nav: ask the shell to open another tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   // In-tile view config from the core: show/hide sections. Never touches data.
   var viewOps = [];
   function applyViewCfg(ops){

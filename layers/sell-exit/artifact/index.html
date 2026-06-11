@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sell / Exit — TARS Command Center</title>
+<title>Sell / Exit — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -23,7 +23,7 @@
   </div>
 
   <div class="card" data-view-section="recommendations">
-    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">SELL · REFI · HOLD — recommendation per property</div>
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">SELL · REFI · HOLD — recommendation per property <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">Property File</button></div>
     <table><tr><th>PROPERTY</th><th>EQUITY</th><th>REC</th></tr>
       <tr><td>103 Mary Beth</td><td>$48,000</td><td><span class="tag b-yellow">consider sell</span></td></tr>
       <tr><td>12451 St Hwy 198</td><td>$31,000</td><td><span class="tag b-yellow">sell / 1031</span></td></tr>
@@ -37,10 +37,11 @@
     <div style="font-size:12.5px;color:var(--mut);line-height:1.6">If you sell an investment property and roll the gain into another within the clock — <b>45 days</b> to name the replacement, <b>180 days</b> to close — you defer the capital-gains tax. I run the clock and coordinate with the Taxes layer and your CPA.</div>
   </div>
 
-  <div style="font-size:11px;color:var(--dim);margin-top:10px">Equity + values pull from Financial and Lender; tax impact ties to Taxes. Recommendations are estimates — confirm with your team. Sample data.</div>
+  <div style="font-size:11px;color:var(--dim);margin-top:10px">Equity + values pull from Financial <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financials">Financials</button> and Lender; tax impact ties to Taxes. Recommendations are estimates — confirm with your team. Sample data.</div>
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   // In-tile view config from the core: show/hide sections. Never touches data.
   var viewOps = [];
   function applyViewCfg(ops){

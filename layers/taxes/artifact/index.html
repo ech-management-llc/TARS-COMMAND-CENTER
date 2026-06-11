@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taxes — TARS Command Center</title>
+<title>Taxes — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -25,7 +25,7 @@
   </div>
 
   <div class="card" data-view-section="tax-due">
-    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">REAL ESTATE TAX DUE — per property</div>
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">REAL ESTATE TAX DUE — per property <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar">Calendar</button></div>
     <table><tr><th>PROPERTY</th><th>COUNTY</th><th>DUE</th><th>AMOUNT</th></tr>
       <tr><td>410 Scott</td><td>Henderson</td><td>Jul 5</td><td>$1,930</td></tr>
       <tr><td>500 Reynolds</td><td>Henderson</td><td>Oct 1</td><td>$1,640</td></tr>
@@ -43,12 +43,13 @@
       <tr><td>Field payroll</td><td>Labor</td><td>$4,800</td></tr>
       <tr><td>Closing costs</td><td>Acquisition</td><td>$2,000</td></tr>
     </table>
-    <div style="font-size:11px;color:var(--dim);margin-top:8px">Pulled from Maintenance + Vendors &amp; Payables + closing. *Capital improvements depreciate vs. expense — your CPA confirms treatment. Sample data.</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Pulled from Maintenance + Vendors &amp; Payables + closing. <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance">Maintenance</button> <button class="xref" type="button" onclick="flOpen('vendors-payables')" title="Open Vendors &amp; Payables">Vendors &amp; Payables</button> *Capital improvements depreciate vs. expense — your CPA confirms treatment. Sample data.</div>
   </div>
 
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   // In-tile view config from the core: show/hide sections. Never touches data.
   function applyViewCfg(ops){
     document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });

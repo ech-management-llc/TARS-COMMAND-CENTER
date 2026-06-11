@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Maintenance — TARS Command Center</title>
+<title>Maintenance — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -44,9 +44,9 @@
     <div class="section-label">LIFECYCLE</div>
     <div class="flow">
       <div class="fstep"><span class="fdot fdone">1</span><div><div class="ft">Intake</div><div class="fs">auto-created from an Inbox email ("AC not cooling — 408 E Kaufman") or entered by hand</div></div></div>
-      <div class="fstep"><span class="fdot fdone">2</span><div><div class="ft">Prioritize + assign</div><div class="fs">pick a vendor (from Vendors &amp; Payables) or a team member (from Team &amp; Access)</div></div></div>
+      <div class="fstep"><span class="fdot fdone">2</span><div><div class="ft">Prioritize + assign</div><div class="fs">pick a vendor (from Vendors &amp; Payables) or a team member (from Team &amp; Access) <button class="xref" type="button" onclick="flOpen('team-access')" title="Open Team &amp; Access">Team &amp; Access</button></div></div></div>
       <div class="fstep"><span class="fdot factive">3</span><div><div class="ft">Dispatch by SMS + email</div><div class="fs">push address + issue + photos; they reply to update status (new → assigned → scheduled → in-progress → done)</div></div></div>
-      <div class="fstep"><span class="fdot fwait">4</span><div><div class="ft">Close → bill</div><div class="fs">a completed repair becomes a bill in Vendors &amp; Payables, linked to the paying account</div></div></div>
+      <div class="fstep"><span class="fdot fwait">4</span><div><div class="ft">Close → bill</div><div class="fs">a completed repair becomes a bill in Vendors &amp; Payables, linked to the paying account <button class="xref" type="button" onclick="flOpen('vendors-payables')" title="Open Vendors &amp; Payables">Vendors &amp; Payables</button></div></div></div>
     </div>
   </div>
 
@@ -54,6 +54,7 @@
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function setMode(btn){
     document.querySelectorAll('#dispatchmode button').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');

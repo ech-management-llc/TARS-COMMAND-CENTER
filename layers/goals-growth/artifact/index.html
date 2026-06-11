@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Goals &amp; Growth — TARS Command Center</title>
+<title>Goals &amp; Growth — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -38,11 +38,12 @@
     </div>
   </div>
 
-  <div style="font-size:11px;color:var(--dim);margin-top:10px">At your current pace you hit $5K/mo by Q1 2027. Next-deal readiness pulls from Capital Rules + liquidity. Sample data.</div>
+  <div style="font-size:11px;color:var(--dim);margin-top:10px">At your current pace you hit $5K/mo by Q1 2027. Next-deal readiness pulls from Capital Rules + liquidity. <button class="xref" type="button" onclick="flOpen('capital-rules')" title="Open Financial Health">Financial Health</button> Sample data.</div>
 
 </div>
 
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   var viewOps = [];
   function applyViewCfg(ops){
     viewOps = ops||[];
