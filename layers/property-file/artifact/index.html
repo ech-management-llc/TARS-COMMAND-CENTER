@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Property File — TARS Command Center</title>
+<title>Property File — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -40,6 +40,9 @@
   var PROPS = [], current = 0, viewOps = [];
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function money(n){ if(n==null||isNaN(n)) return '—'; n=Number(n); return (n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US'); }
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function xref(label,id){ return '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(label)+'">'+esc(label)+'</button>'; }
 
   function render(){
     var p = PROPS[current]; if(!p) return;
@@ -49,24 +52,28 @@
 
     var ltvCls = (p.ltv_pct>65)?'rr':((p.ltv_pct<=50)?'rg':'ry'); // Capital Rules: >65 RED / 55-65 YELLOW / <=50 GREEN
     var cfCls = (p.cash_flow_monthly>0)?'rg':'ry';
+    // each KPI card click-through opens its source tile (front-end cross-reference)
+    var kpiClick = function(id,label){ return ' onclick="flOpen(\''+id+'\')" style="cursor:pointer" title="Open '+label+'"'; };
     document.getElementById('prop-kpis').innerHTML =
-      '<div class="rule rg"><div class="rn">RENT</div><div class="rv">'+money(p.rent)+'</div><div class="rt">Rent Roll</div></div>'+
-      '<div class="rule '+cfCls+'"><div class="rn">CASH FLOW</div><div class="rv">'+(p.cash_flow_monthly>0?'+':'')+money(p.cash_flow_monthly)+'</div><div class="rt">Financial · /mo</div></div>'+
-      '<div class="rule '+ltvCls+'"><div class="rn">VALUE / LTV</div><div class="rv">'+money(p.value)+'</div><div class="rt">'+esc(p.ltv_pct)+'% · Lender</div></div>'+
-      '<div class="rule rg"><div class="rn">RANK</div><div class="rv">'+esc(p.rank||'—')+'</div><div class="rt">Deal Analyzer</div></div>';
+      '<div class="rule rg"'+kpiClick('rent-roll','Rent Roll')+'><div class="rn">RENT</div><div class="rv">'+money(p.rent)+'</div><div class="rt">Rent Roll ↗</div></div>'+
+      '<div class="rule '+cfCls+'"'+kpiClick('financials','Financial Dashboard')+'><div class="rn">CASH FLOW</div><div class="rv">'+(p.cash_flow_monthly>0?'+':'')+money(p.cash_flow_monthly)+'</div><div class="rt">Financial · /mo ↗</div></div>'+
+      '<div class="rule '+ltvCls+'"'+kpiClick('lender-packet','Lender Packet')+'><div class="rn">VALUE / LTV</div><div class="rv">'+money(p.value)+'</div><div class="rt">'+esc(p.ltv_pct)+'% · Lender ↗</div></div>'+
+      '<div class="rule rg"'+kpiClick('deal-analyzer','Deal Analyzer')+'><div class="rn">RANK</div><div class="rv">'+esc(p.rank||'—')+'</div><div class="rt">Deal Analyzer ↗</div></div>';
 
+    // FROM column = cross-reference chips that open the source tile
     var rows = [];
     var lease = p.lease&&p.lease.tenant ? esc(p.lease.tenant)+' · exp '+esc(p.lease.expires) : 'vacant';
-    rows.push(['lease','Lease',lease,(p.lease&&p.lease.from)||'Rent Roll / Legal']);
-    if(p.insurance) rows.push(['insurance','Insurance',esc(p.insurance.carrier)+' '+esc(p.insurance.form)+' · renews '+esc(p.insurance.renews),p.insurance.from||'Insurance']);
-    if(p.property_tax) rows.push(['tax','Property tax',money(p.property_tax.amount)+' due '+esc(p.property_tax.due)+' ('+esc(p.property_tax.county)+')',p.property_tax.from||'Taxes']);
-    rows.push(['workorders','Open work orders',String(p.open_work_orders),'Maintenance']);
-    rows.push(['documents','Documents',esc(p.documents)+' files (deed, lease, policy…)','Document Navigator']);
+    rows.push(['lease','Lease',lease,[['Rent Roll','rent-roll'],['Legal','legal']]]);
+    if(p.insurance) rows.push(['insurance','Insurance',esc(p.insurance.carrier)+' '+esc(p.insurance.form)+' · renews '+esc(p.insurance.renews),[['Insurance','insurance']]]);
+    if(p.property_tax) rows.push(['tax','Property tax',money(p.property_tax.amount)+' due '+esc(p.property_tax.due)+' ('+esc(p.property_tax.county)+')',[['Taxes','taxes']]]);
+    rows.push(['workorders','Open work orders',String(p.open_work_orders),[['Maintenance','maintenance']]]);
+    rows.push(['documents','Documents',esc(p.documents)+' files (deed, lease, policy…)',[['Document Navigator','document-navigator']]]);
     var bills = (p.bills&&p.bills.length) ? p.bills.map(function(b){return esc(b.vendor)+' '+money(b.amount)+' due '+esc(b.due);}).join('; ') : 'none due';
-    rows.push(['bills','Bills',bills,'Vendors & Payables']);
+    rows.push(['bills','Bills',bills,[['Vendors & Payables','vendors-payables']]]);
 
     document.getElementById('prop-rows').innerHTML = rows.map(function(r){
-      return '<tr data-view-row="'+r[0]+'"><td>'+r[1]+'</td><td>'+r[2]+'</td><td class="small muted">'+esc(r[3])+'</td></tr>';
+      var from = r[3].map(function(f){ return xref(f[0],f[1]); }).join(' ');
+      return '<tr data-view-row="'+r[0]+'"><td>'+r[1]+'</td><td>'+r[2]+'</td><td class="small">'+from+'</td></tr>';
     }).join('');
     applyViewCfg(viewOps);
   }
