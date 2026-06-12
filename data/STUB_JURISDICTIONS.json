@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE jurisdiction tree for the shared State → County/Parish → Municipality picker (platform standard, pass #6). Honest placeholders — covers ECH's operating footprint; more states/counties land as data arrives. county_label drives the second select's label (LA = Parish). The picker persists the user's selection in localStorage fl_jurisdiction_v1, shared across every consuming tile (Legal, Compliance/Permits, Taxes later).",
+  "generated_at": "2026-06-11",
+  "states": [
+    {
+      "code": "TX",
+      "name": "Texas",
+      "county_label": "County",
+      "counties": [
+        { "name": "Henderson County", "municipalities": ["Athens (city)", "Mabank", "Malakoff", "— unincorporated —"] },
+        { "name": "Kaufman County", "municipalities": ["Kaufman", "Mabank (north)", "Terrell", "— unincorporated —"] },
+        { "name": "Van Zandt County", "municipalities": ["Canton", "Wills Point", "— unincorporated —"] }
+      ]
+    },
+    {
+      "code": "LA",
+      "name": "Louisiana",
+      "county_label": "Parish",
+      "counties": [
+        { "name": "— add parishes as data lands —", "municipalities": ["— pending —"] }
+      ]
+    }
+  ]
+}

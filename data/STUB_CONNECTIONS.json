@@ -28,5 +28,16 @@
     { "id": "app-rentredi", "label": "RentRedi", "desc": "tenant messages · applications · payments", "connected": true },
     { "id": "app-facebook", "label": "Facebook Marketplace", "desc": "listing inquiries", "connected": false },
     { "id": "app-apartments", "label": "Apartments.com", "desc": "listing inquiries", "connected": false }
-  ]
+  ],
+  "maintenance_personnel": [
+    { "id": "mp-lonestar", "name": "Lone Star Plumbing", "trade": "plumbing", "phone": "(903) 555-0188", "desc": "vendor on file · SMS dispatch", "connected": true },
+    { "id": "mp-coolair", "name": "Cool Air TX", "trade": "HVAC", "phone": "(903) 555-0166", "desc": "vendor on file · SMS dispatch", "connected": true },
+    { "id": "mp-fieldsup", "name": "Field supervisor", "trade": "general", "phone": null, "desc": "add phone to enable dispatch texts", "connected": false }
+  ],
+  "tools": {
+    "_note": "Per-employee/role connected + suggested tools (platform standard, pass #6). Suggested shows when nothing is connected, with an honest connect affordance — real hookups land at the connector phase.",
+    "architect-cad": { "employee": "Mason", "role": "Architect & CAD", "connected": ["AutoCAD LT"], "suggested": ["SketchUp", "Revit LT"] },
+    "takeoff": { "employee": "Tovah", "role": "Takeoff planner", "connected": [], "suggested": ["PlanSwift", "Bluebeam", "STACK"] },
+    "stager": { "employee": "Sloane (stager)", "role": "Stager & designer", "connected": [], "suggested": ["Canva", "Planner 5D", "Houzz Pro"] }
+  }
 }

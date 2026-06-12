@@ -59,12 +59,30 @@
     var d = DATA;
     var team = [chip({id:d.tars_line.id, label:'📟 '+d.tars_line.label+' — '+d.tars_line.phone, desc:d.tars_line.desc, connected:d.tars_line.connected})]
       .concat(d.team.map(function(t){ return chip({id:t.id, label:t.name+' — '+t.role, desc:t.desc, connected:t.connected, can_command_tars:t.can_command_tars}, t.phone?esc(t.phone):''); }));
+    var personnel = (d.maintenance_personnel||[]).map(function(p){ return chip({id:p.id, label:p.name+' — '+p.trade, desc:p.desc, connected:p.connected}, p.phone?esc(p.phone):''); });
+    // platform standard: per-employee connected + suggested tools (Build & Renovate consumes it first)
+    var tools = '';
+    if(d.tools){
+      tools = Object.keys(d.tools).filter(function(k){ return k!=='_note'; }).map(function(k){
+        var t = d.tools[k];
+        var conn = (t.connected||[]).map(function(x){ return '<div class="small" style="color:var(--green)">● '+esc(x)+' — connected</div>'; }).join('');
+        var sugg = (!t.connected||!t.connected.length) && (t.suggested||[]).length
+          ? '<div class="small muted">○ suggested: '+t.suggested.map(esc).join(' · ')+' <button class="xref" type="button" onclick="suggestNote()" title="Connect a tool">connect</button></div>'
+          : (t.suggested&&t.suggested.length ? '<div class="small dim">also: '+t.suggested.map(esc).join(' · ')+'</div>' : '');
+        return '<div style="margin-bottom:8px"><b class="small">'+esc(t.employee)+' · '+esc(t.role)+'</b>'+conn+sugg+'</div>';
+      }).join('');
+      tools = '<div class="conn"><h4>🧰 EMPLOYEE TOOLS — connected / suggested</h4>'+tools+
+        '<div class="small dim">Suggestions show until a tool is connected (market-based). Real hookups land at the connector phase.</div></div>';
+    }
     document.getElementById('conngrid').innerHTML =
       '<div class="conn"><h4>📧 EMAIL ACCOUNTS</h4>'+d.email_accounts.map(function(x){return chip(x);}).join('')+'</div>'+
       '<div class="conn"><h4>👥 TEAM MEMBERS &amp; PHONES</h4>'+team.join('')+'</div>'+
-      '<div class="conn"><h4>🔌 APPLICATIONS</h4>'+d.applications.map(function(x){return chip(x);}).join('')+'</div>';
+      '<div class="conn"><h4>🔌 APPLICATIONS</h4>'+d.applications.map(function(x){return chip(x);}).join('')+'</div>'+
+      '<div class="conn"><h4>🔧 MAINTENANCE PERSONNEL — SMS dispatch</h4>'+personnel.join('')+'</div>'+
+      tools;
     applyViewCfg(viewOps);
   }
+  function suggestNote(){ /* honest stub — picking a tool moves it to connected at the connector phase */ }
 
   function tog(id){
     var el = document.querySelector('[data-cid="'+id+'"]'); if(!el) return;
