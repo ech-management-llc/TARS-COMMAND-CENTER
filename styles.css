@@ -62,9 +62,6 @@ a.srcpill{cursor:pointer} a.srcpill:hover{filter:brightness(1.2)}
 .ai .src-note{font-size:11px;color:var(--dim);margin-top:8px}
 .toggle{background:var(--surf2); border:1px solid var(--purpleln); color:var(--purple); font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; cursor:pointer}
 
-.upd{display:flex; align-items:center; justify-content:space-between; background:var(--surf); border:1px solid var(--line); border-radius:var(--radius-sm); padding:9px 14px; margin-bottom:16px; font-size:12px; color:var(--mut)}
-.upd .live{display:flex; align-items:center; gap:8px; color:var(--green); font-weight:600}
-.upd .live.down{color:var(--red)} .upd .live.down .pulse{background:var(--red)}
 .pulse{width:8px;height:8px;border-radius:50%;background:var(--green); box-shadow:0 0 0 0 rgba(16,185,129,.5); animation:p 2s infinite}
 @keyframes p{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
 .aibtn{background:#16221c; border:1px solid var(--greenln); color:var(--green); font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; cursor:pointer}
@@ -177,8 +174,6 @@ a.srcpill{cursor:pointer} a.srcpill:hover{filter:brightness(1.2)}
 .foot{text-align:center; color:var(--dim); font-size:11px; margin-top:26px; line-height:1.7}
 
 /* ── account chip (header) ── */
-.acct{font-size:11px;color:var(--dim);margin-top:3px}
-.acct button{background:none;border:0;color:var(--purple);font-size:11px;cursor:pointer;padding:0;text-decoration:underline}
 
 /* ── login gate ── */
 .gate{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
@@ -191,7 +186,7 @@ a.srcpill{cursor:pointer} a.srcpill:hover{filter:brightness(1.2)}
 .gate-card input,.gate-card select{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px 12px;font:inherit;font-size:14px}
 .gate-btn{width:100%;margin-top:14px;padding:11px;border:0;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;background:var(--surf2);color:var(--txt)}
 .gate-btn.primary{background:var(--accent,#10b981);color:#06150f}
-.gate-link{background:none;border:0;color:var(--purple);font-size:12px;margin-top:14px;cursor:pointer}
+.gate-link{display:block;background:none;border:0;color:var(--purple);font-size:12px;margin-top:8px;cursor:pointer;width:fit-content;text-decoration:none}
 .gate-note{font-size:11px;color:var(--dim);margin-top:14px;line-height:1.5}
 .gate-note.ok{color:var(--green)}
 

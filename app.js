@@ -138,7 +138,7 @@ function renderChrome(){
   // (Source chips moved DOWN onto each group's header — see groupChipsInner.)
   $('verbar').innerHTML =
     '<div class="vb-brand">'+flMark(24)+'<b>FL&nbsp;CC</b></div>'+
-    '<div class="vb-meta"><b>'+dateStr+'</b><span>'+timeOfDay()+(u.name?' · '+esc(u.name):'')+' · '+esc(roleLabel)+scopeStr+'</span></div>'+
+    '<div class="vb-meta"><b>'+dateStr+'</b><span>'+timeOfDay()+(u.name && u.name!==roleLabel ? ' · '+esc(u.name) : '')+' · '+esc(roleLabel)+scopeStr+'</span></div>'+
     '<div class="vb-status">'+
       '<span class="live" id="live-wrap"><span class="pulse"></span> <span id="live-label">Live</span></span>'+
       '<button class="aibtn" id="refresh-btn" type="button">↻ REFRESH</button>'+
@@ -205,7 +205,7 @@ function renderLoginGate(){
         '<select id="gate-role"><option value="owner">Owner (full)</option><option value="admin">Admin / Staff</option><option value="viewer">Read-only / Viewer</option><option value="field">Field (one job)</option></select>'+
         '<div id="gate-scope-wrap" style="display:none"><label>Field scope — one layer/job</label><select id="gate-scope">'+scopeOpts+'</select></div>'+
       '</div>'+
-      '<a class="gate-link" href="./onboarding/" style="display:inline-block;margin-top:6px">New here? Get set up →</a>'+
+      '<a class="gate-link" href="./onboarding/">New here? Get set up →</a>'+
       '<div class="gate-note">Light, plug-and-play sign-in. Real verification (Supabase / magic-link) wires at production — this build uses a local demo session.</div>'+
     '</div>';
   document.body.appendChild(el);
