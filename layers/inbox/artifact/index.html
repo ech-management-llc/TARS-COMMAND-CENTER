@@ -143,7 +143,7 @@
     document.getElementById('msglist').innerHTML = MSGS.map(function(m,i){
       return '<div class="msg'+(i===selMsg?' sel':'')+'" onclick="selectMsg('+i+')">'+
         '<div class="from">'+esc(m.from)+' <span class="srcpill2 '+esc(m.source)+'">'+esc(m.source.toUpperCase())+'</span></div>'+
-        '<div class="pv">"'+esc(m.preview)+'"'+(m.route?' → routes to '+esc(m.route==='maintenance'?'Maintenance':'Financials'):'')+'</div></div>';
+        '<div class="pv">"'+esc(m.preview)+'"'+(m.photos?' 📷'+m.photos:'')+(m.route?' → routes to '+esc(m.route==='maintenance'?'Maintenance':'Financials')+(m.drafted_wo?' ('+esc(m.drafted_wo)+' drafted)':''):'')+'</div></div>';
     }).join('');
   }
   function selectMsg(i){ selMsg=i; renderMsgs(); startFlowFor(MSGS[i]); }

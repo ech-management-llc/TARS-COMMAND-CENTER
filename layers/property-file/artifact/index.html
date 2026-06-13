@@ -108,7 +108,7 @@
   // on any failure the stored open_work_orders field stands — honest fallback, no error surface
   fetch('../../../data/STUB_WORKORDERS.json',{cache:'no-store'})
     .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ WO_OPEN = {}; (d.work_orders||[]).forEach(function(w){ if(w.status!=='done'&&w.status!=='closed') WO_OPEN[w.property]=(WO_OPEN[w.property]||0)+1; }); if(PROPS.length) render(); })
+    .then(function(d){ WO_OPEN = {}; (d.work_orders||[]).forEach(function(w){ if(w.status!=='done'&&w.status!=='closed'&&w.status!=='draft') WO_OPEN[w.property]=(WO_OPEN[w.property]||0)+1; }); if(PROPS.length) render(); })
     .catch(function(){ WO_OPEN = null; });
 </script>
 </body>

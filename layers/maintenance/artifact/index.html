@@ -31,6 +31,18 @@
     </table>
   </div>
 
+  <div class="card" data-view-section="inbound">
+    <div class="section-label">INBOUND → DRAFTED WORK ORDERS (RentRedi · Gmail, via the Inbox)</div>
+    <div id="wo-drafts"></div>
+    <div class="small dim" style="margin-top:6px">Tenant reports land in the <button class="xref" type="button" onclick="flOpen('inbox')" title="Open Inbox">Inbox</button> and auto-draft a work order here with photos + a priority flag (urgent / routine). Jordan reviews, then dispatches below.</div>
+  </div>
+
+  <div class="card" data-view-section="dispatch">
+    <div class="section-label">JORDAN'S DISPATCH — text the vendor on file + FYI to the manager</div>
+    <div id="dispatch-flow"></div>
+    <div class="small dim" style="margin-top:6px">Sends go out the TARS SMS lane (Rule 27), recipients from <button class="xref" type="button" onclick="flOpen('connections')" title="Open Connections">Connections</button> (maintenance personnel + team). Draft dispatch (default) holds every external text for your approval; Auto sends.</div>
+  </div>
+
   <div class="card" data-view-section="lifecycle">
     <div class="section-label">LIFECYCLE</div>
     <div class="flow">
@@ -48,9 +60,11 @@
 
 <script>
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  var WOS = [], CONNS = null;
   function setMode(btn){
     document.querySelectorAll('#dispatchmode button').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
+    renderDispatch(WOS.filter(isDraft), CONNS); // the gate is live — flipping the mode re-renders held/sent
   }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function money(n){ if(n==null||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
@@ -58,9 +72,12 @@
   function xref(label,id){ return '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(label)+'">'+esc(label)+'</button>'; }
   var viewOps = [];
 
-  function isOpen(w){ return w.status!=='done' && w.status!=='closed'; }
+  // a DRAFT isn't a real work order yet — excluded from open counts everywhere (Property File mirrors this)
+  function isDraft(w){ return w.status==='draft'; }
+  function isOpen(w){ return w.status!=='done' && w.status!=='closed' && !isDraft(w); }
 
   function statusCell(w){
+    if(isDraft(w)) return '<span class="tag" style="background:var(--purplebg);color:#c9c2ff">draft · from '+esc(w.source||'Inbox')+(w.photos?' · 📷'+w.photos:'')+'</span>';
     if(!isOpen(w)){
       var billed = w.bill ? ' → billed' : '';
       var billChip = w.bill ? ' '+xref(money(w.bill.amount)+' bill','vendors-payables') : '';
@@ -71,18 +88,18 @@
     return '<span class="tag b-yellow">'+esc(label)+(w.due?' · due '+fmt(w.due):'')+'</span>';
   }
 
-  function render(wos){
+  function render(wos, conns){
     var open = wos.filter(isOpen);
-    var urgent = open.filter(function(w){ return w.priority==='urgent'; });
-    var vendor = open.filter(function(w){ return w.assigned_to&&w.assigned_to.type==='vendor'; });
-    var billed = wos.filter(function(w){ return !isOpen(w)&&w.bill; });
+    var drafts = wos.filter(isDraft);
+    var urgent = wos.filter(function(w){ return (isOpen(w)||isDraft(w)) && w.priority==='urgent'; });
+    var billed = wos.filter(function(w){ return w.status==='done'&&w.bill; });
     var openProps = {}; open.forEach(function(w){ openProps[w.property]=1; });
     var nProps = Object.keys(openProps).length;
 
     document.getElementById('wo-kpis').innerHTML =
       '<div class="rule '+(open.length?'ry':'rg')+'"><div class="rn">OPEN</div><div class="rv"'+(open.length?' style="color:var(--yellow)"':'')+'>'+open.length+'</div><div class="rt">across '+nProps+' propert'+(nProps===1?'y':'ies')+'</div></div>'+
-      '<div class="rule '+(urgent.length?'rr':'')+'"><div class="rn">URGENT</div><div class="rv">'+urgent.length+'</div><div class="rt">'+(urgent.length?esc(urgent[0].summary.split(':')[0]):'none')+'</div></div>'+
-      '<div class="rule"><div class="rn">AWAITING VENDOR</div><div class="rv">'+vendor.length+'</div><div class="rt">'+(vendor.length?'dispatched':'none dispatched')+'</div></div>'+
+      '<div class="rule '+(urgent.length?'rr':'')+'"><div class="rn">URGENT</div><div class="rv">'+urgent.length+'</div><div class="rt">'+(urgent.length?esc(urgent[0].summary.split(' ')[0]+' — '+urgent[0].id):'none')+'</div></div>'+
+      '<div class="rule"><div class="rn">DRAFTS — INBOUND</div><div class="rv">'+drafts.length+'</div><div class="rt">'+(drafts.length?'awaiting review':'none inbound')+'</div></div>'+
       '<div class="rule rg"><div class="rn">DONE · BILLED</div><div class="rv">'+billed.length+'</div><div class="rt">this month</div></div>';
 
     // each row: property name → its Property File; billed WOs → Vendors & Payables (cross-tile nav)
@@ -93,7 +110,43 @@
         '<td>'+esc(w.assigned_to?w.assigned_to.name:'—')+(w.assigned_to&&w.assigned_to.type==='vendor'?' (vendor)':' (team)')+'</td>'+
         '<td>'+statusCell(w)+'</td></tr>';
     }).join('');
+
+    renderInbound(drafts);
+    renderDispatch(drafts, conns);
     applyViewCfg(viewOps);
+  }
+
+  function renderInbound(drafts){
+    document.getElementById('wo-drafts').innerHTML = drafts.length ? drafts.map(function(w){
+      return '<div class="row-sb" style="padding:6px 0;border-bottom:1px solid var(--line)">'+
+        '<span class="small"><b>'+esc(w.id)+'</b> · '+esc(w.summary)+' — '+esc(w.reported_by||'')+' via '+esc(w.source||'Inbox')+(w.photos?' · 📷 '+w.photos+' photo'+(w.photos===1?'':'s'):'')+'</span>'+
+        '<span class="tag '+(w.priority==='urgent'?'b-red':'b-gray')+'">'+esc(w.priority)+'</span></div>';
+    }).join('') : '<div class="small dim">No inbound drafts.</div>';
+  }
+
+  // Jordan's dispatch: SMS to the vendor on file + FYI to the manager — Rule 27 lane, Draft/Auto gated
+  function renderDispatch(drafts, conns){
+    var el = document.getElementById('dispatch-flow');
+    if(!drafts.length){ el.innerHTML='<div class="small dim">Nothing to dispatch.</div>'; return; }
+    var w = drafts[0]; // walk the first draft (WO-1042) per the approved concept
+    var vendor = null, mgr = null;
+    if(conns){
+      vendor = (conns.maintenance_personnel||[]).filter(function(p){ return p.name===(w.assigned_to&&w.assigned_to.name); })[0];
+      mgr = (conns.team||[]).filter(function(t){ return t.name==='Ashley'; })[0];
+    }
+    var mode = document.querySelector('#dispatchmode button.on');
+    var isDraftMode = !mode || mode.getAttribute('data-mode')==='draft';
+    function bub(to, phone, msg){
+      var held = isDraftMode;
+      return '<div style="background:#0d1f16;border:1px solid var(--greenln);border-radius:10px;padding:8px 11px;font-size:12px;margin-bottom:7px'+(held?';border-style:dashed':'')+'">'+
+        '<b>SMS → '+esc(to)+(phone?' '+esc(phone):'')+':</b> "'+msg+'"'+
+        (held?' <span class="tag b-yellow">DRAFT — held</span> <button class="fbtn" style="padding:2px 10px;font-size:10px" onclick="this.outerHTML=\'<span class=&quot;small&quot; style=&quot;color:var(--green);font-weight:700&quot;>✓ sent</span>\'">✓ Approve &amp; send</button>'
+            :' <span class="tag b-green">sent (auto)</span>')+'</div>';
+    }
+    var vName = w.assigned_to ? w.assigned_to.name : 'vendor on file';
+    el.innerHTML =
+      bub(vName, vendor&&vendor.phone, esc(w.id)+': '+esc(w.summary.split(' (')[0])+' @ '+esc(String(w.property).split(' · ')[0])+', tenant '+esc((w.reported_by||'').split(' (')[0])+', photos: [link]. Reply YES + day to take it.')+
+      bub('Ashley (manager)', mgr&&mgr.phone, 'FYI — new '+esc(w.id)+' at '+esc(String(w.property).split(' · ')[0])+' ('+esc(w.summary.split(' (')[0].toLowerCase())+', '+esc(w.priority)+'). Dispatching '+esc(vName)+'. Reply STOP to hold.');
   }
 
   // In-tile view config from the core: show/hide sections + table rows. Never touches data.
@@ -108,13 +161,16 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  fetch('../../../data/STUB_WORKORDERS.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ var wos = d.work_orders||[]; if(!wos.length) throw 0; render(wos);
+  Promise.all([
+    fetch('../../../data/STUB_WORKORDERS.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+    fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).catch(function(){ return null; }) // recipients optional — absence never blanks the tile
+  ]).then(function(res){ WOS = res[0].work_orders||[]; CONNS = res[1]; if(!WOS.length) throw 0; render(WOS, CONNS);
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){
       document.getElementById('wo-kpis').innerHTML='<div class="muted">Awaiting work-order record — shared source not reachable.</div>';
       document.getElementById('wo-rows').innerHTML='';
+      document.getElementById('wo-drafts').innerHTML='';
+      document.getElementById('dispatch-flow').innerHTML='';
     });
 </script>
 </body>

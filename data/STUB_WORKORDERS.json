@@ -1,8 +1,38 @@
 {
-  "schema_version": 1,
-  "_note": "SAMPLE work-order tracking for the ECH reference install. Honest placeholders — NOT live. Single shared source the Maintenance tile reads (and Property File's open-work-order counts mirror). Property strings match STUB_PROPERTIES.json addresses exactly; the closed/billed example reuses the Lone Star Plumbing $1,200 bill already in STUB_DEADLINES.json so the close→bill story is coherent across tiles. Real entries arrive via the intake connectors (Inbox email, Tenant Portal, SMS).",
-  "generated_at": "2026-06-10",
+  "schema_version": 2,
+  "_note": "SAMPLE work-order tracking for the ECH reference install. Honest placeholders — NOT live. Single shared source the Maintenance tile reads (and Property File's open-work-order counts mirror — DRAFT status is excluded from open counts everywhere: a draft isn't a real work order yet). Property strings match STUB_PROPERTIES.json addresses exactly; the closed/billed example reuses the Lone Star Plumbing $1,200 bill already in STUB_DEADLINES.json so the close→bill story is coherent across tiles. v2 (pass #6): status 'draft' = auto-drafted from an inbound report (Inbox routing), with photos + reported_by + source; Jordan dispatches by SMS (Rule 27 lane, Draft/Auto gated). Real entries arrive via the intake connectors (RentRedi, Gmail, Tenant Portal, SMS).",
+  "generated_at": "2026-06-11",
   "work_orders": [
+    {
+      "id": "WO-1042",
+      "property": "415 Skiles St · Mabank, TX",
+      "opened": "2026-06-09",
+      "due": null,
+      "status": "draft",
+      "priority": "routine",
+      "summary": "Kitchen sink dripping again (tenant report)",
+      "reported_by": "J. Morales (tenant)",
+      "source": "RentRedi",
+      "photos": 2,
+      "assigned_to": { "type": "vendor", "name": "Lone Star Plumbing" },
+      "est_cost": null,
+      "bill": null
+    },
+    {
+      "id": "WO-1043",
+      "property": "410 Scott · Athens, TX",
+      "opened": "2026-06-11",
+      "due": null,
+      "status": "draft",
+      "priority": "urgent",
+      "summary": "AC stopped cooling — 88° inside (tenant report)",
+      "reported_by": "L. Nguyen (tenant)",
+      "source": "Gmail",
+      "photos": 1,
+      "assigned_to": { "type": "vendor", "name": "Cool Air TX" },
+      "est_cost": null,
+      "bill": null
+    },
     {
       "id": "WO-1041",
       "property": "102 Remington · Mabank, TX",

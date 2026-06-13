@@ -29,8 +29,24 @@
       "kind": "tenant",
       "property": "415 Skiles St · Mabank, TX",
       "preview": "Kitchen sink dripping again…",
+      "photos": 2,
       "route": "maintenance",
+      "drafted_wo": "WO-1042",
+      "priority": "routine",
       "received": "2026-06-09 9:12 PM"
+    },
+    {
+      "id": "msg-nguyen",
+      "from": "L. Nguyen (tenant)",
+      "source": "email",
+      "kind": "tenant",
+      "property": "410 Scott · Athens, TX",
+      "preview": "AC stopped cooling this afternoon — it's 88° inside…",
+      "photos": 1,
+      "route": "maintenance",
+      "drafted_wo": "WO-1043",
+      "priority": "urgent",
+      "received": "2026-06-11 2:15 PM"
     },
     {
       "id": "msg-altra",
