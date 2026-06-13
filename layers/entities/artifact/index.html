@@ -9,6 +9,7 @@
 <body>
 <div class="art-wrap">
   <div class="art-head">🏢 Entities</div>
+  <div id="scopebar"></div>
 
   <div class="preview-banner">
     <b>Your companies — one place.</b> Every row is a <b>live read</b> from the shared entity record
@@ -40,8 +41,10 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Source: shared entity record (sample). Real values arrive via the Secretary-of-State / records source in a later phase. Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only.</div>
 </div>
 
+<script src="../../../shared/fl-scope-select.js"></script>
 <script>
-  var ENTS = [], current = 0, viewOps = [];
+  var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
+  function scopedENTS(){ return SELE ? ENTS.filter(function(e){ return SELE.indexOf(e.id)>=0; }) : ENTS; }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
@@ -77,7 +80,7 @@
       return '<tr><td style="white-space:nowrap;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td></tr>';
     }).join('');
 
-    document.getElementById('ent-rows').innerHTML = ENTS.map(function(x){
+    document.getElementById('ent-rows').innerHTML = scopedENTS().map(function(x){
       var a = arStatus(x.annual_report);
       return '<tr data-view-row="'+esc(x.id)+'"><td style="font-weight:700">'+esc(x.name)+'</td>'+
         '<td class="small muted">'+esc(x.role_tag||'')+'</td>'+
@@ -90,10 +93,11 @@
   }
 
   function renderKpis(){
-    var total = ENTS.length;
-    var doors = ENTS.reduce(function(s,e){ return s+(Number(e.doors)||0); },0);
-    var flagged = ENTS.filter(function(e){ var s=(e.annual_report&&e.annual_report.status)||''; return s==='due-soon'||s==='overdue'; }).length;
-    var bank = ENTS.length ? (ENTS[0].bank||'—') : '—';
+    var E = scopedENTS();
+    var total = E.length;
+    var doors = E.reduce(function(s,e){ return s+(Number(e.doors)||0); },0);
+    var flagged = E.filter(function(e){ var s=(e.annual_report&&e.annual_report.status)||''; return s==='due-soon'||s==='overdue'; }).length;
+    var bank = E.length ? (E[0].bank||'—') : '—';
     var flagCls = flagged>0 ? 'ry' : 'rg';
     document.getElementById('ent-kpis').innerHTML =
       '<div class="rule rg"><div class="rn">ENTITIES</div><div class="rv">'+total+'</div><div class="rt">companies</div></div>'+
@@ -122,7 +126,9 @@
 
   fetch('../../../data/STUB_ENTITIES.json',{cache:'no-store'})
     .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ ENTS = d.entities||[]; if(!ENTS.length) throw 0; renderKpis(); buildPicker(); render();
+    .then(function(d){ ENTS = d.entities||[]; if(!ENTS.length) throw 0;
+      if(window.FLScope) scope=FLScope.create({ items:ENTS.map(function(e){ return {id:e.id, label:e.name, sub:(e.role_tag||e.type||'')+' · '+e.doors+' doors'}; }), unit:'entity', unitPlural:'entities', label:'🏢 Showing', persistKey:'tcc_entities_scope', host:'#scopebar', onChange:function(ids,isAll){ SELE=isAll?null:ids; renderKpis(); render(); } });
+      buildPicker(); renderKpis(); render();
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('ent-head').innerHTML='<div class="muted">Awaiting entity record — shared source not reachable.</div>'; });
 </script>
