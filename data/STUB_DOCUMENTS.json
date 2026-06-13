@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE document index for the ECH reference install. Honest placeholders — NOT live; the Navigator is the INDEX of the vault, never a separate copy. Folder count_hint = how many files the real vault holds (consistent with the other stubs: 10 leases ≈ rent roll units, 13 insurance ≈ asset+builders+liability+vehicle policies, deeds ≈ portfolio); docs[] itemizes a few per folder honestly — the rest land at vault wiring. Every tile's file-drop (shared/docdrop.js) registers into this source via the fl_documents_overlay_v1 overlay {added:[{name,folder,source_tile,added}]}. source_tile chips navigate via tcc:open-layer.",
+  "generated_at": "2026-06-11",
+  "folders": [
+    { "id": "leases", "icon": "📜", "name": "Leases", "count_hint": 10, "source_tile": "rent-roll", "source_label": "Rent Roll" },
+    { "id": "insurance", "icon": "🛡️", "name": "Insurance Policies", "count_hint": 13, "source_tile": "insurance", "source_label": "Insurance" },
+    { "id": "deeds", "icon": "🏠", "name": "Deeds & Titles", "count_hint": 13, "source_tile": "property-file", "source_label": "Property File" },
+    { "id": "contracts", "icon": "🖋️", "name": "Contracts & Closings", "count_hint": 6, "source_tile": "legal", "source_label": "Legal · Sign" },
+    { "id": "tax", "icon": "🏛️", "name": "Tax Returns", "count_hint": 8, "source_tile": "taxes", "source_label": "Taxes" },
+    { "id": "entity", "icon": "🏢", "name": "Entity Formation", "count_hint": 6, "source_tile": "entities", "source_label": "Entities" },
+    { "id": "applications", "icon": "📝", "name": "Applications & Screening", "count_hint": 4, "source_tile": "tenant-screening", "source_label": "Tenant Screening" },
+    { "id": "permits", "icon": "📐", "name": "Permits & Codes", "count_hint": 5, "source_tile": "compliance", "source_label": "Compliance" },
+    { "id": "invoices", "icon": "🧾", "name": "Invoices & Receipts", "count_hint": 22, "source_tile": "vendors-payables", "source_label": "Vendors & Payables" },
+    { "id": "plans", "icon": "🏗️", "name": "Plans & Renderings", "count_hint": 7, "source_tile": "build-renovate", "source_label": "Build & Renovate" },
+    { "id": "legal-review", "icon": "⚖️", "name": "Legal Review", "count_hint": 0, "source_tile": "legal", "source_label": "Legal" }
+  ],
+  "docs": [
+    { "name": "415 Skiles — lease", "folder": "leases", "meta": "J. Morales · exp 2026-07-31", "source_tile": "rent-roll" },
+    { "name": "410 Scott — lease", "folder": "leases", "meta": "L. Nguyen · exp 2026-11-30", "source_tile": "rent-roll" },
+    { "name": "1301 E Royall — lease", "folder": "leases", "meta": "M. Davis · exp 2027-02-28", "source_tile": "rent-roll" },
+    { "name": "102 Remington — lease template", "folder": "leases", "meta": "vacant — template ready", "source_tile": "rent-roll" },
+    { "name": "POLICY_415_SKILES_STATEFARM.pdf", "folder": "insurance", "meta": "DP-3 · renews 2026-09-14", "source_tile": "insurance" },
+    { "name": "UMBRELLA_2M_ALL_ENTITIES.pdf", "folder": "insurance", "meta": "liability · renews 2027-01", "source_tile": "insurance" },
+    { "name": "DEED_415_SKILES.pdf", "folder": "deeds", "meta": "ECH Mabank LLC · 2024", "source_tile": "property-file" },
+    { "name": "DEED_410_SCOTT.pdf", "folder": "deeds", "meta": "ECH Athens LLC · 2023", "source_tile": "property-file" },
+    { "name": "415_SKILES_PURCHASE_CONTRACT.pdf", "folder": "contracts", "meta": "closing Jul 1", "source_tile": "legal" },
+    { "name": "MABANK_ADOPTED_CODE_2021_LINK.url", "folder": "permits", "meta": "official adopted-code page (IBC linked, not stored)", "source_tile": "compliance" },
+    { "name": "SMOKE_CO_INSPECTION_415_SKILES.pdf", "folder": "permits", "meta": "passed 2026-03", "source_tile": "compliance" },
+    { "name": "102_REMINGTON_RENO_PLAN_V2.pdf", "folder": "plans", "meta": "make-ready scope", "source_tile": "build-renovate" },
+    { "name": "ECH_RENTAL_APPLICATION_K_ALVAREZ.pdf", "folder": "applications", "meta": "102 Remington · consent signed", "source_tile": "tenant-screening" }
+  ]
+}

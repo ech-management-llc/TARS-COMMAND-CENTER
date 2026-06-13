@@ -5,73 +5,110 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Document Navigator — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
-<style>
-  .sideb{display:grid; grid-template-columns:200px 1fr; gap:14px}
-  .navlist div{font-size:13px; color:var(--mut); padding:7px 10px; border-radius:8px; cursor:pointer}
-  .navlist div.on,.navlist div:hover{background:var(--surf2); color:var(--txt)}
-  .navlist .group{color:var(--dim);font-size:11px;margin:8px 0 2px;cursor:default}
-  .navlist .group:hover{background:transparent;color:var(--dim)}
-  @media(max-width:560px){ .sideb{grid-template-columns:1fr} }
-</style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">📁 Document Navigator</div>
 
   <div class="preview-banner">
-    <b>The indexed VIEW of your vault — not a separate copy.</b> This layer reads from the same source-of-truth store the AI employees use. <b>Primary</b> = your storage folder (local / cloud / drive). <b>This Navigator</b> = the human-browsable index of that store. <b>Backup</b> = a scheduled mirror to a second location. A UI/index never owns the data.
+    <b>The indexed VIEW of your vault — not a separate copy.</b> Folders, not a list (pass #6). Every folder knows its source tile; every tile's file-drop lands here automatically. <b>Primary</b> = your storage folder · <b>this Navigator</b> = the human-browsable index · <b>Backup</b> = a scheduled mirror. A UI/index never owns the data.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Dana</b> and say "make a folder for warranties" — the employee reshapes the view and it sticks.</div>
   </div>
 
-  <div style="margin-bottom:12px"><input placeholder="🔍 Search the vault — files, accounts, entities…"></div>
+  <div class="card" data-view-section="browse">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input type="text" id="docsearch" placeholder="🔎 Search every document… (e.g. 415 Skiles lease)" style="flex:1;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 11px;font:inherit;font-size:12.5px">
+    </div>
+    <div id="fview"></div>
+    <div class="small dim" style="margin-top:8px">Folder counts = what the real vault holds; itemized rows are honest samples until vault wiring. Source chips open the tile each document came from.</div>
+  </div>
 
-  <div class="sideb">
-    <div class="navlist">
-      <div class="on">Overview</div>
-      <div>Account Vault</div>
-      <div>Locked Files</div>
-      <div>Legacy</div>
-      <div class="group">ENTITIES</div>
-      <div>ECH Management</div>
-      <div>4E Developments</div>
-      <div>ECH Mabank</div>
-      <div>ECH Athens</div>
-      <div>ECH Malakoff</div>
-    </div>
-    <div>
-      <div class="card">
-        <div class="section-label">ACCOUNT VAULT (sample — service map, never credentials)</div>
-        <table>
-          <tr><th>SERVICE</th><th>ROLE</th><th>STATUS</th></tr>
-          <tr><td>Altra Bank</td><td>primary · all entities</td><td><span class="tag b-green">LIVE</span></td></tr>
-          <tr><td>Plaid</td><td>account + money feed → FL backend</td><td><span class="tag b-yellow">SANDBOX</span></td></tr>
-          <tr><td>RentRedi</td><td>rent roll</td><td><span class="tag b-green">LIVE</span></td></tr>
-          <tr><td>DealCheck</td><td>portfolio</td><td><span class="tag b-green">LIVE</span></td></tr>
-          <tr><td>VeraBank</td><td>transient · $0</td><td><span class="tag b-gray">LEGACY</span></td></tr>
-        </table>
-        <div class="wire-note">Sample. The vault stores the <b>map</b> of what account lives where — never the secrets themselves. Tokens/keys live only in the private store, never in this public view.</div>
-      </div>
-      <div class="card">
-        <div class="section-label">HOW IT STAYS ONE TRUTH</div>
-        <div class="small muted">The agents' memory store and this Navigator point at the <b>same folder</b>. Humans browse and search it here; agents query it as context each session. Edits land in one place; the backup mirror keeps a redundant copy. No separate "navigator copy" to drift.</div>
-        <!-- back-links: every document category opens the tile it comes from (cross-tile nav) -->
-        <div class="small" style="margin-top:8px">Documents arrive from:
-          <button class="xref" type="button" onclick="flOpen('rent-roll')" title="Open Rent Roll">Rent Roll</button> leases ·
-          <button class="xref" type="button" onclick="flOpen('insurance')" title="Open Insurance">Insurance</button> policies ·
-          <button class="xref" type="button" onclick="flOpen('legal')" title="Open Legal">Legal</button> contracts ·
-          <button class="xref" type="button" onclick="flOpen('sign')" title="Open Sign">Sign</button> envelopes ·
-          <button class="xref" type="button" onclick="flOpen('taxes')" title="Open Taxes">Taxes</button> returns ·
-          <button class="xref" type="button" onclick="flOpen('entities')" title="Open Entities">Entities</button> formation docs
-        </div>
-      </div>
-    </div>
+  <div class="card" data-view-section="one-truth">
+    <div class="section-label">HOW IT STAYS ONE TRUTH</div>
+    <div class="small muted">The agents' memory store and this Navigator point at the <b>same folder</b>. Humans browse and search it here; agents query it as context each session. Edits land in one place; the backup mirror keeps a redundant copy. No separate "navigator copy" to drift.</div>
   </div>
 
   <div class="wire-note" style="text-align:center;margin-top:14px">Standalone public view — sample structure only, no credentials or personal data. Live vault indexing wires to your chosen store.</div>
 </div>
 
 <script>
-  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  // index = data/STUB_DOCUMENTS.json + the shared doc-drop overlay (fl_documents_overlay_v1) —
+  // every tile's FLDocDrop registers {name, folder, source_tile, added} here. Same merge contract
+  // as the calendar overlay; the backend replaces the overlay with real vault writes.
+  var DOCKEY = 'fl_documents_overlay_v1';
+  var FOLDERS = [], DOCS = [], openF = null;
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function overlayDocs(){ try{ return (JSON.parse(localStorage.getItem(DOCKEY))||{added:[]}).added||[]; }catch(e){ return []; } }
+  function allDocs(){
+    // overlay docs name their folder by id OR display name — resolve both
+    var byName = {}; FOLDERS.forEach(function(f){ byName[f.name]=f.id; });
+    return DOCS.concat(overlayDocs().map(function(d){
+      return { name:d.name, folder: byName[d.folder]||d.folder, meta:'added '+(d.added||'')+' · via '+(d.source_tile||'drop'), source_tile:d.source_tile };
+    }));
+  }
+  function docsIn(fid){ return allDocs().filter(function(d){ return d.folder===fid; }); }
+
+  function srcChip(tile, label){
+    if(!tile) return '';
+    return '<button class="xref" type="button" onclick="flOpen(\''+esc(tile)+'\')" title="Open the source tile">'+esc(label||tile)+'</button>';
+  }
+
+  function renderFolders(){
+    openF = null;
+    var q = document.getElementById('docsearch').value.trim().toLowerCase();
+    if(q){ renderSearch(q); return; }
+    document.getElementById('fview').innerHTML = '<div class="folderg">'+FOLDERS.map(function(f,i){
+      var n = Math.max(f.count_hint||0, docsIn(f.id).length);
+      return '<div class="folder" onclick="openFolder('+i+')"><div class="fi">'+f.icon+'</div><div class="fn">'+esc(f.name)+'</div>'+
+        '<div class="fc">'+n+' file'+(n===1?'':'s')+'</div><div style="margin-top:5px">'+srcChip(f.source_tile, f.source_label)+'</div></div>';
+    }).join('')+'</div>';
+  }
+
+  function docTile(d){
+    return '<div class="docit">📄 <b>'+esc(d.name)+'</b><span class="dim">'+esc(d.meta||'')+'</span>'+
+      (d.source_tile?'<div style="margin-top:5px">'+srcChip(d.source_tile)+'</div>':'')+'</div>';
+  }
+
+  function openFolder(i){
+    openF = i;
+    var f = FOLDERS[i], docs = docsIn(f.id);
+    var more = (f.count_hint||0) - docs.filter(function(d){ return DOCS.indexOf(d)>=0; }).length;
+    document.getElementById('fview').innerHTML =
+      '<button class="fbtn" onclick="renderFolders()" style="margin-bottom:9px">← All folders</button> '+
+      '<span class="small muted">'+f.icon+' <b>'+esc(f.name)+'</b> · from '+srcChip(f.source_tile, f.source_label)+'</span>'+
+      '<div class="docgrid" style="margin-top:9px">'+(docs.length?docs.map(docTile).join(''):'<div class="small dim">No itemized files yet — drops from '+esc(f.source_label||'tiles')+' land here.</div>')+'</div>'+
+      (more>0?'<div class="small dim" style="margin-top:8px">+ '+more+' more in the vault — itemized rows land at vault wiring (honest sample).</div>':'');
+  }
+
+  function renderSearch(q){
+    var hits = allDocs().filter(function(d){ return (d.name+' '+(d.meta||'')).toLowerCase().indexOf(q)>=0; });
+    document.getElementById('fview').innerHTML =
+      '<div class="small muted" style="margin-bottom:8px">'+hits.length+' match'+(hits.length===1?'':'es')+' for "'+esc(q)+'"</div>'+
+      '<div class="docgrid">'+(hits.length?hits.map(docTile).join(''):'<div class="small dim">No matches in the index. The live vault search covers full text at vault wiring.</div>')+'</div>';
+  }
+
+  document.addEventListener('input', function(e){ if(e.target&&e.target.id==='docsearch') renderFolders(); });
+
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  var viewOps=[];
+  function applyViewCfg(ops){
+    viewOps=ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  fetch('../../../data/STUB_DOCUMENTS.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ FOLDERS=d.folders||[]; DOCS=d.docs||[]; if(!FOLDERS.length) throw 0; renderFolders();
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
+    .catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
 </script>
 </body>
 </html>
