@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE shared reno-estimate record — the FIRST real data carry in the deal funnel (pass #6). Build & Renovate writes estimates here (front-end: localStorage overlay fl_reno_estimate_v1 {estimates:[…]} over this base; backend replaces the overlay); Deal Analyzer reads the active estimate as its reno-budget input, Reserves & CapEx reads it as funding need, Sell/Exit reads it for ARV context. Estimates are AI/scrape-assisted ESTIMATES — verify before committing money.",
+  "generated_at": "2026-06-11",
+  "estimates": [
+    { "id": "est-415-skiles-gut", "property": "415 Skiles St · Mabank, TX", "label": "Gut kitchen + bath, floors, paint, curb appeal",
+      "total": 35000, "source": "build-renovate", "basis": "Takeoff line items (AI estimate)", "date": "2026-06-10" },
+    { "id": "est-wo-1041-materials", "property": "102 Remington · Mabank, TX", "label": "WO-1041 make-ready materials (cheapest-source mix)",
+      "total": 3100, "source": "build-renovate", "basis": "material price compare via ingestion layer", "date": "2026-06-11" }
+  ]
+}

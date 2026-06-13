@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE material price-compare rows served through the single ingestion layer (shared/ingest.js). Honest placeholders — NOT a live scrape; the real pull is connector-phase and ToS-aware per source (official price APIs/feeds preferred). Every render carries the visible source · timestamp · never-faked stamp. Rows keyed to WO-1041 (102 Remington make-ready) so the estimate ties to the live work order.",
+  "generated_at": "2026-06-11",
+  "sources": ["lowes.com", "acehardware.com", "mabanklumber.com"],
+  "rows": [
+    { "item": "Interior paint · 5 gal × 4", "wo": "WO-1041", "prices": { "lowes": 612, "ace": 668, "local": 580 } },
+    { "item": "Carpet · 1,300 sqft", "wo": "WO-1041", "prices": { "lowes": 2210, "ace": null, "local": 2450 } },
+    { "item": "Trim + misc", "wo": "WO-1041", "prices": { "lowes": 340, "ace": 355, "local": 310 } }
+  ]
+}

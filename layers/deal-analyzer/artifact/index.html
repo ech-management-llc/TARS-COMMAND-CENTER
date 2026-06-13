@@ -475,10 +475,17 @@
     <b>PROTOTYPE v0.1</b> · Deal Analyzer · pre-loaded with 415 Skiles for demo · static data
   </div>
 
+  <!-- RENO BUDGET INPUT — carried from Build & Renovate (the first real data carry in the funnel) -->
+  <div id="reno-carry" style="display:none;background:#ecfdf5;border:1.5px solid #16a34a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#14532d">
+    <b>🏗️ RENO BUDGET — carried from Build &amp; Renovate:</b> <span id="reno-carry-txt"></span>
+    <button type="button" onclick="flOpen('build-renovate')" style="margin-left:8px;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #cbd5e0;border-radius:999px;padding:2px 10px;cursor:pointer">Build &amp; Renovate ↗</button>
+    <div style="font-size:10.5px;color:#15803d;margin-top:3px">Real data carry (shared estimate record) — this becomes the rehab input when the analyzer goes computed. AI/scrape-assisted estimate; verify before committing.</div>
+  </div>
+
   <!-- HEADER -->
   <div class="hdr">
     <div class="hdr-top">
-      <div class="hdr-brand"><b>ECH</b> Deal Analyzer</div>
+      <div class="hdr-brand">Deal Analyzer</div>
       <div class="mode-toggle">
         <button class="active" id="mode-learner" onclick="setMode('learner')">Learner</button>
         <button id="mode-pro" onclick="setMode('pro')">Pro</button>
@@ -704,6 +711,25 @@
   }
   // cross-tile nav: ask the shell to open another tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+
+  // RENO BUDGET carry-in: the shared estimate record Build & Renovate writes
+  // (fl_reno_estimate_v1 overlay over data/STUB_RENO_ESTIMATES.json — active = last sent)
+  (function(){
+    function show(e){
+      if(!e) return;
+      document.getElementById('reno-carry-txt').textContent =
+        '$'+Number(e.total).toLocaleString()+' · '+e.label+' · '+e.property+' ('+(e.basis||'estimate')+', '+e.date+')';
+      document.getElementById('reno-carry').style.display='block';
+    }
+    var ov = null;
+    try{ ov = JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){}
+    var active = ov && (ov.estimates||[]).filter(function(e){ return e.active; })[0];
+    if(active){ show(active); return; }
+    fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ var es=d.estimates||[]; show(es[es.length-1]); })
+      .catch(function(){});
+  })();
 </script>
 </body>
 </html>
