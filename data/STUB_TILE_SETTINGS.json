@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "_note": "Per-OWNER, per-TILE settings — the platform pattern for tuning tile parameters. Every tile has a `params` schema (the tunable knobs, with sensible defaults). Values resolve in this order: per-owner override (owners[ownerName]) → tile default. ECH may manage for different owners, each with their own thresholds, so settings are keyed by owner with a shared default. SETUP has two paths: (1) the tile's AI EMPLOYEE walks the user through a guided Q&A (the `q` text is what the employee asks) and writes the answers here — available when employee_plugin_enabled; (2) a MANUAL settings form exposing the same params, always available, the only path when the employee plug-in isn't purchased. Front-end persists answers to localStorage per owner; backend replaces that at the connector phase. This file is the schema + defaults; nothing here is live tenant data.",
+  "generated_at": "2026-06-12",
+  "default_owner": "ECH Management (self-managed)",
+  "employee_plugin_enabled": true,
+  "tiles": {
+    "rent-roll": {
+      "employee": { "name": "Pat", "role": "Rent roll & collections", "avatar": "P", "intro": "Hi, I’m Pat — I keep your rent roll tidy and chase what’s late. Answer a few quick questions and I’ll set this tile up the way you run things. You can change any of it later." },
+      "params": [
+        { "key": "grace_days", "label": "Grace period before rent counts late", "type": "number", "default": 5, "min": 0, "max": 30, "unit": "days", "q": "How many days after the due date before you treat rent as late?" },
+        { "key": "late_red_days", "label": "Days late before it’s urgent (turns red + suggest a formal notice)", "type": "number", "default": 10, "min": 1, "max": 60, "unit": "days", "q": "After how many days late should I flag it red and recommend a formal notice?" },
+        { "key": "default_late_fee", "label": "Default late fee", "type": "money", "default": 75, "min": 0, "max": 500, "q": "What late fee do you charge by default?" },
+        { "key": "expiring_soon_days", "label": "Warn about leases ending within", "type": "number", "default": 60, "min": 7, "max": 180, "unit": "days", "q": "How far ahead should I warn you that a lease is ending?" }
+      ],
+      "owners": {}
+    }
+  }
+}

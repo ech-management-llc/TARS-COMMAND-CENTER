@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE rent-roll data for the ECH reference install — honest placeholders, NOT live. The live source is RentRedi (rent, status, tenant) reconciled to the operating account via Plaid → Foundation Layer → entity map once Plaid is in production. Tenant names, phone numbers, emails, amounts, and lease docs are sample values. Properties are typed single_family | multifamily; multifamily carry multiple units. A unit is 'late' when status=late (days_late/late_fee set) and 'empty' when status=vacant (tenant null). The Rent Roll tile surfaces empty units first, then late units, and lassos any property with a late unit in yellow. Lease docs reference Document Navigator (Leases folder) — no real file content is stored here.",
+  "generated_at": "2026-06-12",
+  "operating_account": "ECH MGMT · Altra (sandbox $0 until Plaid prod)",
+  "properties": [
+    {
+      "id": "500-reynolds", "type": "single_family", "address": "500 Reynolds Rd · Athens, TX", "entity": "ECH Athens LLC",
+      "units": [ { "unit": "House", "beds": 3, "baths": 2, "rent": 1800, "status": "paid",
+        "tenant": { "name": "A. Carter", "phone": "+19035550111", "email": "a.carter@example.com" },
+        "lease": { "id": "L-500REY", "expires": "2026-12-31", "doc": "LEASE_500_REYNOLDS.pdf" } } ]
+    },
+    {
+      "id": "410-scott", "type": "single_family", "address": "410 Scott · Athens, TX", "entity": "ECH Athens LLC",
+      "units": [ { "unit": "House", "beds": 3, "baths": 2, "rent": 1500, "status": "paid",
+        "tenant": { "name": "L. Nguyen", "phone": "+19035550112", "email": "l.nguyen@example.com" },
+        "lease": { "id": "L-410SCO", "expires": "2026-11-30", "doc": "LEASE_410_SCOTT.pdf" } } ]
+    },
+    {
+      "id": "1301-e-royall", "type": "single_family", "address": "1301 E Royall · Malakoff, TX", "entity": "ECH Malakoff LLC",
+      "units": [ { "unit": "House", "beds": 2, "baths": 1, "rent": 1650, "status": "paid",
+        "tenant": { "name": "M. Davis", "phone": "+19035550113", "email": "m.davis@example.com" },
+        "lease": { "id": "L-1301ROY", "expires": "2027-02-28", "doc": "LEASE_1301_E_ROYALL.pdf" } } ]
+    },
+    {
+      "id": "415-skiles", "type": "single_family", "address": "415 Skiles St · Mabank, TX", "entity": "ECH Mabank LLC",
+      "units": [ { "unit": "House", "beds": 3, "baths": 1, "rent": 1450, "status": "paid",
+        "tenant": { "name": "J. Morales", "phone": "+19035550114", "email": "j.morales@example.com" },
+        "lease": { "id": "L-415SKI", "expires": "2026-07-31", "doc": "LEASE_415_SKILES.pdf" } } ]
+    },
+    {
+      "id": "124-pierce", "type": "single_family", "address": "124 Pierce Dr · Mabank, TX", "entity": "ECH Mabank LLC",
+      "units": [ { "unit": "House", "beds": 3, "baths": 2, "rent": 1700, "status": "paid",
+        "tenant": { "name": "R. Patel", "phone": "+19035550115", "email": "r.patel@example.com" },
+        "lease": { "id": "L-124PIE", "expires": "2027-01-15", "doc": "LEASE_124_PIERCE.pdf" } } ]
+    },
+    {
+      "id": "103-marybeth", "type": "single_family", "address": "103 Mary Beth Ln · Mabank, TX", "entity": "ECH Mabank LLC",
+      "units": [ { "unit": "House", "beds": 2, "baths": 2, "rent": 1900, "status": "paid",
+        "tenant": { "name": "S. Kim", "phone": "+19035550116", "email": "s.kim@example.com" },
+        "lease": { "id": "L-103MB", "expires": "2026-10-31", "doc": "LEASE_103_MARYBETH.pdf" } } ]
+    },
+    {
+      "id": "408-e-kaufman", "type": "single_family", "address": "408 E Kaufman St · Kaufman, TX", "entity": "ECH Mabank LLC",
+      "units": [ { "unit": "House", "beds": 3, "baths": 1.5, "rent": 1700, "status": "late", "days_late": 6, "late_fee": 85,
+        "tenant": { "name": "T. Brooks", "phone": "+19035550117", "email": "t.brooks@example.com" },
+        "lease": { "id": "L-408KAU", "expires": "2026-09-30", "doc": "LEASE_408_E_KAUFMAN.pdf" } } ]
+    },
+    {
+      "id": "204-w-mt-vernon", "type": "single_family", "address": "204 W Mt Vernon · Mabank, TX", "entity": "ECH Mabank LLC",
+      "units": [ { "unit": "House", "beds": 3, "baths": 2, "rent": 1800, "status": "paid",
+        "tenant": { "name": "D. Reed", "phone": "+19035550118", "email": "d.reed@example.com" },
+        "lease": { "id": "L-204MV", "expires": "2026-12-15", "doc": "LEASE_204_W_MT_VERNON.pdf" } } ]
+    },
+    {
+      "id": "102-remington", "type": "single_family", "address": "102 Remington · Mabank, TX", "entity": "ECH Mabank LLC",
+      "units": [ { "unit": "House", "beds": 3, "baths": 2, "rent": 1900, "status": "vacant", "vacant_since": "2026-05-20", "note": "ready ~1 mo (make-ready WO-1041)",
+        "tenant": null, "lease": null } ]
+    },
+    {
+      "id": "13074-hwy198", "type": "multifamily", "address": "13074 State Hwy 198 · Mabank, TX", "entity": "ECH Mabank LLC",
+      "units": [
+        { "unit": "Unit A", "beds": 2, "baths": 1, "rent": 1500, "status": "paid",
+          "tenant": { "name": "G. Flores", "phone": "+19035550121", "email": "g.flores@example.com" },
+          "lease": { "id": "L-198A", "expires": "2026-12-31", "doc": "LEASE_13074_198_A.pdf" } },
+        { "unit": "Unit B", "beds": 3, "baths": 2, "rent": 1750, "status": "vacant", "vacant_since": "2026-04-15", "tenant": null, "lease": null },
+        { "unit": "Unit C", "beds": 1, "baths": 1, "rent": 1300, "status": "late", "days_late": 12, "late_fee": 65,
+          "tenant": { "name": "H. Tran", "phone": "+19035550123", "email": "h.tran@example.com" },
+          "lease": { "id": "L-198C", "expires": "2026-08-31", "doc": "LEASE_13074_198_C.pdf" } }
+      ]
+    },
+    {
+      "id": "502-508-n-terry", "type": "multifamily", "address": "502-508 N Terry · Malakoff, TX", "entity": "ECH Malakoff LLC",
+      "units": [
+        { "unit": "502", "beds": 1, "baths": 1, "rent": 1325, "status": "paid",
+          "tenant": { "name": "P. Adams", "phone": "+19035550131", "email": "p.adams@example.com" },
+          "lease": { "id": "L-502NT", "expires": "2027-03-31", "doc": "LEASE_502_N_TERRY.pdf" } },
+        { "unit": "508", "beds": 2, "baths": 2, "rent": 1600, "status": "paid",
+          "tenant": { "name": "C. Ramirez", "phone": "+19035550132", "email": "c.ramirez@example.com" },
+          "lease": { "id": "L-508NT", "expires": "2026-11-15", "doc": "LEASE_508_N_TERRY.pdf" } }
+      ]
+    }
+  ]
+}
