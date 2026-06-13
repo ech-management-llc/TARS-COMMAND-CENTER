@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE public-records sweep rows served through the single ingestion layer. INFORMATIONAL ONLY — this is NEVER a consumer report and is NEVER the basis of an approve/deny by itself (FCRA guardrail, binding). Regulated screening runs through the consent-based FCRA-compliant provider, not here. Location-aware: rows keyed to the applicant's last known location. Honest placeholders until the connector phase; sources are public/government sites checked ToS-aware.",
+  "generated_at": "2026-06-11",
+  "sources": ["Henderson Co. court records (public)", "TX DPS sex-offender registry (public)", "public social presence"],
+  "rows": [
+    { "applicant": "K. Alvarez", "location": "Athens TX", "check": "County court records", "result": "no civil/eviction filings found", "tone": "good" },
+    { "applicant": "K. Alvarez", "location": "Athens TX", "check": "Sex-offender registry", "result": "no match", "tone": "good" },
+    { "applicant": "K. Alvarez", "location": "Athens TX", "check": "Public social presence", "result": "consistent employment listing · no flags", "tone": "fyi" }
+  ]
+}
