@@ -33,6 +33,14 @@
     "document-navigator": { "employee": { "name": "Dana", "role": "Records clerk", "avatar": "D", "intro": "Hi, I'm Dana — I find any document in your vault fast. Nothing to tune yet; tell me what you're looking for." }, "params": [] },
     "deal-finder": { "employee": { "name": "Scout", "role": "Deal sourcer", "avatar": "S", "intro": "Hi, I'm Scout — I hunt deals that fit your buy box. Nothing to tune yet; set your box and I'll go find them." }, "params": [] },
     "build-renovate": { "employee": { "name": "Mason", "role": "Project architect · build team lead", "avatar": "M", "intro": "Hi, I'm Mason — I scope renovations and budgets with the build team. Nothing to set up yet; I'll estimate a reno on request." }, "params": [] },
-    "website-it": { "employee": { "name": "Iris", "role": "Web & marketing", "avatar": "I", "intro": "Hi, I'm Iris — I publish listings, stage photos, and syndicate. Nothing to tune yet; tell me what to post." }, "params": [] }
+    "website-it": { "employee": { "name": "Iris", "role": "Web & marketing", "avatar": "I", "intro": "Hi, I'm Iris — I publish listings, stage photos, and syndicate. Nothing to tune yet; tell me what to post." }, "params": [] },
+    "learn-coach": { "employee": { "name": "Coach", "role": "Your real-estate copilot", "avatar": "C", "intro": "Hi, I'm Coach — I explain anything in plain English and walk you through your first deals. Nothing to set up; just ask." }, "params": [] },
+    "goals-growth": { "employee": { "name": "Sage", "role": "Growth coach", "avatar": "S", "intro": "Hi, I'm Sage — I track net worth, cash flow, and your next-deal timing. Nothing to tune yet; I'll tell you if you're on track." }, "params": [] },
+    "calendar": { "employee": { "name": "Bell", "role": "Scheduler", "avatar": "B", "intro": "Hi, I'm Bell — I keep every due date in one place. Nothing to set up yet; I'll surface what's due and what's overdue." }, "params": [] },
+    "recurring": { "employee": { "name": "Bell", "role": "Scheduler", "avatar": "B", "intro": "Hi, I'm Bell — I track what repeats and when it hits next. Nothing to set up yet; I'll surface upcoming recurring items." }, "params": [] },
+    "connections": { "employee": { "name": "Linc", "role": "Connections steward", "avatar": "L", "intro": "Hi, I'm Linc — I keep your email, phones, apps, and the TARS line connected. Nothing to tune yet; I'll show what's wired." }, "params": [] },
+    "inbox": { "employee": { "name": "Nadia", "role": "Inbox manager", "avatar": "N", "intro": "Hi, I'm Nadia — I triage every message in one place. Nothing to set up yet; I'll flag what's urgent." }, "params": [] },
+    "tenant-screening": { "employee": { "name": "Reese", "role": "Leasing & screening", "avatar": "R", "intro": "Hi, I'm Reese — I screen applicants and start leases. Nothing to tune yet; I'll review new applications." }, "params": [] },
+    "plans-billing": { "employee": { "name": "Drew", "role": "Billing", "avatar": "D", "intro": "Hi, I'm Drew — I handle your plan, layers, and invoices. Nothing to tune yet; ask me what another layer costs." }, "params": [] }
   }
 }

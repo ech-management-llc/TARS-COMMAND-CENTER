@@ -98,5 +98,7 @@
     })
     .catch(function(){ document.getElementById('rec-rows').innerHTML='<tr><td colspan="4" class="muted">Awaiting recurring schedule — shared source not reachable.</td></tr>'; });
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'recurring'});</script>
 </body>
 </html>

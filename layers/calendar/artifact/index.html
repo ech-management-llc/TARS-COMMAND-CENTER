@@ -302,5 +302,7 @@
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('cal').innerHTML='<div class="muted small" style="padding:8px">Awaiting deadline record — shared source not reachable.</div>'; });
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'calendar'});</script>
 </body>
 </html>
