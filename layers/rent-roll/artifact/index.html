@@ -91,12 +91,13 @@
 
 <div class="rrmodal" id="modal" onclick="if(event.target===this)closeModal()"><div class="rrcard" id="modalbody"></div></div>
 
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script src="../../../shared/fl-scope-select.js"></script>
 <script>
   var DATA=null, OPENCAT=null, OPENPROP={}, TODAY=new Date();
-  var LATE_RED=10, EXP_SOON=60; // days — set from effective settings on load
-  var TILE='rent-roll', SETCFG=null, SET={grace_days:5,late_red_days:10,default_late_fee:75,expiring_soon_days:60};
-  var OWNER='ECH Management (self-managed)', EMP=true, SETUP_MODE='guided';
-  var SELP=null; // selected property ids in scope; null = all
+  var LATE_RED=10, EXP_SOON=60;   // driven by FLSettings effective params
+  var SELP=null;                  // selected property ids; null = all (driven by FLScope)
+  var settings=null, scope=null;  // shared building blocks (fl-tile-settings, fl-scope-select)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function money(n){ if(n==null||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
@@ -114,32 +115,7 @@
   function scopeProps(){ var all=(DATA&&DATA.properties)||[]; if(!SELP||!SELP.length) return all; return all.filter(function(p){ return SELP.indexOf(p.id)>=0; }); }
   function allUnits(){ var out=[]; scopeProps().forEach(function(p){ (p.units||[]).forEach(function(u,i){ out.push({p:p,u:u,i:i}); }); }); return out; }
 
-  function loadScope(){ try{ var s=JSON.parse(localStorage.getItem('tcc_rr_scope')||'null'); if(Array.isArray(s)&&s.length) SELP=s; }catch(e){} }
-  function saveScope(){ try{ if(SELP&&SELP.length) localStorage.setItem('tcc_rr_scope', JSON.stringify(SELP)); else localStorage.removeItem('tcc_rr_scope'); }catch(e){} }
-  function scopeAll(){ SELP=null; saveScope(); if(document.getElementById('modal').className.indexOf('on')>=0) renderScopeBody(); renderScopeBar(); renderSummary(); renderAttention(); renderCats(); renderProps(); }
-  function toggleScopeP(id){ var all=(DATA.properties||[]).map(function(p){return p.id;}); if(!SELP) SELP=all.slice(); var i=SELP.indexOf(id); if(i>=0) SELP.splice(i,1); else SELP.push(id); if(!SELP.length) SELP=null; saveScope(); renderScopeBody(); renderScopeBar(); renderSummary(); renderAttention(); renderCats(); renderProps(); }
-  function scopeEntity(ent){ SELP=(DATA.properties||[]).filter(function(p){return p.entity===ent;}).map(function(p){return p.id;}); if(!SELP.length) SELP=null; saveScope(); renderScopeBody(); renderScopeBar(); renderSummary(); renderAttention(); renderCats(); renderProps(); }
-  function renderScopeBar(){
-    var all=(DATA&&DATA.properties)||[]; var bar=document.getElementById('scopebar'); if(!bar) return;
-    var isAll=(!SELP||SELP.length===all.length); var n=SELP?SELP.length:all.length;
-    bar.innerHTML='<span class="si">📋 Rent roll for:</span> <span>'+(isAll?('All properties ('+all.length+')'):(n+' of '+all.length+' properties'))+'</span>'+
-      '<button class="btn sm" onclick="openScope()" style="margin-left:6px">Choose properties</button>'+
-      (!isAll?'<button class="btn sm" onclick="scopeAll()">Show all</button>':'');
-  }
-  function openScope(){ showModal(scopeBody()); }
-  function renderScopeBody(){ if(document.getElementById('modalbody')) document.getElementById('modalbody').innerHTML=scopeBody(); }
-  function scopeBody(){
-    var all=(DATA&&DATA.properties)||[]; var sel=SELP||all.map(function(p){return p.id;});
-    var ents=[]; all.forEach(function(p){ if(ents.indexOf(p.entity)<0) ents.push(p.entity); });
-    var head='<button class="x" onclick="closeModal()">×</button><h3>📋 Build a rent roll — pick properties</h3>'+
-      '<div class="small muted" style="margin-bottom:8px">Select one, several, or all. Quick-pick a whole owner/entity, or tap individual properties. The whole tile (summary, attention, lists) follows your selection.</div>'+
-      '<div class="filt"><button class="btn sm" onclick="scopeAll()">All properties</button>'+ents.map(function(e){return '<button class="btn sm" onclick="scopeEntity(\''+esc(e)+'\')">'+esc(e)+'</button>';}).join('')+'</div>';
-    function grp(type,label){ var ps=all.filter(function(p){return p.type===type;}); if(!ps.length) return '';
-      return '<div class="sublab">'+label+'</div>'+ps.map(function(p){ var on=sel.indexOf(p.id)>=0; return '<div class="pick'+(on?' on':'')+'" onclick="toggleScopeP(\''+p.id+'\')"><div><span class="ck">'+(on?'✓':'·')+'</span> '+esc(p.address)+'<div class="small muted" style="margin-left:24px">'+esc(p.entity)+' · '+p.units.length+' unit'+(p.units.length>1?'s':'')+'</div></div></div>'; }).join('');
-    }
-    return head+grp('single_family','🏠 SINGLE FAMILY')+grp('multifamily','🏢 MULTIFAMILY')+
-      '<button class="actbtn" onclick="closeModal()"><span class="ico">✅</span> Done <span class="mob">'+(SELP?SELP.length:all.length)+' selected</span></button>';
-  }
+  // scope selection (SELP) is managed by the shared FLScope component, created on load.
 
 
   function renderSummary(){
@@ -291,94 +267,41 @@
     showModal(body);
   }
 
-  // ---- Tile settings (per-owner, employee-or-manual) ----
-  function tileCfg(){ return (SETCFG&&SETCFG.tiles&&SETCFG.tiles[TILE])||{params:[]}; }
-  function params(){ return tileCfg().params||[]; }
-  function emp(){ var e=tileCfg().employee||{name:'your employee',avatar:'•'}; return e; }
-  function lsKey(owner){ return 'tcc_tile_settings::'+TILE+'::'+owner; }
-  function savedFor(owner){ try{ return JSON.parse(localStorage.getItem(lsKey(owner))||'null'); }catch(e){ return null; } }
-  function configured(owner){ return !!savedFor(owner); }
-  function computeEffective(owner){
-    var out={}; params().forEach(function(p){ out[p.key]=p.default; });
-    var fileOv=(tileCfg().owners||{})[owner]; if(fileOv){ for(var k in fileOv) out[k]=fileOv[k]; }
-    var ls=savedFor(owner); if(ls&&ls.values){ for(var k2 in ls.values) out[k2]=ls.values[k2]; }
-    return out;
-  }
-  function applyEffective(){ SET=computeEffective(OWNER); LATE_RED=+SET.late_red_days||10; EXP_SOON=+SET.expiring_soon_days||60; }
-  function ownersList(){ var l=[OWNER]; var o=tileCfg().owners||{}; Object.keys(o).forEach(function(k){ if(l.indexOf(k)<0) l.push(k); }); return l; }
-
-  function renderSetbar(){
-    var bar=document.getElementById('setbar'); var e=emp();
-    var demo='<button class="linkbtn" style="margin-left:auto;color:var(--mut)" onclick="toggleEmpDemo()" title="demo only — simulates the employee plug-in on/off">demo: employee '+(EMP?'ON':'OFF')+'</button>';
-    if(configured(OWNER)){
-      var by=savedFor(OWNER).by||(EMP?e.name:'manual');
-      bar.innerHTML='<span class="si">⚙️ Tuned '+(by==='manual'?'manually':('by '+esc(by)))+' for '+esc(OWNER)+'</span>'+
-        '<span class="muted">late turns red at '+LATE_RED+'d · warn '+EXP_SOON+'d before lease end · fee '+money(SET.default_late_fee)+'</span>'+
-        '<button class="btn sm" onclick="openSetup()" style="margin-left:6px">Adjust</button>'+demo;
-    } else if(EMP){
-      bar.innerHTML='<span class="empchip"><span class="empav">'+esc(e.avatar)+'</span> '+esc(e.name)+' can set this tile up for you</span>'+
-        '<button class="btn sm primary" onclick="openSetup(\'guided\')">Set up with '+esc(e.name)+'</button>'+
-        '<button class="btn sm" onclick="openSetup(\'manual\')">Manual setup</button>'+demo;
-    } else {
-      bar.innerHTML='<span class="si">⚙️ This tile isn’t set up</span><span class="muted">AI employee is a paid add-on — set the parameters manually</span>'+
-        '<button class="btn sm primary" onclick="openSetup(\'manual\')">Manual settings</button>'+demo;
-    }
-  }
-
-  function openSetup(mode){ if(mode) SETUP_MODE=mode; if(!EMP) SETUP_MODE='manual'; showModal(setupBody()); }
-  function setOwnerInForm(sel){ OWNER=sel.value; applyEffective(); showModal(setupBody()); }
-  function setMode(m){ SETUP_MODE=m; showModal(setupBody()); }
-  function setupBody(){
-    var e=emp(); var guided=(SETUP_MODE==='guided'&&EMP); var eff=computeEffective(OWNER);
-    var head='<button class="x" onclick="closeModal()">×</button>';
-    if(guided){ head+='<h3><span class="empchip"><span class="empav">'+esc(e.avatar)+'</span> Set up with '+esc(e.name)+'</span></h3><div class="small muted" style="margin-bottom:8px">'+esc(e.intro||'')+'</div>'; }
-    else { head+='<h3>⚙️ Manual settings — Rent Roll</h3><div class="small muted" style="margin-bottom:8px">Set each parameter for this owner. '+(EMP?'':'(The guided setup needs the AI employee add-on.)')+'</div>'; }
-    // owner picker
-    var owners=ownersList();
-    var osel='<div class="setq"><label>These settings apply to</label><select class="setin" onchange="setOwnerInForm(this)">'+owners.map(function(o){return '<option'+(o===OWNER?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select><div class="small muted" style="margin-top:4px">Each owner can have different rules — this is '+esc(OWNER)+'.</div></div>';
-    // mode toggle (only if employee available)
-    var toggle = EMP ? '<div style="margin-top:10px"><span class="seg"><button class="'+(guided?'on':'')+'" onclick="setMode(\'guided\')">Ask '+esc(e.name)+'</button><button class="'+(!guided?'on':'')+'" onclick="setMode(\'manual\')">Manual</button></span></div>' : '';
-    var fields=params().map(function(p){
-      var prompt=guided?esc(p.q||p.label):esc(p.label);
-      var val=eff[p.key]; var unit=p.unit?(' <span class="muted">('+esc(p.unit)+')</span>'):(p.type==='money'?' <span class="muted">($)</span>':'');
-      return '<div class="setq"><label>'+prompt+unit+'</label><input class="setin" id="set_'+esc(p.key)+'" type="number" value="'+esc(val)+'"'+(p.min!=null?' min="'+p.min+'"':'')+(p.max!=null?' max="'+p.max+'"':'')+'></div>';
-    }).join('');
-    var note=guided
-      ? '<div class="wire-note" style="margin-top:12px">'+esc(e.name)+' writes your answers to this tile’s settings for '+esc(OWNER)+'. Change them anytime. (Front-end: saved on this device; syncs to your account when wired.)</div>'
-      : '<div class="wire-note" style="margin-top:12px">Manual settings save to this tile for '+esc(OWNER)+'. '+(EMP?'Prefer questions? Switch to “Ask '+esc(e.name)+'.”':'The AI employee add-on can do this for you with a few questions.')+'</div>';
-    var actions='<button class="actbtn" onclick="saveSetup()"><span class="ico">✅</span> Save settings <span class="mob">applies to this tile</span></button>'+
-      '<button class="actbtn" onclick="useDefaults()"><span class="ico">↩️</span> Use the defaults <span class="mob">reset</span></button>';
-    return head+toggle+osel+fields+actions+note;
-  }
-  function saveSetup(){
-    var vals={}; params().forEach(function(p){ var el=document.getElementById('set_'+p.key); if(el){ var n=Number(el.value); vals[p.key]=isNaN(n)?p.default:n; } });
-    try{ localStorage.setItem(lsKey(OWNER), JSON.stringify({by:(SETUP_MODE==='guided'&&EMP)?emp().name:'manual', values:vals, at:new Date().toISOString()})); }catch(e){}
-    applyEffective(); closeModal(); renderSetbar(); renderAll();
-  }
-  function useDefaults(){ try{ localStorage.removeItem(lsKey(OWNER)); }catch(e){} applyEffective(); closeModal(); renderSetbar(); renderAll(); }
-  function toggleEmpDemo(){ EMP=!EMP; if(!EMP) SETUP_MODE='manual'; renderSetbar(); }
+  // tile settings (per-owner, employee-or-manual) are managed by the shared FLSettings component, mounted on load.
 
   function showModal(html){ document.getElementById('modalbody').innerHTML=html; document.getElementById('modal').className='rrmodal on'; }
   function closeModal(){ document.getElementById('modal').className='rrmodal'; }
   function toggleCat(c){ OPENCAT=(OPENCAT===c?null:c); OPENPROP={}; renderCats(); renderProps(); }
   function openProp(pid,type){ OPENCAT=type; OPENPROP={}; OPENPROP[pid]=true; renderCats(); renderProps(); document.getElementById('proplist').scrollIntoView({behavior:'smooth',block:'start'}); }
   function toggleProp(pid){ OPENPROP[pid]=!OPENPROP[pid]; renderProps(); }
-  function renderAll(){ renderSetbar(); renderScopeBar(); renderSummary(); renderAttention(); renderCats(); renderProps(); }
+  function renderAll(){ renderSummary(); renderAttention(); renderCats(); renderProps(); }
 
-  Promise.all([
-    fetch('../../../data/STUB_RENT_ROLL.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
-    fetch('../../../data/STUB_TILE_SETTINGS.json',{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
-  ]).then(function(res){
-    DATA=res[0]; SETCFG=res[1];
-    if(SETCFG){ if(SETCFG.default_owner) OWNER=SETCFG.default_owner; if(SETCFG.employee_plugin_enabled===false) EMP=false; }
-    SETUP_MODE = EMP ? 'guided' : 'manual';
-    if(DATA.generated_at){ var t=dParse(DATA.generated_at); if(t) TODAY=t; }
-    if(DATA.operating_account) document.getElementById('opacct').textContent=DATA.operating_account;
-    loadScope();
-    applyEffective();
-    renderAll();
-    if(!configured(OWNER)) openSetup(); // employee greets first (or manual if no plug-in)
-  }).catch(function(){ document.getElementById('attention').innerHTML='<div class="att">⚠ Rent roll data unavailable.</div>'; });
+  // Load the rent roll; the shared building blocks own settings + scope.
+  fetch('../../../data/STUB_RENT_ROLL.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){
+      DATA=d;
+      if(DATA.generated_at){ var t=dParse(DATA.generated_at); if(t) TODAY=t; }
+      if(DATA.operating_account) document.getElementById('opacct').textContent=DATA.operating_account;
+      var props=DATA.properties||[];
+      var ents=[]; props.forEach(function(p){ if(ents.indexOf(p.entity)<0) ents.push(p.entity); });
+      // shared property-scope selector (bar + modal, persisted) — drives SELP
+      scope=FLScope.create({
+        items: props.map(function(p){ return {id:p.id,label:p.address,sub:p.entity+' · '+p.units.length+' unit'+(p.units.length>1?'s':''),type:p.type,entity:p.entity}; }),
+        unit:'property', unitPlural:'properties', label:'📋 Rent roll for', persistKey:'tcc_rr_scope',
+        quickPicks: ents.map(function(e){ return {label:e, ids:props.filter(function(p){return p.entity===e;}).map(function(p){return p.id;})}; }),
+        groups: [{label:'🏠 SINGLE FAMILY', match:function(it){return it.type==='single_family';}},{label:'🏢 MULTIFAMILY', match:function(it){return it.type==='multifamily';}}],
+        host:'#scopebar',
+        onChange: function(ids, isAll){ SELP=isAll?null:ids; renderSummary(); renderAttention(); renderCats(); renderProps(); }
+      });
+      // shared per-owner settings + employee-first setup — drives LATE_RED / EXP_SOON
+      settings=FLSettings.mount({
+        tileId:'rent-roll', host:'#setbar', title:'Rent Roll',
+        onChange: function(eff){ LATE_RED=+eff.late_red_days||10; EXP_SOON=+eff.expiring_soon_days||60; renderAll(); }
+      });
+      renderAll();
+    })
+    .catch(function(){ document.getElementById('attention').innerHTML='<div class="att">⚠ Rent roll data unavailable.</div>'; });
 
   function applyViewCfg(ops){
     document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
