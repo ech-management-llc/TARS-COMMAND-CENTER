@@ -30,6 +30,9 @@
     "legal": { "employee": { "name": "Sloane", "role": "Paralegal · contracts & closing", "avatar": "S", "intro": "Hi, I'm Sloane — I handle contracts, closings, and law lookups. Nothing to tune yet; ask me a clause or a Texas process." }, "params": [] },
     "sign": { "employee": { "name": "Avery", "role": "Signing coordinator", "avatar": "A", "intro": "Hi, I'm Avery — I send and track e-signatures. Nothing to set up yet; I'll route docs out for signature." }, "params": [] },
     "team-access": { "employee": { "name": "Robin", "role": "Access admin", "avatar": "R", "intro": "Hi, I'm Robin — I manage users, roles, and invites. Nothing to tune yet; tell me who needs access." }, "params": [] },
-    "document-navigator": { "employee": { "name": "Dana", "role": "Records clerk", "avatar": "D", "intro": "Hi, I'm Dana — I find any document in your vault fast. Nothing to tune yet; tell me what you're looking for." }, "params": [] }
+    "document-navigator": { "employee": { "name": "Dana", "role": "Records clerk", "avatar": "D", "intro": "Hi, I'm Dana — I find any document in your vault fast. Nothing to tune yet; tell me what you're looking for." }, "params": [] },
+    "deal-finder": { "employee": { "name": "Scout", "role": "Deal sourcer", "avatar": "S", "intro": "Hi, I'm Scout — I hunt deals that fit your buy box. Nothing to tune yet; set your box and I'll go find them." }, "params": [] },
+    "build-renovate": { "employee": { "name": "Mason", "role": "Project architect · build team lead", "avatar": "M", "intro": "Hi, I'm Mason — I scope renovations and budgets with the build team. Nothing to set up yet; I'll estimate a reno on request." }, "params": [] },
+    "website-it": { "employee": { "name": "Iris", "role": "Web & marketing", "avatar": "I", "intro": "Hi, I'm Iris — I publish listings, stage photos, and syndicate. Nothing to tune yet; tell me what to post." }, "params": [] }
   }
 }
