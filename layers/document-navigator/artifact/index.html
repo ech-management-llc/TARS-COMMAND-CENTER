@@ -110,5 +110,7 @@
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'document-navigator'});</script>
 </body>
 </html>
