@@ -159,6 +159,38 @@ function renderChrome(){
       '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
   }
 
+  // first-run TARS concierge — top-level greeting + setup offer (once, dismissible).
+  // Mirrors the per-tile employee setup, one level up: TARS offers to do it for you,
+  // or points to manual / employee setup inside each tile.
+  (function(){
+    var host = $('tars-btn'); if(!host) return;
+    var old = document.getElementById('tars-firstrun'); if(old) old.remove();
+    if (STATE.role === 'field') return;            // scoped field role: no concierge
+    var done=false; try{ done = localStorage.getItem('fl_tars_firstrun_v1')==='done'; }catch(e){}
+    if(done) return;
+    var name = esc(g.name||'TARS');
+    var el = document.createElement('div');
+    el.id = 'tars-firstrun';
+    el.style.cssText = 'background:var(--purplebg,#1c1830);border:1px solid var(--purpleln,#5b4b8a);border-radius:12px;padding:14px 16px;margin:10px 0 4px;line-height:1.55';
+    el.innerHTML =
+      '<div style="display:flex;gap:10px;align-items:flex-start">'+
+        '<span style="flex:0 0 auto">'+tarsSvg(26)+'</span>'+
+        '<div style="flex:1">'+
+          '<b>'+name+' here — welcome to your Foundation Layer.</b><br>'+
+          'When you’re ready to set things up, come to me and I’ll walk through it and do it for you. '+
+          'Prefer hands-on? Open any tile and set it up <b>manually</b> — or, if you’ve hired that tile’s <b>employee</b>, let them ask you a few questions and set it up for you.'+
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:11px">'+
+            '<button type="button" class="btn primary" id="tfr-go">Set up with '+name+'</button>'+
+            '<button type="button" class="btn" id="tfr-later">I’ll explore first</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    host.parentNode.insertBefore(el, host.nextSibling);
+    var go=document.getElementById('tfr-go'), later=document.getElementById('tfr-later');
+    if(go) go.onclick=function(){ try{ if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
+    if(later) later.onclick=function(){ try{ localStorage.setItem('fl_tars_firstrun_v1','done'); }catch(e){} el.remove(); };
+  })();
+
   // header — tenant title only (date / role / sign-out moved up into the ribbon)
   $('head').innerHTML =
     '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>';
