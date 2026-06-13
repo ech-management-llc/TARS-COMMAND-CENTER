@@ -85,6 +85,12 @@
     opts = opts || {};
     var tileId  = opts.tileId;
     var hostEl  = typeof opts.host==='string' ? document.querySelector(opts.host) : opts.host;
+    if(!hostEl){                                   // no host given: auto-place the bar just under the tile heading
+      hostEl=document.createElement('div');
+      var _h=document.querySelector('.art-head');
+      if(_h && _h.parentNode){ _h.parentNode.insertBefore(hostEl, _h.nextSibling); }
+      else { var _w=document.querySelector('.art-wrap')||document.body; _w.insertBefore(hostEl, _w.firstChild); }
+    }
     var onChange= opts.onChange || function(){};
     var SETCFG=null, OWNER=null, EMP=true, MODE='guided';
 
