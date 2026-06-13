@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE goals for the ECH reference install. Honest placeholders — NOT live. Single shared source the Goals & Growth tile reads; each goal's target_date lands on the shared deadline feed as a type:milestone entry (goal_id links them — change a milestone, the goal follows). calendar_status: on-track | at-risk (at-risk carries a reason, usually a slipped dependency).",
+  "generated_at": "2026-06-11",
+  "goals": [
+    { "id": "g-doors-10", "label": "10 doors by 2027", "progress": "9 / 10", "pct": 90, "tone": "green" },
+    { "id": "g-cashflow", "label": "$5,000/mo cash flow", "progress": "$4,010 / $5,000", "pct": 80, "tone": "yellow" },
+    { "id": "g-liquidity-200", "label": "$200K liquidity", "progress": "$185K / $200K", "pct": 92, "tone": "green" },
+    { "id": "g-remington-leased", "label": "102 Remington leased", "target_date": "2026-07-15",
+      "calendar_status": "at-risk", "risk_reason": "make-ready WO-1041 due Jun 15", "milestone": true },
+    { "id": "g-door-14", "label": "Door #14 under contract", "target_date": "2026-09-30",
+      "calendar_status": "on-track", "milestone": true },
+    { "id": "g-liquidity", "label": "$500K liquidity floor restored", "target_date": "2026-11-01",
+      "calendar_status": "on-track", "milestone": true }
+  ]
+}

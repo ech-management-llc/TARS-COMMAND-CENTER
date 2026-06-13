@@ -24,18 +24,13 @@
 
   <div class="card" data-view-section="goals">
     <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:10px">YOUR GOALS</div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>10 doors by 2027</span><span style="color:var(--green)">9 / 10</span></div>
-      <div style="background:var(--surf2);border-radius:6px;height:9px"><div style="background:var(--green);width:90%;height:9px;border-radius:6px"></div></div>
-    </div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>$5,000/mo cash flow</span><span style="color:var(--yellow)">$4,010 / $5,000</span></div>
-      <div style="background:var(--surf2);border-radius:6px;height:9px"><div style="background:var(--yellow);width:80%;height:9px;border-radius:6px"></div></div>
-    </div>
-    <div>
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>$200K liquidity</span><span style="color:var(--green)">$185K / $200K</span></div>
-      <div style="background:var(--surf2);border-radius:6px;height:9px"><div style="background:var(--green);width:92%;height:9px;border-radius:6px"></div></div>
-    </div>
+    <div id="goal-bars"></div>
+  </div>
+
+  <div class="card" data-view-section="milestones">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">MILESTONES — ON CALENDAR</div>
+    <table><thead><tr><th>GOAL</th><th>TARGET DATE</th><th>ON CALENDAR</th></tr></thead><tbody id="goal-miles"></tbody></table>
+    <div class="small dim" style="margin-top:8px">Goal target dates land on the Calendar as milestones (purple mark, soft); calendar entries link back here. Sage can move a milestone — the goal follows.</div>
   </div>
 
   <div style="font-size:11px;color:var(--dim);margin-top:10px">At your current pace you hit $5K/mo by Q1 2027. Next-deal readiness pulls from Capital Rules + liquidity. <button class="xref" type="button" onclick="flOpen('capital-rules')" title="Open Financial Health">Financial Health</button> Sample data.</div>
@@ -44,6 +39,33 @@
 
 <script>
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function niceD(ds){ var d=new Date(ds+'T00:00:00'); return isNaN(d)?esc2(ds):d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+
+  // live read of the shared goals record; milestones cross-link to the Calendar (purple marks)
+  fetch('../../../data/STUB_GOALS.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){
+      var gs = d.goals||[];
+      var tones = {green:'var(--green)', yellow:'var(--yellow)', red:'var(--red)'};
+      document.getElementById('goal-bars').innerHTML = gs.filter(function(g){ return !g.milestone; }).map(function(g){
+        var c = tones[g.tone]||'var(--green)';
+        return '<div style="margin-bottom:12px">'+
+          '<div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>'+esc2(g.label)+'</span><span style="color:'+c+'">'+esc2(g.progress)+'</span></div>'+
+          '<div style="background:var(--surf2);border-radius:6px;height:9px"><div style="background:'+c+';width:'+(g.pct||0)+'%;height:9px;border-radius:6px"></div></div></div>';
+      }).join('');
+      document.getElementById('goal-miles').innerHTML = gs.filter(function(g){ return g.milestone; }).map(function(g){
+        var cal = g.calendar_status==='at-risk'
+          ? '<span class="pill ry">'+niceD(g.target_date)+' · at risk — '+esc2(g.risk_reason||'dependency slipped')+'</span>'
+          : '<button class="xref" type="button" onclick="flOpen(\'calendar\')" title="Open Calendar — milestone is on it">'+niceD(g.target_date)+' · milestone</button>';
+        return '<tr><td>'+esc2(g.label)+'</td><td>'+esc2(g.target_date)+'</td><td>'+cal+'</td></tr>';
+      }).join('');
+    })
+    .catch(function(){
+      document.getElementById('goal-bars').innerHTML='<div class="muted small">Awaiting goals record — shared source not reachable.</div>';
+      document.getElementById('goal-miles').innerHTML='';
+    });
+
   var viewOps = [];
   function applyViewCfg(ops){
     viewOps = ops||[];
