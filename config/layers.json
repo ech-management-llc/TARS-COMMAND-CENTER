@@ -629,13 +629,16 @@
       "id": "recurring",
       "title": "Recurring",
       "icon": "⏰",
-      "desc": "scheduled tasks",
+      "desc": "what repeats · when it hits next",
       "group": "brief",
+      "tier": "L1",
       "enabled": true,
       "entitled": true,
       "data": { "type": "static" },
-      "status_rules": "soon",
-      "drilldown": null
+      "status_rules": "neutral",
+      "drilldown": "./layers/recurring/artifact/index.html",
+      "employee": { "name": "Bell", "role": "Scheduler", "avatar": "B" },
+      "chips": ["What recurs this month?", "When does the next mortgage draft hit?", "Add a recurring task"]
     },
     {
       "id": "add-layer",

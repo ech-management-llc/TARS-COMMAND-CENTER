@@ -27,8 +27,9 @@
 .day.soft{background:var(--yellowbg);border-color:var(--yellowln)} .day.soft .dn{color:var(--yellow)}
 .day .marks{display:flex;gap:2px;flex-wrap:wrap;margin-top:2px}
 .day .mk{width:6px;height:6px;border-radius:50%}
-.mk.p{background:var(--red)} .mk.d{background:var(--yellow)} .mk.a{background:var(--green)}
+.mk.p{background:var(--red)} .mk.d{background:var(--yellow)} .mk.a{background:var(--green)} .mk.m{background:var(--purple)}
 .day .cnt{position:absolute;top:3px;right:5px;font-size:9px;font-weight:800;color:var(--dim)}
+.day .alarm{position:absolute;bottom:2px;right:4px;font-size:11px;line-height:1;cursor:pointer}
 .legendrow{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-bottom:8px}
 .legendrow i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 /* day expansion */
@@ -76,6 +77,8 @@
       <span><i style="background:var(--redbg);border:1px solid var(--redln)"></i><b style="color:var(--red)">RED day</b> = hard deadline (payments are automatically hard)</span>
       <span><i style="background:var(--yellowbg);border:1px solid var(--yellowln)"></i> soft deadline</span>
       <span><i style="background:var(--green);border-radius:50%"></i> appointment / tour</span>
+      <span><i style="background:var(--purple);border-radius:50%"></i> goal milestone</span>
+      <span>⏰ recurring lands that day — click it → Recurring</span>
       <span><i style="border:1px solid var(--blue);background:transparent"></i> today</span>
       <span>🔐 payments carry a <b>secured account link</b> + AUTOPAY/MANUAL — opens the account's own portal, signed in by passkey/hardware key; no passwords stored here, ever</span>
     </div>
@@ -106,13 +109,13 @@
   // merged feed = (base − removed, hard flags overridden) + (added − removed).
   // The Inbox tile writes bookings into the same overlay — that is the cross-tile feed.
   var OVKEY = 'fl_deadlines_overlay_v1';
-  var BASE = [], MONTHS = [], selDay = null;
+  var BASE = [], MONTHS = [], selDay = null, REC = [];
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   var FROM_LAYER = { 'Vendors':'vendors-payables', 'Legal':'legal', 'Sign':'sign', 'Inbox':'inbox', 'Taxes':'taxes',
                      'Rent Roll':'rent-roll', 'Insurance':'insurance', 'Compliance':'compliance', 'Maintenance':'maintenance',
-                     'Entities':'entities' };
+                     'Entities':'entities', 'Goals & Growth':'goals-growth' };
   function fromChips(from){
     return String(from||'').split(' / ').map(function(t){
       var id = FROM_LAYER[t];
@@ -139,6 +142,27 @@
   function dstr(y,m,d){ return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
   function entriesFor(ds){ return merged().filter(function(e){ return e.date===ds; }); }
 
+  // expand the shared recurring schedule (STUB_RECURRING) into ⏰ day markers for the visible months
+  function recurSet(){
+    var set = {};
+    MONTHS.forEach(function(mm){
+      var y=mm[0], m=mm[1], dim=new Date(y,m+1,0).getDate();
+      REC.forEach(function(r){
+        if(r.cadence==='monthly' && r.day<=dim) set[dstr(y,m,r.day)]=1;
+        else if(r.cadence==='yearly' && r.month===m+1 && r.day<=dim) set[dstr(y,m,r.day)]=1;
+        else if(r.cadence==='quarterly' && r.anchor){
+          var a=new Date(r.anchor+'T00:00:00');
+          for(var k=0;k<40;k++){ var o=new Date(a.getFullYear(), a.getMonth()+3*k, a.getDate());
+            if(o.getFullYear()===y && o.getMonth()===m){ set[dstr(y,m,o.getDate())]=1; break; }
+            if(o.getFullYear()>y || (o.getFullYear()===y && o.getMonth()>m)) break; }
+        }
+      });
+    });
+    return set;
+  }
+  // ⏰ click → open the Recurring tile focused on that day (focus handed via localStorage)
+  function openRecurring(ds){ try{ localStorage.setItem('fl_recurring_focus', ds); }catch(e){} flOpen('recurring'); }
+
   function initMonths(){
     var t = new Date();
     MONTHS = [];
@@ -154,6 +178,7 @@
     var keepX = el.scrollLeft; // re-render must not snap the strip back
     var tn = new Date();
     var todayDs = dstr(tn.getFullYear(), tn.getMonth(), tn.getDate()); // LOCAL date — toISOString would ring tomorrow after 7 PM CDT
+    var recurs = recurSet();
     var html='';
     MONTHS.forEach(function(mm){
       var y=mm[0], m=mm[1];
@@ -172,13 +197,14 @@
           var dd=cells[w*7+c];
           if(dd===null){ html+='<div class="day blank"></div>'; continue; }
           var ds=dstr(y,m,dd), ents=entriesFor(ds);
-          // color law: any HARD item -> red day; soft non-appointments -> amber; appointments -> green dot
+          // color law: any HARD item -> red day; soft non-appointments -> amber (milestones stay purple-dot only); appointments -> green dot
           var hard=ents.some(function(e){return e.hard;});
-          var soft=!hard&&ents.some(function(e){return e.type!=='appointment';});
+          var soft=!hard&&ents.some(function(e){return e.type!=='appointment'&&e.type!=='milestone';});
           var cls='day'+(hard?' hard':'')+(soft?' soft':'')+(ds===todayDs?' today':'')+(ds===selDay?' sel':'');
           if(ds===selDay) weekHasSel=true;
-          var marks=ents.slice(0,4).map(function(e){ return '<span class="mk '+(e.type==='payment'?'p':(e.type==='appointment'?'a':'d'))+'"></span>'; }).join('');
-          html+='<div class="'+cls+'" onclick="selectDay(\''+ds+'\')"><div class="dn">'+dd+'</div>'+(ents.length?'<span class="cnt">'+ents.length+'</span>':'')+'<div class="marks">'+marks+'</div></div>';
+          var marks=ents.slice(0,4).map(function(e){ return '<span class="mk '+(e.type==='payment'?'p':(e.type==='appointment'?'a':(e.type==='milestone'?'m':'d')))+'"></span>'; }).join('');
+          var alarm=recurs[ds]?'<span class="alarm" onclick="event.stopPropagation();openRecurring(\''+ds+'\')" title="Recurring lands this day — open Recurring">⏰</span>':'';
+          html+='<div class="'+cls+'" onclick="selectDay(\''+ds+'\')"><div class="dn">'+dd+'</div>'+(ents.length?'<span class="cnt">'+ents.length+'</span>':'')+'<div class="marks">'+marks+'</div>'+alarm+'</div>';
         }
         html+='</div>';
         if(weekHasSel) html+=dayPanel(selDay);
@@ -203,7 +229,7 @@
       }
       var asg = e.assigned ? ' · '+esc(e.assigned) : '';
       h+='<div class="ent'+(e.hard?' hard':'')+'">'+
-        '<span class="tagb typ">'+(e.type==='payment'?'💵 PAYMENT':(e.type==='appointment'?'📅 APPT':'⏰ DEADLINE'))+'</span>'+
+        '<span class="tagb typ">'+(e.type==='payment'?'💵 PAYMENT':(e.type==='appointment'?'📅 APPT':(e.type==='milestone'?'🎯 MILESTONE':'⏰ DEADLINE')))+'</span>'+
         '<span class="t"><b>'+(e.time?esc(e.time)+' · ':'')+esc(e.item)+'</b>'+asg+'<br><span class="src">from '+fromChips(e.from)+'</span>'+acct+'</span>'+
         '<span class="tagb '+(e.hard?'hard':'soft')+'" onclick="togHard(\''+esc(k)+'\','+(e.hard?'false':'true')+')" title="'+(e.type==='payment'?'Payments are hard by policy — click to override':'Toggle hard/soft')+'">'+(e.hard?'HARD ⬤':'soft ○')+'</span>'+
         '<span class="del" onclick="delEnt(\''+esc(k)+'\')" title="Remove">✕</span></div>';
@@ -269,9 +295,10 @@
   });
 
   initMonths();
-  fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ BASE = d.deadlines||[]; renderCal();
+  Promise.all([
+    fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+    fetch('../../../data/STUB_RECURRING.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).catch(function(){ return {recurring:[]}; }) // recurring is additive — its absence never blanks the calendar
+  ]).then(function(res){ BASE = res[0].deadlines||[]; REC = res[1].recurring||[]; renderCal();
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('cal').innerHTML='<div class="muted small" style="padding:8px">Awaiting deadline record — shared source not reachable.</div>'; });
 </script>
