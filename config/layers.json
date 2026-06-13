@@ -538,9 +538,9 @@
     },
     {
       "id": "compliance",
-      "title": "Compliance & Inspections",
+      "title": "Compliance, Inspections & Permits",
       "icon": "✅",
-      "desc": "licenses · registrations · safety",
+      "desc": "licenses · inspections · permits",
       "group": "admin",
       "tier": "L1",
       "enabled": true,

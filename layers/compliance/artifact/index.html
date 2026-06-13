@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Compliance &amp; Inspections — Foundation Layer Command Center</title>
+<title>Compliance, Inspections &amp; Permits — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
 <div class="art-wrap">
-  <div class="art-head">✅ Compliance &amp; Inspections</div>
+  <div class="art-head">✅ Compliance, Inspections &amp; Permits</div>
 
   <div class="preview-banner">
     <b>PREVIEW — sample data.</b> The live source isn't wired yet, so the items below are illustrative — honest sample state until the connector phase lands.
@@ -34,10 +34,63 @@
     <div style="font-size:11px;color:var(--dim);margin-top:8px">Tracks every registration, license, inspection, and safety rule per property and entity, with reminders. Ties to <button class="xref" type="button" onclick="flOpen('legal')" title="Open Legal">Legal</button> + <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar">Calendar</button>. Sample data.</div>
   </div>
 
+  <div class="card" data-view-section="permits">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">PERMITS — first-class topic (Frances pulls THIS location's requirements: forms, fees, schedules)</div>
+    <div class="jbar" id="jur"></div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <span class="pill pp">COMPLIANCE</span><span class="pill pp">INSPECTIONS</span><span class="pill pp">PERMITS — new topic</span>
+      <button class="fbtn on" type="button" onclick="pullPermits()">Pull local requirements</button>
+    </div>
+    <div id="permits-out"><div class="small dim">Pick the jurisdiction and pull — same shared picker as Legal (your selection follows you between tiles).</div></div>
+  </div>
+
+  <div class="card" data-view-section="reference-docs">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">REFERENCE DOCS — adopted codes · IBC</div>
+    <div id="ref-drop"></div>
+    <div class="warn">⚠️ Model codes (IBC/ICC) are <b>copyrighted</b> — we link the jurisdiction's official adopted-code page or store only licensed copies, never redistribute the full text. Dropped references file into <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button> (Permits &amp; Codes) and link back here.</div>
+  </div>
+
 </div>
 
+<script src="../../../shared/jurisdiction.js"></script>
+<script src="../../../shared/ingest.js"></script>
+<script src="../../../shared/docdrop.js"></script>
 <script>
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  var JUR = null, pulled = false;
+  FLJur.mount(document.getElementById('jur'), function(sel){ JUR = sel; if(pulled) pullPermits(); });
+
+  function statusPill(s){
+    if(/required/i.test(s)) return '<span class="pill ry">'+esc2(s.toUpperCase())+'</span>';
+    if(/current/i.test(s)) return '<span class="pill rg">CURRENT</span>';
+    return '<span class="pill rg">'+esc2(s.toUpperCase())+'</span>';
+  }
+  function tieChip(t){
+    var lbl = {'build-renovate':'Build & Renovate','maintenance':'Maintenance','legal':'Legal'}[t]||t;
+    return t?'<button class="xref" type="button" onclick="flOpen(\''+esc2(t)+'\')" title="Permits gate the work — status flows both ways">'+esc2(lbl)+'</button>':'';
+  }
+  // permits/inspections for THIS jurisdiction — through the one ingestion layer
+  function pullPermits(){
+    pulled = true;
+    var j = JUR || FLJur.current() || {};
+    FLIngest.request('permits', {filter:function(r){ return r.state===j.state && (!r.county||r.county===j.county); }}).then(function(res){
+      document.getElementById('permits-out').innerHTML =
+        '<table><tr><th>PERMIT / ITEM</th><th>FOR</th><th>STATUS</th><th>TIES</th></tr>'+
+        (res.rows.length?res.rows.map(function(r){
+          return '<tr><td>'+esc2(r.item)+'</td><td>'+esc2(r['for'])+'</td><td>'+statusPill(r.status)+'</td><td>'+tieChip(r.ties)+'</td></tr>';
+        }).join(''):'<tr><td colspan="4" class="muted">No requirement rows for this jurisdiction yet — the per-site scrape wires at the connector phase.</td></tr>')+
+        '</table>'+FLIngest.stamp(res);
+    }).catch(function(){ document.getElementById('permits-out').innerHTML='<div class="small dim">Permit source not reachable.</div>'; });
+  }
+
+  // reference docs (adopted codes / licensed IBC) — shared doc-drop, filing into Permits & Codes
+  FLDocDrop.mount(document.getElementById('ref-drop'), {
+    folder:'permits', source_tile:'compliance',
+    label:'Drop reference docs (adopted codes · IBC)', sub:'filed into Document Navigator · linked back here'
+  });
+
   function applyViewCfg(ops){
     ops = ops || [];
     document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE permit/inspection/compliance requirement rows served through the single ingestion layer. Honest placeholders — the real per-jurisdiction scrape (requirements, schedules, fees, forms) wires at the connector phase, ToS-aware per municipal site. IBC/ICC model-code text is COPYRIGHTED — link the jurisdiction's official adopted-code page or store licensed copies only, never redistribute. Ties are live cross-tile links (permits gate reno + work-order jobs).",
+  "generated_at": "2026-06-11",
+  "sources": ["municipal permit offices (sample)", "official adopted-code pages"],
+  "rows": [
+    { "state": "Texas", "county": "Henderson County", "municipality": "Mabank",
+      "item": "Building permit — interior reno", "for": "WO-1041 make-ready · 102 Remington",
+      "status": "required", "ties": "build-renovate" },
+    { "state": "Texas", "county": "Henderson County", "municipality": "Mabank",
+      "item": "Smoke/CO inspection", "for": "415 Skiles · lease renewal",
+      "status": "current", "ties": "maintenance" },
+    { "state": "Texas", "county": "Henderson County", "municipality": "Athens (city)",
+      "item": "STR permit check", "for": "Athens city limits",
+      "status": "n/a — long-term rentals", "ties": "legal" }
+  ]
+}
