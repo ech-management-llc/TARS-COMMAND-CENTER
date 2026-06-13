@@ -9,6 +9,7 @@
 <body>
 <div class="art-wrap">
   <div class="art-head">🔧 Maintenance — Work Orders</div>
+  <div id="scopebar"></div>
 
   <div class="preview-banner">
     <b>PREVIEW — sample work orders.</b> Intake (often from the Inbox), dispatch by SMS + email, status replies, and the close→bill handoff are real designs; connectors (Gmail · SMS · Vendors · Team) aren't wired yet, so rows are illustrative.
@@ -58,13 +59,15 @@
   </div>
 </div>
 
+<script src="../../../shared/fl-scope-select.js"></script>
 <script>
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  var WOS = [], CONNS = null;
+  var WOS = [], CONNS = null, SELP = null, scope = null;
+  function scopedWOS(){ return SELP ? WOS.filter(function(w){ return SELP.indexOf(w.property)>=0; }) : WOS; }
   function setMode(btn){
     document.querySelectorAll('#dispatchmode button').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
-    renderDispatch(WOS.filter(isDraft), CONNS); // the gate is live — flipping the mode re-renders held/sent
+    renderDispatch(scopedWOS().filter(isDraft), CONNS); // the gate is live — flipping the mode re-renders held/sent
   }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function money(n){ if(n==null||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
@@ -164,7 +167,10 @@
   Promise.all([
     fetch('../../../data/STUB_WORKORDERS.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
     fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).catch(function(){ return null; }) // recipients optional — absence never blanks the tile
-  ]).then(function(res){ WOS = res[0].work_orders||[]; CONNS = res[1]; if(!WOS.length) throw 0; render(WOS, CONNS);
+  ]).then(function(res){ WOS = res[0].work_orders||[]; CONNS = res[1]; if(!WOS.length) throw 0;
+      var props=[]; WOS.forEach(function(w){ if(w.property && props.indexOf(w.property)<0) props.push(w.property); });
+      if(window.FLScope) scope=FLScope.create({ items:props.map(function(p){ return {id:p, label:String(p).split(' · ')[0], sub:p}; }), unit:'property', unitPlural:'properties', label:'🔧 Work orders for', persistKey:'tcc_maint_scope', host:'#scopebar', onChange:function(ids,isAll){ SELP=isAll?null:ids; render(scopedWOS(), CONNS); } });
+      render(scopedWOS(), CONNS);
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){
       document.getElementById('wo-kpis').innerHTML='<div class="muted">Awaiting work-order record — shared source not reachable.</div>';
