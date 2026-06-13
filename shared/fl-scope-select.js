@@ -96,6 +96,7 @@
 
     function renderBar(){
       if(!hostEl) return;
+      injectCss();                                 // ensure styles exist even before the chooser opens
       hostEl.className='flsc-bar';
       hostEl.innerHTML='<span class="flsc-si">'+esc(opts.label||'Showing')+':</span> '+
         '<span>'+(isAll()?('All '+esc(unitPlural)+' ('+items.length+')'):(count()+' of '+items.length+' '+esc(unitPlural)))+'</span>'+

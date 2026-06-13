@@ -111,6 +111,7 @@
 
     function renderSetbar(){
       if(!hostEl) return;
+      injectCss();                                 // ensure styles exist even before any modal opens
       hostEl.className='fls-bar';
       var e=emp(), hasParams=params().length>0;
       var demo='<button class="fls-link" data-fls="demo" title="demo only — simulates the employee plug-in on/off">demo: employee '+(EMP?'ON':'OFF')+'</button>';
