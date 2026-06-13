@@ -60,12 +60,13 @@
   <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
 </div>
 
+<script src="../../../shared/fl-scope-select.js"></script>
 <script>
   var FL = "https://api.foundationlayerhq.com/api/dashboard/latest";
   var PROFILES_URL = "../../../data/STUB_CAPITAL_PROFILES.json";
   var LS = "tcc_fin_artifact_lastgood";
   var SEL_LS = "tcc_fin_entity_sel";
-  var DATA = null, PROFILES = null, SEL = null; // SEL=null until first render (defaults to all)
+  var DATA = null, PROFILES = null, SEL = null, scope = null; // SEL mirrors the shared FLScope selection (full array = all)
 
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
@@ -77,8 +78,7 @@
   function fmtDscr(v){ return v==null?'—':Number(v).toFixed(2)+'×'; }
 
   function allCodes(){ return ((DATA&&DATA.entities)||[]).map(entCode); }
-  function loadSel(){ try{ var s=JSON.parse(localStorage.getItem(SEL_LS)||'null'); if(Array.isArray(s)&&s.length) SEL=s; }catch(e){} }
-  function saveSel(){ try{ localStorage.setItem(SEL_LS, JSON.stringify(SEL||[])); }catch(e){} }
+  // entity selection + persistence are managed by the shared FLScope component (created on data load).
   function entCode(e){ return e.code||e.id||e.name; }
   function ownerOf(code){ var o=PROFILES&&PROFILES.overrides&&PROFILES.overrides[code]; return (o&&o.owner)||(PROFILES&&PROFILES.default_owner)||'ECH Management (self-managed)'; }
   function isOverride(code){ return !!(PROFILES&&PROFILES.overrides&&PROFILES.overrides[code]); }
@@ -86,8 +86,8 @@
 
   function scopeEntities(){ var all=(DATA&&DATA.entities)||[]; if(!SEL) return all; return all.filter(function(e){ return SEL.indexOf(entCode(e))>=0; }); }
 
-  function selectAll(){ SEL=allCodes(); saveSel(); renderAll(); }
-  function toggleEntity(code){ if(!SEL) SEL=allCodes().slice(); var i=SEL.indexOf(code); if(i>=0) SEL.splice(i,1); else SEL.push(code); saveSel(); renderAll(); }
+  function selectAll(){ if(scope) scope.selectAll(); }            // delegate to FLScope
+  function toggleEntity(code){ if(scope) scope.toggle(code); }    // delegate to FLScope
 
   function ownersInScope(){ var ents=scopeEntities(); var set=[]; ents.forEach(function(e){ var o=ownerOf(entCode(e)); if(set.indexOf(o)<0) set.push(o); }); return set; }
   function ownerHasOverride(owner){ var ov=(PROFILES&&PROFILES.overrides)||{}; return Object.keys(ov).some(function(k){ return ov[k].owner===owner && ov[k].profile; }); }
@@ -188,10 +188,13 @@
     var bar=document.getElementById('statusbar');
     if(hasIncome){ bar.className='livewire livegreen'; bar.innerHTML='🟢 LIVE — Foundation Layer ledger data · week of '+esc(d.week_of||''); }
     else { bar.className='livewire'; bar.innerHTML='🔌 LIVE WIRE — real dollar figures pending (ledger engine not finished). Rules + structure are live; revenue / NOI read $0 honestly.'; }
-    var codes=allCodes();
-    if(SEL){ SEL=SEL.filter(function(c){ return codes.indexOf(c)>=0; }); } else { SEL=codes.slice(); } // default = all selected (consolidated)
-    saveSel();
-    renderAll();
+    if(!scope){
+      scope=FLScope.create({
+        items:(DATA.entities||[]).map(function(e){ return {id:entCode(e), label:(e.name||entCode(e))}; }),
+        unit:'entity', persistKey:SEL_LS,
+        onChange:function(ids){ SEL=ids.slice(); renderAll(); }   // mirror selection, re-render rows
+      });
+    } else { renderAll(); }
     document.getElementById('stamp').textContent='Source: '+source+' · generated '+ts(d.generated_at);
     try{ localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}
   }
@@ -209,7 +212,6 @@
   function report(name){ var n=SEL?SEL.length:allCodes().length; var sc=(isAll()||!SEL)?' (all entities, consolidated)':(n===0?' (no entities selected)':(' for the '+n+' selected entit'+(n>1?'ies':'y'))); document.getElementById('reportnote').innerHTML='<b>'+name+'</b>'+sc+' is pre-production: the ledger reads $0 until real income flows at Plaid production. The weekly pack generates from the Foundation Layer ledger.'; }
   function emailReport(){ document.getElementById('reportnote').innerHTML='Live build: opens the email flow (recipient · scope · note) and sends the report via the Foundation Layer report pipeline. No external send is wired in this public preview.'; }
 
-  loadSel();
   Promise.all([
     fetch(FL,{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
     fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
