@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE precedent rows served through the single ingestion layer. THESE CASES ARE FICTIONAL SAMPLES (clearly labeled in the UI) — illustrative of the lookup shape only; real rows come from open case-law sources (CourtListener / Justia / Scholar) at the connector phase, with verified citations. NEVER present a real-looking citation without a source link. Informational, not legal advice.",
+  "generated_at": "2026-06-11",
+  "sources": ["open case-law sources (CourtListener · Justia · Scholar) — fictional samples until wired"],
+  "rows": [
+    { "state": "Texas", "case": "Smith v. Hendr. Cty LLC (Tex. App. 2023) — FICTIONAL SAMPLE",
+      "holding": "Landlord's 3-day notice valid though emailed — lease allowed e-notice", "posture": "for" },
+    { "state": "Texas", "case": "Doe v. ABC Rentals (Tex. App. 2021) — FICTIONAL SAMPLE",
+      "holding": "Repair-and-deduct upheld where landlord ignored 2 written notices", "posture": "against" }
+  ]
+}
