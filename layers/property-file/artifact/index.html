@@ -111,5 +111,7 @@
     .then(function(d){ WO_OPEN = {}; (d.work_orders||[]).forEach(function(w){ if(w.status!=='done'&&w.status!=='closed'&&w.status!=='draft') WO_OPEN[w.property]=(WO_OPEN[w.property]||0)+1; }); if(PROPS.length) render(); })
     .catch(function(){ WO_OPEN = null; });
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'property-file'});</script>
 </body>
 </html>

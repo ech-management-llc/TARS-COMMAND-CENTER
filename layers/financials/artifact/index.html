@@ -217,5 +217,7 @@
     fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
   ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api'); }).catch(fail);
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'financials'});</script>
 </body>
 </html>

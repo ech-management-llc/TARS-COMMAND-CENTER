@@ -126,5 +126,7 @@
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('ent-head').innerHTML='<div class="muted">Awaiting entity record — shared source not reachable.</div>'; });
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'entities'});</script>
 </body>
 </html>
