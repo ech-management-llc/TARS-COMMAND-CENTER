@@ -123,7 +123,46 @@
         "avatar": "M",
         "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
       },
-      "params": [],
+      "params": [
+        {
+          "key": "ltv_max",
+          "label": "Max LTV before it flags",
+          "type": "number",
+          "default": 65,
+          "min": 0,
+          "max": 100,
+          "unit": "%",
+          "q": "What's the highest LTV you'll allow before a property/owner flags red? (your doctrine: ≤50% green, >65% red)"
+        },
+        {
+          "key": "dscr_min",
+          "label": "Minimum DSCR",
+          "type": "number",
+          "default": 1.25,
+          "min": 0.5,
+          "max": 3,
+          "unit": "x",
+          "q": "Minimum DSCR before it flags red? (your doctrine: <1.25 red, >1.40 green)"
+        },
+        {
+          "key": "liquidity_floor",
+          "label": "Liquidity floor",
+          "type": "money",
+          "default": 500000,
+          "min": 0,
+          "max": 5000000,
+          "q": "What cash liquidity floor must you stay above? (breach below this)"
+        },
+        {
+          "key": "per_door_floor",
+          "label": "Per-door net floor",
+          "type": "money",
+          "default": 300,
+          "min": 0,
+          "max": 2000,
+          "q": "Minimum net cash flow per door? (your doctrine: $400 target, $300 floor)"
+        }
+      ],
       "section": "financials"
     },
     "property-file": {
@@ -143,7 +182,37 @@
         "avatar": "J",
         "intro": "Hi, I’m Jordan — I lead operations: maintenance, build & renovate, and compliance, inspections & permits."
       },
-      "params": [],
+      "params": [
+        {
+          "key": "approval_threshold",
+          "label": "Approval required above",
+          "type": "money",
+          "default": 1000,
+          "min": 0,
+          "max": 50000,
+          "q": "A work order costing more than this needs your sign-off before dispatch?"
+        },
+        {
+          "key": "escalate_days",
+          "label": "Escalate when open longer than",
+          "type": "number",
+          "default": 7,
+          "min": 1,
+          "max": 60,
+          "unit": "days",
+          "q": "An open work order older than how many days should turn red?"
+        },
+        {
+          "key": "emergency_sla_hours",
+          "label": "Emergency response window",
+          "type": "number",
+          "default": 24,
+          "min": 1,
+          "max": 168,
+          "unit": "hours",
+          "q": "How fast must an emergency work order be handled before it's overdue?"
+        }
+      ],
       "section": "operations"
     },
     "sell-exit": {

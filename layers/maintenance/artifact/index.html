@@ -64,6 +64,21 @@
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   var WOS = [], CONNS = null, SELP = null, scope = null;
   function scopedWOS(){ return SELP ? WOS.filter(function(w){ return SELP.indexOf(w.property)>=0; }) : WOS; }
+  // -- Maintenance knobs (tile setbar): approval $ . escalate days . emergency SLA hrs. Acts on the sample WOs only. --
+  var FLS_M = null;
+  function rerenderM(){ try{ render(scopedWOS(), CONNS); }catch(e){} }
+  function woCost(w){ return (w.bill&&w.bill.amount!=null)?w.bill.amount:(w.est_cost!=null?w.est_cost:0); }
+  function daysOpen(w){ if(!w.opened) return null; var o=new Date(w.opened+'T00:00:00'); if(isNaN(o)) return null; var n=new Date(); return Math.floor((new Date(n.getFullYear(),n.getMonth(),n.getDate())-o)/864e5); }
+  function hoursOpen(w){ if(!w.opened) return null; var o=new Date(w.opened+'T00:00:00'); if(isNaN(o)) return null; return (Date.now()-o.getTime())/36e5; }
+  // knob-driven flags appended to the status cell. No-op until the setbar loads (FLS_M set); honest about missing data (null est_cost / opened -> no flag).
+  function woFlags(w){
+    if(!FLS_M) return '';
+    var out='';
+    if((isOpen(w)||isDraft(w)) && FLS_M.approval_threshold!=null && woCost(w)>FLS_M.approval_threshold) out+=' <span class="tag b-yellow">needs approval</span>';
+    if(isOpen(w) && FLS_M.escalate_days!=null){ var d=daysOpen(w); if(d!=null && d>FLS_M.escalate_days) out+=' <span class="tag b-red">overdue '+d+'d</span>'; }
+    if((isOpen(w)||isDraft(w)) && w.priority==='urgent' && FLS_M.emergency_sla_hours!=null){ var h=hoursOpen(w); if(h!=null && h>FLS_M.emergency_sla_hours) out+=' <span class="tag b-red">SLA breached</span>'; }
+    return out;
+  }
   function setMode(btn){
     document.querySelectorAll('#dispatchmode button').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
@@ -79,7 +94,8 @@
   function isDraft(w){ return w.status==='draft'; }
   function isOpen(w){ return w.status!=='done' && w.status!=='closed' && !isDraft(w); }
 
-  function statusCell(w){
+  function statusCell(w){ return statusBase(w)+woFlags(w); }
+  function statusBase(w){
     if(isDraft(w)) return '<span class="tag" style="background:var(--purplebg);color:#c9c2ff">draft · from '+esc(w.source||'Inbox')+(w.photos?' · 📷'+w.photos:'')+'</span>';
     if(!isOpen(w)){
       var billed = w.bill ? ' → billed' : '';
@@ -180,6 +196,6 @@
     });
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
-<script>FLSettings.mount({tileId:'maintenance'});</script>
+<script>FLSettings.mount({ tileId:'maintenance', onChange:function(eff){ FLS_M=eff; rerenderM(); } });</script>
 </body>
 </html>

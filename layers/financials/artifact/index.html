@@ -67,6 +67,7 @@
   var LS = "tcc_fin_artifact_lastgood";
   var SEL_LS = "tcc_fin_entity_sel";
   var DATA = null, PROFILES = null, SEL = null, scope = null; // SEL mirrors the shared FLScope selection (full array = all)
+  var FLS_OVR = null;            // owner's tunable thresholds from the Financials tile setbar (param LTV is %, converted to a fraction in profileFor)
 
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
@@ -98,6 +99,12 @@
     var ov=(PROFILES&&PROFILES.overrides)||{};
     var key=Object.keys(ov).filter(function(k){ return ov[k].owner===owner && ov[k].profile; })[0];
     if(key){ var p=ov[key].profile; for(var f in p){ base[f]=p[f]; } }
+    if(FLS_OVR){                                          // owner's knob = highest-priority override (Financials setbar)
+      if(FLS_OVR.ltv_max!=null)          base.ltv_max=FLS_OVR.ltv_max/100;   // param is % (65) -> profile uses a fraction (0.65)
+      if(FLS_OVR.dscr_min!=null)         base.dscr_min=FLS_OVR.dscr_min;
+      if(FLS_OVR.liquidity_floor!=null)  base.liquidity_floor=FLS_OVR.liquidity_floor;
+      if(FLS_OVR.per_door_floor!=null)   base.per_door_floor=FLS_OVR.per_door_floor;
+    }
     return base;
   }
 
@@ -112,11 +119,14 @@
 
     if(owners.length<=1 && (!owners.length || !ownerHasOverride(owners[0]))){
       var ow=owners[0]||defaultOwner;
+      var prof=FLS_OVR?profileFor(ow):null;                 // knob-adjusted threshold targets for the single owner
       pill.textContent=ow+' · consolidated'; pill.className='pill rg';
       document.getElementById('rules').innerHTML=order.map(function(o){
         var r=cr[o[0]]; if(!r) return '';
         var st=r.status||'UNKNOWN'; var cls=ruleColor(st);
-        var sub=st==='UNKNOWN'?'pending (sandbox)':('thresh '+o[2](r.threshold)+(r.headroom!=null?' · head '+o[2](r.headroom):''));
+        var profKey={ltv:'ltv_max',dscr:'dscr_min',liquidity:'liquidity_floor',per_door:'per_door_floor'}[o[0]];
+        var thr=(prof&&prof[profKey]!=null)?prof[profKey]:r.threshold;   // knob target if set, else API threshold (status + value stay from the API)
+        var sub=st==='UNKNOWN'?(FLS_OVR&&thr!=null?('thresh '+o[2](thr)+' · pending (sandbox)'):'pending (sandbox)'):('thresh '+o[2](thr)+(r.headroom!=null?' · head '+o[2](r.headroom):''));
         var click=o[0]==='per_door'?' onclick="flOpen(\'property-file\')" style="cursor:pointer" title="Open Property File — per-door numbers"':'';
         return '<div class="rule '+cls+'"'+click+'><div class="rn">'+o[1]+'</div><div class="rv">'+(st==='UNKNOWN'?'—':o[2](r.value))+'</div><div class="rt">'+esc(sub)+(o[0]==='per_door'?' ↗':'')+'</div></div>';
       }).join('');
@@ -218,6 +228,6 @@
   ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api'); }).catch(fail);
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
-<script>FLSettings.mount({tileId:'financials'});</script>
+<script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
 </body>
 </html>
