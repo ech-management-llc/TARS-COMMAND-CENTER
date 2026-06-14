@@ -130,6 +130,12 @@ function visibleLayers(){
   let ls = (STATE.registry.layers||[]).filter(l => l.enabled !== false && Entitlement.isEntitled(l));
   // Field role: scoped to ONE layer/job. Read-only/Owner/Admin see all entitled layers.
   if (STATE.role === 'field' && STATE.scope) ls = ls.filter(l => l.id === STATE.scope);
+  // Member role: UI-scoped to granted sections (section_lead) + tiles + baseline (Inbox/Calendar).
+  // NOTE: UX only — a determined user can unhide; real access control is server-side at the auth phase (TD-101).
+  else if (STATE.role === 'member' && STATE.user && STATE.user.access) {
+    const a = STATE.user.access, base = ['inbox','calendar'];
+    ls = ls.filter(l => base.indexOf(l.id) >= 0 || (a.sections||[]).indexOf(l.section_lead) >= 0 || (a.tiles||[]).indexOf(l.id) >= 0);
+  }
   return ls;
 }
 function layersInGroup(g){ return visibleLayers().filter(l => l.group === g); }
@@ -141,7 +147,7 @@ function layerById(id){ return (STATE.registry.layers||[]).find(l => l.id === id
 function renderChrome(){
   const b = (STATE.tenant.branding)||{};
   const u = STATE.user || {};
-  const roleLabel = { owner:'Owner', admin:'Admin', staff:'Staff', viewer:'Read-only', tenant:'Tenant', field:'Field' }[STATE.role] || STATE.role;
+  const roleLabel = { owner:'Owner', admin:'Admin', staff:'Staff', viewer:'Read-only', tenant:'Tenant', field:'Field', member:'Member' }[STATE.role] || STATE.role;
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
   const scopeStr = (STATE.role==='field'&&STATE.scope) ? ' · '+esc((layerById(STATE.scope)||{}).title||STATE.scope) : '';
@@ -405,8 +411,14 @@ function renderHome(){
 function renderBriefGroup(ls){
   const ai = STATE.tenant.ai_summary || {};
   const r = STATE.briefRouter || { attn:[], brief:[] };
-  const attn = (r.attn || []).concat(ai.attention || []);   // routed (red) items first, then any static summary
-  const brief = (r.brief || []).concat(ai.brief || []);
+  let attn = (r.attn || []).concat(ai.attention || []);   // routed (red) items first, then any static summary
+  let brief = (r.brief || []).concat(ai.brief || []);
+  // Member scoping (UI only — TD-101): a scoped member only sees brief items routed to a tile they can see.
+  if (STATE.role === 'member' && STATE.user && STATE.user.access) {
+    const vis = {}; visibleLayers().forEach(l => { vis[l.id] = 1; });
+    const ok = it => !it.open || vis[it.open];
+    attn = attn.filter(ok); brief = brief.filter(ok);
+  }
   let h = '';
   if (attn.length){
     h += '<div class="brief-h urg">⚠ NEEDS ATTENTION</div>' + attn.map((it,i)=>briefItem(it,'a'+i,true)).join('');
