@@ -1,18 +1,48 @@
 {
   "schema_version": 2,
   "_doc": "Ordered layer registry. The home renders whatever is here, grouped into labeled collapsible sections by `group`, in the order of the `groups` array. Add a layer = drop a folder in /layers/ + add one entry here. No core edit. See /layers/_TEMPLATE/README.md.",
-
   "groups": [
-    { "id": "brief",       "label": "DAILY BRIEF",                   "render": "brief" },
-    { "id": "overview",    "label": "OVERVIEW",                      "render": "glance" },
-    { "id": "market",      "label": "MARKET & DEALS",                "render": "glance" },
-    { "id": "portfolio",   "label": "PORTFOLIO",                     "render": "card" },
-    { "id": "financial",   "label": "FINANCIAL",                     "render": "card" },
-    { "id": "deals",       "label": "BUILD, RENOVATE & MAINTENANCE", "render": "card" },
-    { "id": "it",          "label": "IT & MARKETING",                "render": "card" },
-    { "id": "admin",       "label": "ADMINISTRATION",                "render": "card" }
+    {
+      "id": "brief",
+      "label": "DAILY BRIEF",
+      "render": "brief"
+    },
+    {
+      "id": "overview",
+      "label": "OVERVIEW",
+      "render": "glance"
+    },
+    {
+      "id": "market",
+      "label": "MARKET & DEALS",
+      "render": "glance"
+    },
+    {
+      "id": "portfolio",
+      "label": "PORTFOLIO",
+      "render": "card"
+    },
+    {
+      "id": "financial",
+      "label": "FINANCIAL",
+      "render": "card"
+    },
+    {
+      "id": "deals",
+      "label": "BUILD, RENOVATE & MAINTENANCE",
+      "render": "card"
+    },
+    {
+      "id": "it",
+      "label": "IT & MARKETING",
+      "render": "card"
+    },
+    {
+      "id": "admin",
+      "label": "ADMINISTRATION",
+      "render": "card"
+    }
   ],
-
   "layers": [
     {
       "id": "system",
@@ -21,7 +51,10 @@
       "group": "overview",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "computed", "source": "system_health" },
+      "data": {
+        "type": "computed",
+        "source": "system_health"
+      },
       "status_rules": "rollup",
       "drilldown": null
     },
@@ -32,11 +65,14 @@
       "group": "overview",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "fl_api", "source": "fl_api", "select": "capital_rules" },
+      "data": {
+        "type": "fl_api",
+        "source": "fl_api",
+        "select": "capital_rules"
+      },
       "status_rules": "capital_rules",
       "drilldown": "./layers/financials/artifact/index.html"
     },
-
     {
       "id": "treasury-10y",
       "title": "Gov't loan rate (10-yr)",
@@ -45,7 +81,11 @@
       "group": "market",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "json_file", "source": "./data/FRED_LATEST.json", "select": "treasury_10y" },
+      "data": {
+        "type": "json_file",
+        "source": "./data/FRED_LATEST.json",
+        "select": "treasury_10y"
+      },
       "status_rules": "market_value",
       "drilldown": "./layers/market-info/artifact/index.html?m=treasury_10y",
       "source_tag": "FRED"
@@ -58,7 +98,11 @@
       "group": "market",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "json_file", "source": "./data/FRED_LATEST.json", "select": "mortgage_30y" },
+      "data": {
+        "type": "json_file",
+        "source": "./data/FRED_LATEST.json",
+        "select": "mortgage_30y"
+      },
       "status_rules": "market_value",
       "drilldown": "./layers/market-info/artifact/index.html?m=mortgage_30y",
       "source_tag": "FRED"
@@ -68,11 +112,19 @@
       "title": "Rental yield (cap rate)",
       "icon": "％",
       "plain": "Typical return for rentals in your area.",
-      "tag": { "label": "In range", "tone": "good" },
+      "tag": {
+        "label": "In range",
+        "tone": "good"
+      },
       "group": "market",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "json_file", "source": "./data/REVENTURE_LATEST.json", "select": "cap_rate", "county_keyed": true },
+      "data": {
+        "type": "json_file",
+        "source": "./data/REVENTURE_LATEST.json",
+        "select": "cap_rate",
+        "county_keyed": true
+      },
       "status_rules": "market_value",
       "drilldown": "./layers/market-info/artifact/index.html?m=cap_rate",
       "source_tag": "REV"
@@ -82,11 +134,19 @@
       "title": "Empty homes — all types",
       "icon": "🏚️",
       "plain": "Mostly seasonal lake homes — your rental vacancy is ~8%.",
-      "tag": { "label": "Just context", "tone": "fyi" },
+      "tag": {
+        "label": "Just context",
+        "tone": "fyi"
+      },
       "group": "market",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "json_file", "source": "./data/REVENTURE_LATEST.json", "select": "vacancy_rate", "county_keyed": true },
+      "data": {
+        "type": "json_file",
+        "source": "./data/REVENTURE_LATEST.json",
+        "select": "vacancy_rate",
+        "county_keyed": true
+      },
       "status_rules": "market_value",
       "drilldown": "./layers/market-info/artifact/index.html?m=vacancy_all",
       "source_tag": "REV"
@@ -96,11 +156,19 @@
       "title": "Rental vacancy",
       "icon": "🔑",
       "plain": "Fairly low — decent pricing power.",
-      "tag": { "label": "Healthy", "tone": "good" },
+      "tag": {
+        "label": "Healthy",
+        "tone": "good"
+      },
       "group": "market",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "json_file", "source": "./data/CENSUS_VACANCY_LATEST.json", "select": "rental_vacancy_rate_pct", "county_keyed": true },
+      "data": {
+        "type": "json_file",
+        "source": "./data/CENSUS_VACANCY_LATEST.json",
+        "select": "rental_vacancy_rate_pct",
+        "county_keyed": true
+      },
       "status_rules": "market_value",
       "drilldown": "./layers/market-info/artifact/index.html?m=rental_vacancy",
       "source_tag": "CEN"
@@ -110,11 +178,18 @@
       "title": "Vacation / seasonal homes",
       "icon": "📐",
       "plain": "Why \"empty homes\" looks high — these aren't rentals.",
-      "tag": { "label": "Good to know", "tone": "fyi" },
+      "tag": {
+        "label": "Good to know",
+        "tone": "fyi"
+      },
       "group": "market",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "computed", "source": "vacancy_gap", "county_keyed": true },
+      "data": {
+        "type": "computed",
+        "source": "vacancy_gap",
+        "county_keyed": true
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/market-info/artifact/index.html?m=census_rev_gap",
       "note": "Reventure shows TOTAL housing vacancy (incl. seasonal lake stock). Census ACS shows RENTAL-specific vacancy — what ECH actually operates against. The gap = seasonal / vacation housing not in the rental pool."
@@ -126,12 +201,14 @@
       "group": "market",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "json_file", "source": "./data/DEALCHECK_PORTFOLIO.json" },
+      "data": {
+        "type": "json_file",
+        "source": "./data/DEALCHECK_PORTFOLIO.json"
+      },
       "status_rules": "snapshot",
       "drilldown": "./layers/deal-analyzer/artifact/index.html",
       "source_tag": "DEALCHECK"
     },
-
     {
       "id": "learn-coach",
       "title": "Learn & Coach",
@@ -143,11 +220,22 @@
       "baseline": true,
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/learn-coach/artifact/index.html",
-      "employee": { "name": "Coach", "role": "Your real-estate copilot", "avatar": "C" },
-      "chips": ["Explain cap rate", "Walk me through buying my first deal", "What does DSCR mean?"]
+      "employee": {
+        "name": "Coach",
+        "role": "TARS’s coaching companion",
+        "avatar": "C"
+      },
+      "chips": [
+        "Explain cap rate",
+        "Walk me through buying my first deal",
+        "What does DSCR mean?"
+      ],
+      "section_lead": "tars"
     },
     {
       "id": "property-file",
@@ -159,11 +247,22 @@
       "featured": true,
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/property-file/artifact/index.html",
-      "employee": { "name": "Quinn", "role": "Property file clerk", "avatar": "Q" },
-      "chips": ["Summarize 415 Skiles", "What needs attention here?", "Pull every document for this property"]
+      "employee": {
+        "name": "Reed",
+        "role": "Portfolio lead",
+        "avatar": "R"
+      },
+      "chips": [
+        "Summarize 415 Skiles",
+        "What needs attention here?",
+        "Pull every document for this property"
+      ],
+      "section_lead": "portfolio"
     },
     {
       "id": "goals-growth",
@@ -174,11 +273,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/goals-growth/artifact/index.html",
-      "employee": { "name": "Sage", "role": "Growth coach", "avatar": "S" },
-      "chips": ["Am I on track?", "When can I buy my next property?", "What is my net worth?"]
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T"
+      },
+      "chips": [
+        "Am I on track?",
+        "When can I buy my next property?",
+        "What is my net worth?"
+      ],
+      "section_lead": "tars"
     },
     {
       "id": "calendar",
@@ -189,13 +299,23 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/calendar/artifact/index.html",
-      "employee": { "name": "Bell", "role": "Scheduler", "avatar": "B" },
-      "chips": ["What is due this week?", "Anything overdue?", "Add a reminder"]
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T"
+      },
+      "chips": [
+        "What is due this week?",
+        "Anything overdue?",
+        "Add a reminder"
+      ],
+      "section_lead": "tars"
     },
-
     {
       "id": "financials",
       "title": "Financial Dashboard",
@@ -206,11 +326,21 @@
       "featured": true,
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/financials/artifact/index.html",
-      "employee": { "name": "Margo", "role": "Financial analyst", "avatar": "M" },
-      "chips": ["What changed since last week?", "Why is per-door flagged?"]
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "What changed since last week?",
+        "Why is per-door flagged?"
+      ],
+      "section_lead": "financials"
     },
     {
       "id": "vendors-payables",
@@ -221,11 +351,22 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/vendors-payables/artifact/index.html",
-      "employee": { "name": "Cole", "role": "AP clerk", "avatar": "C" },
-      "chips": ["What is due this week?", "Total current liabilities", "Link an invoice to an account"]
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "What is due this week?",
+        "Total current liabilities",
+        "Link an invoice to an account"
+      ],
+      "section_lead": "financials"
     },
     {
       "id": "lender-packet",
@@ -236,11 +377,21 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/lender-packet/artifact/index.html",
-      "employee": { "name": "Grant", "role": "Lender liaison", "avatar": "G" },
-      "chips": ["Email this packet to my lender", "Explain the 70 vs 80 LTV"]
+      "employee": {
+        "name": "Reed",
+        "role": "Portfolio lead",
+        "avatar": "R"
+      },
+      "chips": [
+        "Email this packet to my lender",
+        "Explain the 70 vs 80 LTV"
+      ],
+      "section_lead": "portfolio"
     },
     {
       "id": "taxes",
@@ -251,11 +402,22 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/taxes/artifact/index.html",
-      "employee": { "name": "Dale", "role": "Tax & bookkeeping", "avatar": "D" },
-      "chips": ["What can I write off?", "What property taxes are due?", "Estimate my deductions"]
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "What can I write off?",
+        "What property taxes are due?",
+        "Estimate my deductions"
+      ],
+      "section_lead": "financials"
     },
     {
       "id": "insurance",
@@ -266,11 +428,22 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/insurance/artifact/index.html",
-      "employee": { "name": "Mara", "role": "Insurance specialist", "avatar": "M" },
-      "chips": ["Pull the policy for 415 Skiles", "Does it cover water damage?", "What renews this month?"]
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "Pull the policy for 415 Skiles",
+        "Does it cover water damage?",
+        "What renews this month?"
+      ],
+      "section_lead": "financials"
     },
     {
       "id": "reserves-capex",
@@ -281,13 +454,23 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/reserves-capex/artifact/index.html",
-      "employee": { "name": "Brooks", "role": "CapEx planner", "avatar": "B" },
-      "chips": ["What big expense is coming?", "How much should I set aside monthly?", "Am I underfunded?"]
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "What big expense is coming?",
+        "How much should I set aside monthly?",
+        "Am I underfunded?"
+      ],
+      "section_lead": "financials"
     },
-
     {
       "id": "investor-reporting",
       "title": "Investor Reporting",
@@ -298,13 +481,22 @@
       "enabled": true,
       "entitled": false,
       "price": 15,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/investor-reporting/artifact/index.html",
-      "employee": { "name": "Blair", "role": "Investor relations", "avatar": "B" },
-      "chips": ["Draft this quarter's LP update", "What are net returns YTD?"]
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "Draft this quarter's LP update",
+        "What are net returns YTD?"
+      ],
+      "section_lead": "financials"
     },
-
     {
       "id": "deal-finder",
       "title": "Deal Finder",
@@ -315,11 +507,22 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/deal-finder/artifact/index.html",
-      "employee": { "name": "Scout", "role": "Deal sourcer", "avatar": "S" },
-      "chips": ["Find me deals in Mabank under $150k", "Send the best one to Deal Analyzer", "Set my buy box"]
+      "employee": {
+        "name": "Scout",
+        "role": "Market & Deals lead",
+        "avatar": "S"
+      },
+      "chips": [
+        "Find me deals in Mabank under $150k",
+        "Send the best one to Deal Analyzer",
+        "Set my buy box"
+      ],
+      "section_lead": "market-deals"
     },
     {
       "id": "deal-analyzer",
@@ -331,11 +534,21 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/deal-analyzer/artifact/index.html",
-      "employee": { "name": "Theo", "role": "Deal analyst", "avatar": "T" },
-      "chips": ["Is this a good buy?", "Compare it to my best door"]
+      "employee": {
+        "name": "Scout",
+        "role": "Market & Deals lead",
+        "avatar": "S"
+      },
+      "chips": [
+        "Is this a good buy?",
+        "Compare it to my best door"
+      ],
+      "section_lead": "market-deals"
     },
     {
       "id": "deal-screener",
@@ -347,11 +560,21 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/deal-screener/artifact/index.html",
-      "employee": { "name": "Sam", "role": "Underwriter", "avatar": "S" },
-      "chips": ["Does this pass capital rules?", "What would kill this deal?"]
+      "employee": {
+        "name": "Scout",
+        "role": "Market & Deals lead",
+        "avatar": "S"
+      },
+      "chips": [
+        "Does this pass capital rules?",
+        "What would kill this deal?"
+      ],
+      "section_lead": "market-deals"
     },
     {
       "id": "build-renovate",
@@ -362,11 +585,22 @@
       "tier": "L3",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/build-renovate/artifact/index.html",
-      "employee": { "name": "Mason", "role": "Project architect · build team lead", "avatar": "M" },
-      "chips": ["Design a renovation for this address", "Estimate the reno budget", "Send the budget to Deal Analyzer"]
+      "employee": {
+        "name": "Jordan",
+        "role": "Operations lead",
+        "avatar": "J"
+      },
+      "chips": [
+        "Design a renovation for this address",
+        "Estimate the reno budget",
+        "Send the budget to Deal Analyzer"
+      ],
+      "section_lead": "operations"
     },
     {
       "id": "legal",
@@ -377,11 +611,23 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/legal/artifact/index.html",
-      "employee": { "name": "Sloane", "role": "Paralegal · contracts & closing", "avatar": "S" },
-      "chips": ["Explain a lease clause", "Eviction process in Texas?", "Draft a notice to vacate", "Where are we on the 415 Skiles closing?"]
+      "employee": {
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D"
+      },
+      "chips": [
+        "Explain a lease clause",
+        "Eviction process in Texas?",
+        "Draft a notice to vacate",
+        "Where are we on the 415 Skiles closing?"
+      ],
+      "section_lead": "legal"
     },
     {
       "id": "sign",
@@ -392,11 +638,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/sign/artifact/index.html",
-      "employee": { "name": "Avery", "role": "Signing coordinator", "avatar": "A" },
-      "chips": ["Send the 102 Remington lease", "What is out for signature?", "Resend the closing docs reminder"]
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Send the 102 Remington lease",
+        "What is out for signature?",
+        "Resend the closing docs reminder"
+      ],
+      "section_lead": "admin"
     },
     {
       "id": "sell-exit",
@@ -407,13 +664,23 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/sell-exit/artifact/index.html",
-      "employee": { "name": "Morgan", "role": "Disposition advisor", "avatar": "M" },
-      "chips": ["Should I sell or refi 103 Mary Beth?", "How much equity could I pull?", "Explain a 1031 exchange"]
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "Should I sell or refi 103 Mary Beth?",
+        "How much equity could I pull?",
+        "Explain a 1031 exchange"
+      ],
+      "section_lead": "financials"
     },
-
     {
       "id": "maintenance",
       "title": "Maintenance",
@@ -423,13 +690,23 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/maintenance/artifact/index.html",
-      "employee": { "name": "Jordan", "role": "Maintenance coordinator", "avatar": "J" },
-      "chips": ["What's open and urgent?", "Dispatch a vendor for 408 E Kaufman", "Anything awaiting a vendor?"]
+      "employee": {
+        "name": "Jordan",
+        "role": "Operations lead",
+        "avatar": "J"
+      },
+      "chips": [
+        "What's open and urgent?",
+        "Dispatch a vendor for 408 E Kaufman",
+        "Anything awaiting a vendor?"
+      ],
+      "section_lead": "operations"
     },
-
     {
       "id": "website-it",
       "title": "Website & IT",
@@ -439,13 +716,23 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/website-it/artifact/index.html",
-      "employee": { "name": "Iris", "role": "Web & marketing", "avatar": "I" },
-      "chips": ["Publish a new listing", "Stage these photos", "Syndicate to Zillow + Facebook"]
+      "employee": {
+        "name": "Iris",
+        "role": "Website & IT lead",
+        "avatar": "I"
+      },
+      "chips": [
+        "Publish a new listing",
+        "Stage these photos",
+        "Syndicate to Zillow + Facebook"
+      ],
+      "section_lead": "it"
     },
-
     {
       "id": "team-access",
       "title": "Team & Access",
@@ -455,11 +742,22 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/team-access/artifact/index.html",
-      "employee": { "name": "Robin", "role": "Access admin", "avatar": "R" },
-      "chips": ["Invite a field supervisor", "What can Ashley see?", "Add a read-only viewer"]
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Invite a field supervisor",
+        "What can Ashley see?",
+        "Add a read-only viewer"
+      ],
+      "section_lead": "admin"
     },
     {
       "id": "connections",
@@ -470,11 +768,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/connections/artifact/index.html",
-      "employee": { "name": "Linc", "role": "Connections steward", "avatar": "L" },
-      "chips": ["What's connected right now?", "Who can text-command TARS?", "Connect the accounting inbox"]
+      "employee": {
+        "name": "Iris",
+        "role": "Website & IT lead",
+        "avatar": "I"
+      },
+      "chips": [
+        "What's connected right now?",
+        "Who can text-command TARS?",
+        "Connect the accounting inbox"
+      ],
+      "section_lead": "it"
     },
     {
       "id": "entities",
@@ -485,11 +794,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/entities/artifact/index.html",
-      "employee": { "name": "Ellis", "role": "Corporate secretary", "avatar": "E" },
-      "chips": ["List my entities and their doors", "Which annual reports are due?", "What does ECH Mabank LLC own?"]
+      "employee": {
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D"
+      },
+      "chips": [
+        "List my entities and their doors",
+        "Which annual reports are due?",
+        "What does ECH Mabank LLC own?"
+      ],
+      "section_lead": "legal"
     },
     {
       "id": "inbox",
@@ -500,11 +820,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/inbox/artifact/index.html",
-      "employee": { "name": "Nadia", "role": "Inbox manager", "avatar": "N" },
-      "chips": ["Anything urgent today?", "Match new leads to availability", "Schedule an in-person tour"]
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Anything urgent today?",
+        "Match new leads to availability",
+        "Schedule an in-person tour"
+      ],
+      "section_lead": "admin"
     },
     {
       "id": "rent-roll",
@@ -515,11 +846,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/rent-roll/artifact/index.html",
-      "employee": { "name": "Pat", "role": "Property manager", "avatar": "P" },
-      "chips": ["Who is late this month?", "Show the lease for 415 Skiles", "Add a late-fee column"]
+      "employee": {
+        "name": "Reed",
+        "role": "Portfolio lead",
+        "avatar": "R"
+      },
+      "chips": [
+        "Who is late this month?",
+        "Show the lease for 415 Skiles",
+        "Add a late-fee column"
+      ],
+      "section_lead": "portfolio"
     },
     {
       "id": "tenant-screening",
@@ -530,11 +872,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/tenant-screening/artifact/index.html",
-      "employee": { "name": "Reese", "role": "Leasing & screening", "avatar": "R" },
-      "chips": ["Screen the new applicants", "Why is D. Pham flagged?", "Approve K. Alvarez and start the lease"]
+      "employee": {
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D"
+      },
+      "chips": [
+        "Screen the new applicants",
+        "Why is D. Pham flagged?",
+        "Approve K. Alvarez and start the lease"
+      ],
+      "section_lead": "legal"
     },
     {
       "id": "compliance",
@@ -545,11 +898,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/compliance/artifact/index.html",
-      "employee": { "name": "Frances", "role": "Compliance officer", "avatar": "F" },
-      "chips": ["What compliance is due?", "Is 102 Remington ready to lease?", "Smoke detector status"]
+      "employee": {
+        "name": "Jordan",
+        "role": "Operations lead",
+        "avatar": "J"
+      },
+      "chips": [
+        "What compliance is due?",
+        "Is 102 Remington ready to lease?",
+        "Smoke detector status"
+      ],
+      "section_lead": "operations"
     },
     {
       "id": "document-navigator",
@@ -560,11 +924,21 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/document-navigator/artifact/index.html",
-      "employee": { "name": "Dana", "role": "Records clerk", "avatar": "D" },
-      "chips": ["Find the current lease for 415 Skiles", "Show that tenant driver license"]
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Find the current lease for 415 Skiles",
+        "Show that tenant driver license"
+      ],
+      "section_lead": "admin"
     },
     {
       "id": "punch-list",
@@ -575,11 +949,21 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/punch-list/artifact/index.html",
-      "employee": { "name": "Riley", "role": "Ops coordinator", "avatar": "R" },
-      "chips": ["What is most urgent?", "Anything overdue?"]
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T"
+      },
+      "chips": [
+        "What is most urgent?",
+        "Anything overdue?"
+      ],
+      "section_lead": "tars"
     },
     {
       "id": "plans-billing",
@@ -590,11 +974,21 @@
       "tier": "L2",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/plans-billing/artifact/index.html",
-      "employee": { "name": "Drew", "role": "Billing", "avatar": "D" },
-      "chips": ["What plan am I on?", "What does another layer cost?"]
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "What plan am I on?",
+        "What does another layer cost?"
+      ],
+      "section_lead": "admin"
     },
     {
       "id": "tenant-portal",
@@ -606,13 +1000,20 @@
       "enabled": true,
       "entitled": false,
       "price": 15,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/tenant-portal/artifact/index.html",
-      "employee": { "name": "Casey", "role": "Tenant liaison", "avatar": "C" },
-      "chips": ["What can tenants do here?"]
+      "employee": {
+        "name": "Casey",
+        "role": "Tenant liaison",
+        "avatar": "C"
+      },
+      "chips": [
+        "What can tenants do here?"
+      ]
     },
-
     {
       "id": "resources",
       "title": "Resources",
@@ -621,7 +1022,9 @@
       "group": "admin",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "soon",
       "drilldown": null
     },
@@ -634,11 +1037,22 @@
       "tier": "L1",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "neutral",
       "drilldown": "./layers/recurring/artifact/index.html",
-      "employee": { "name": "Bell", "role": "Scheduler", "avatar": "B" },
-      "chips": ["What recurs this month?", "When does the next mortgage draft hit?", "Add a recurring task"]
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T"
+      },
+      "chips": [
+        "What recurs this month?",
+        "When does the next mortgage draft hit?",
+        "Add a recurring task"
+      ],
+      "section_lead": "tars"
     },
     {
       "id": "add-layer",
@@ -649,7 +1063,9 @@
       "kind": "add",
       "enabled": true,
       "entitled": true,
-      "data": { "type": "static" },
+      "data": {
+        "type": "static"
+      },
       "status_rules": "add",
       "drilldown": null
     }
