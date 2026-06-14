@@ -6,41 +6,381 @@
   "employee_plugin_enabled": true,
   "tiles": {
     "rent-roll": {
-      "employee": { "name": "Pat", "role": "Rent roll & collections", "avatar": "P", "intro": "Hi, I’m Pat — I keep your rent roll tidy and chase what’s late. Answer a few quick questions and I’ll set this tile up the way you run things. You can change any of it later." },
+      "employee": {
+        "name": "Reed",
+        "role": "Portfolio lead",
+        "avatar": "R",
+        "intro": "Hi, I’m Reed — I lead your portfolio: property files, rent roll, and lender packets. I’ll set up anything in this section."
+      },
       "params": [
-        { "key": "grace_days", "label": "Grace period before rent counts late", "type": "number", "default": 5, "min": 0, "max": 30, "unit": "days", "q": "How many days after the due date before you treat rent as late?" },
-        { "key": "late_red_days", "label": "Days late before it’s urgent (turns red + suggest a formal notice)", "type": "number", "default": 10, "min": 1, "max": 60, "unit": "days", "q": "After how many days late should I flag it red and recommend a formal notice?" },
-        { "key": "default_late_fee", "label": "Default late fee", "type": "money", "default": 75, "min": 0, "max": 500, "q": "What late fee do you charge by default?" },
-        { "key": "expiring_soon_days", "label": "Warn about leases ending within", "type": "number", "default": 60, "min": 7, "max": 180, "unit": "days", "q": "How far ahead should I warn you that a lease is ending?" }
+        {
+          "key": "grace_days",
+          "label": "Grace period before rent counts late",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "max": 30,
+          "unit": "days",
+          "q": "How many days after the due date before you treat rent as late?"
+        },
+        {
+          "key": "late_red_days",
+          "label": "Days late before it’s urgent (turns red + suggest a formal notice)",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 60,
+          "unit": "days",
+          "q": "After how many days late should I flag it red and recommend a formal notice?"
+        },
+        {
+          "key": "default_late_fee",
+          "label": "Default late fee",
+          "type": "money",
+          "default": 75,
+          "min": 0,
+          "max": 500,
+          "q": "What late fee do you charge by default?"
+        },
+        {
+          "key": "expiring_soon_days",
+          "label": "Warn about leases ending within",
+          "type": "number",
+          "default": 60,
+          "min": 7,
+          "max": 180,
+          "unit": "days",
+          "q": "How far ahead should I warn you that a lease is ending?"
+        }
       ],
-      "owners": {}
+      "owners": {},
+      "section": "portfolio"
     },
-    "taxes": { "employee": { "name": "Dale", "role": "Tax & bookkeeping", "avatar": "D", "intro": "Hi, I'm Dale — I keep your property taxes and write-offs organized. Nothing to tune here yet; I'll surface due dates and deductions as the data connects." }, "params": [] },
-    "insurance": { "employee": { "name": "Mara", "role": "Insurance specialist", "avatar": "M", "intro": "Hi, I'm Mara — I track your policies, coverage, and renewals. Nothing to set up yet; I'll flag gaps and renewal dates once policies connect." }, "params": [] },
-    "reserves-capex": { "employee": { "name": "Brooks", "role": "CapEx planner", "avatar": "B", "intro": "Hi, I'm Brooks — I forecast big-ticket CapEx and your reserve set-aside. Nothing to tune yet; I'll help you stay funded as the numbers connect." }, "params": [] },
-    "vendors-payables": { "employee": { "name": "Cole", "role": "AP clerk", "avatar": "C", "intro": "Hi, I'm Cole — I track what you owe vendors and when it's due. Nothing to set up yet; I'll keep payables current once the data connects." }, "params": [] },
-    "lender-packet": { "employee": { "name": "Grant", "role": "Lender liaison", "avatar": "G", "intro": "Hi, I'm Grant — I prep lender packets and handle the lender back-and-forth. Nothing to tune yet; I'll assemble face sheets on demand." }, "params": [] },
-    "investor-reporting": { "employee": { "name": "Blair", "role": "Investor relations", "avatar": "B", "intro": "Hi, I'm Blair — I handle investor reporting and LP statements. Nothing to set up yet; I'll draft updates and returns once the data connects." }, "params": [] },
-    "financials": { "employee": { "name": "Margo", "role": "Financial analyst", "avatar": "M", "intro": "Hi, I'm Margo — I read your P&L, cash, and Capital Rules. The dashboard's thresholds come from your Capital Rules profile, so there's nothing to tune here." }, "params": [] },
-    "property-file": { "employee": { "name": "Quinn", "role": "Property file clerk", "avatar": "Q", "intro": "Hi, I'm Quinn — I keep one clean page per property: docs, status, history. Nothing to tune yet; I'll pull everything for a property on request." }, "params": [] },
-    "maintenance": { "employee": { "name": "Jordan", "role": "Maintenance coordinator", "avatar": "J", "intro": "Hi, I'm Jordan — I run work orders and vendor dispatch. Nothing to set up yet; I'll keep what's urgent in front of you." }, "params": [] },
-    "sell-exit": { "employee": { "name": "Morgan", "role": "Disposition advisor", "avatar": "M", "intro": "Hi, I'm Morgan — I weigh sell vs. refi vs. 1031 on any door. Nothing to tune yet; I'll model your exit on request." }, "params": [] },
-    "compliance": { "employee": { "name": "Frances", "role": "Compliance officer", "avatar": "F", "intro": "Hi, I'm Frances — I track licenses, inspections, and permits so nothing lapses. Nothing to set up yet; I'll flag what's due." }, "params": [] },
-    "entities": { "employee": { "name": "Ellis", "role": "Corporate secretary", "avatar": "E", "intro": "Hi, I'm Ellis — I keep your LLCs, filings, and annual reports straight. Nothing to tune yet; I'll surface what's due." }, "params": [] },
-    "legal": { "employee": { "name": "Sloane", "role": "Paralegal · contracts & closing", "avatar": "S", "intro": "Hi, I'm Sloane — I handle contracts, closings, and law lookups. Nothing to tune yet; ask me a clause or a Texas process." }, "params": [] },
-    "sign": { "employee": { "name": "Avery", "role": "Signing coordinator", "avatar": "A", "intro": "Hi, I'm Avery — I send and track e-signatures. Nothing to set up yet; I'll route docs out for signature." }, "params": [] },
-    "team-access": { "employee": { "name": "Robin", "role": "Access admin", "avatar": "R", "intro": "Hi, I'm Robin — I manage users, roles, and invites. Nothing to tune yet; tell me who needs access." }, "params": [] },
-    "document-navigator": { "employee": { "name": "Dana", "role": "Records clerk", "avatar": "D", "intro": "Hi, I'm Dana — I find any document in your vault fast. Nothing to tune yet; tell me what you're looking for." }, "params": [] },
-    "deal-finder": { "employee": { "name": "Scout", "role": "Deal sourcer", "avatar": "S", "intro": "Hi, I'm Scout — I hunt deals that fit your buy box. Nothing to tune yet; set your box and I'll go find them." }, "params": [] },
-    "build-renovate": { "employee": { "name": "Mason", "role": "Project architect · build team lead", "avatar": "M", "intro": "Hi, I'm Mason — I scope renovations and budgets with the build team. Nothing to set up yet; I'll estimate a reno on request." }, "params": [] },
-    "website-it": { "employee": { "name": "Iris", "role": "Web & marketing", "avatar": "I", "intro": "Hi, I'm Iris — I publish listings, stage photos, and syndicate. Nothing to tune yet; tell me what to post." }, "params": [] },
-    "learn-coach": { "employee": { "name": "Coach", "role": "Your real-estate copilot", "avatar": "C", "intro": "Hi, I'm Coach — I explain anything in plain English and walk you through your first deals. Nothing to set up; just ask." }, "params": [] },
-    "goals-growth": { "employee": { "name": "Sage", "role": "Growth coach", "avatar": "S", "intro": "Hi, I'm Sage — I track net worth, cash flow, and your next-deal timing. Nothing to tune yet; I'll tell you if you're on track." }, "params": [] },
-    "calendar": { "employee": { "name": "Bell", "role": "Scheduler", "avatar": "B", "intro": "Hi, I'm Bell — I keep every due date in one place. Nothing to set up yet; I'll surface what's due and what's overdue." }, "params": [] },
-    "recurring": { "employee": { "name": "Bell", "role": "Scheduler", "avatar": "B", "intro": "Hi, I'm Bell — I track what repeats and when it hits next. Nothing to set up yet; I'll surface upcoming recurring items." }, "params": [] },
-    "connections": { "employee": { "name": "Linc", "role": "Connections steward", "avatar": "L", "intro": "Hi, I'm Linc — I keep your email, phones, apps, and the TARS line connected. Nothing to tune yet; I'll show what's wired." }, "params": [] },
-    "inbox": { "employee": { "name": "Nadia", "role": "Inbox manager", "avatar": "N", "intro": "Hi, I'm Nadia — I triage every message in one place. Nothing to set up yet; I'll flag what's urgent." }, "params": [] },
-    "tenant-screening": { "employee": { "name": "Reese", "role": "Leasing & screening", "avatar": "R", "intro": "Hi, I'm Reese — I screen applicants and start leases. Nothing to tune yet; I'll review new applications." }, "params": [] },
-    "plans-billing": { "employee": { "name": "Drew", "role": "Billing", "avatar": "D", "intro": "Hi, I'm Drew — I handle your plan, layers, and invoices. Nothing to tune yet; ask me what another layer costs." }, "params": [] }
+    "taxes": {
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M",
+        "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+      },
+      "params": [],
+      "section": "financials"
+    },
+    "insurance": {
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M",
+        "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+      },
+      "params": [],
+      "section": "financials"
+    },
+    "reserves-capex": {
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M",
+        "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+      },
+      "params": [],
+      "section": "financials"
+    },
+    "vendors-payables": {
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M",
+        "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+      },
+      "params": [],
+      "section": "financials"
+    },
+    "lender-packet": {
+      "employee": {
+        "name": "Reed",
+        "role": "Portfolio lead",
+        "avatar": "R",
+        "intro": "Hi, I’m Reed — I lead your portfolio: property files, rent roll, and lender packets. I’ll set up anything in this section."
+      },
+      "params": [],
+      "section": "portfolio"
+    },
+    "investor-reporting": {
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M",
+        "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+      },
+      "params": [],
+      "section": "financials"
+    },
+    "financials": {
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M",
+        "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+      },
+      "params": [],
+      "section": "financials"
+    },
+    "property-file": {
+      "employee": {
+        "name": "Reed",
+        "role": "Portfolio lead",
+        "avatar": "R",
+        "intro": "Hi, I’m Reed — I lead your portfolio: property files, rent roll, and lender packets. I’ll set up anything in this section."
+      },
+      "params": [],
+      "section": "portfolio"
+    },
+    "maintenance": {
+      "employee": {
+        "name": "Jordan",
+        "role": "Operations lead",
+        "avatar": "J",
+        "intro": "Hi, I’m Jordan — I lead operations: maintenance, build & renovate, and compliance, inspections & permits."
+      },
+      "params": [],
+      "section": "operations"
+    },
+    "sell-exit": {
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M",
+        "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+      },
+      "params": [],
+      "section": "financials"
+    },
+    "compliance": {
+      "employee": {
+        "name": "Jordan",
+        "role": "Operations lead",
+        "avatar": "J",
+        "intro": "Hi, I’m Jordan — I lead operations: maintenance, build & renovate, and compliance, inspections & permits."
+      },
+      "params": [],
+      "section": "operations"
+    },
+    "entities": {
+      "employee": {
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D",
+        "intro": "Hi, I’m Dean — I lead legal: contracts, tenant screening, and entities."
+      },
+      "params": [],
+      "section": "legal"
+    },
+    "legal": {
+      "employee": {
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D",
+        "intro": "Hi, I’m Dean — I lead legal: contracts, tenant screening, and entities."
+      },
+      "params": [],
+      "section": "legal"
+    },
+    "sign": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I lead admin: signing, team & access, inbox, documents, and billing."
+      },
+      "params": [],
+      "section": "admin"
+    },
+    "team-access": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I lead admin: signing, team & access, inbox, documents, and billing."
+      },
+      "params": [],
+      "section": "admin"
+    },
+    "document-navigator": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I lead admin: signing, team & access, inbox, documents, and billing."
+      },
+      "params": [],
+      "section": "admin"
+    },
+    "deal-finder": {
+      "employee": {
+        "name": "Scout",
+        "role": "Market & Deals lead",
+        "avatar": "S",
+        "intro": "Hi, I’m Scout — I lead market & deals: sourcing, analysis, and the go/no-go."
+      },
+      "params": [],
+      "section": "market-deals"
+    },
+    "build-renovate": {
+      "employee": {
+        "name": "Jordan",
+        "role": "Operations lead",
+        "avatar": "J",
+        "intro": "Hi, I’m Jordan — I lead operations: maintenance, build & renovate, and compliance, inspections & permits."
+      },
+      "params": [],
+      "section": "operations"
+    },
+    "website-it": {
+      "employee": {
+        "name": "Iris",
+        "role": "Website & IT lead",
+        "avatar": "I",
+        "intro": "Hi, I’m Iris — I lead website & IT and your connections / integrations."
+      },
+      "params": [],
+      "section": "it"
+    },
+    "learn-coach": {
+      "employee": {
+        "name": "Coach",
+        "role": "TARS’s coaching companion",
+        "avatar": "C",
+        "intro": "I’m Coach — I ride along with TARS to teach and guide you as you go."
+      },
+      "params": [],
+      "section": "tars"
+    },
+    "goals-growth": {
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T",
+        "intro": "I run your overview and daily brief and can see every layer. Come to me and I’ll set up anything across the platform."
+      },
+      "params": [],
+      "section": "tars"
+    },
+    "calendar": {
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T",
+        "intro": "I run your overview and daily brief and can see every layer. Come to me and I’ll set up anything across the platform."
+      },
+      "params": [],
+      "section": "tars"
+    },
+    "recurring": {
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T",
+        "intro": "I run your overview and daily brief and can see every layer. Come to me and I’ll set up anything across the platform."
+      },
+      "params": [],
+      "section": "tars"
+    },
+    "connections": {
+      "employee": {
+        "name": "Iris",
+        "role": "Website & IT lead",
+        "avatar": "I",
+        "intro": "Hi, I’m Iris — I lead website & IT and your connections / integrations."
+      },
+      "params": [],
+      "section": "it"
+    },
+    "inbox": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I lead admin: signing, team & access, inbox, documents, and billing."
+      },
+      "params": [],
+      "section": "admin"
+    },
+    "tenant-screening": {
+      "employee": {
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D",
+        "intro": "Hi, I’m Dean — I lead legal: contracts, tenant screening, and entities."
+      },
+      "params": [],
+      "section": "legal"
+    },
+    "plans-billing": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I lead admin: signing, team & access, inbox, documents, and billing."
+      },
+      "params": [],
+      "section": "admin"
+    }
+  },
+  "sections": {
+    "portfolio": {
+      "name": "Reed",
+      "role": "Portfolio lead",
+      "avatar": "R",
+      "intro": "Hi, I’m Reed — I lead your portfolio: property files, rent roll, and lender packets. I’ll set up anything in this section."
+    },
+    "financials": {
+      "name": "Margo",
+      "role": "Financials lead",
+      "avatar": "M",
+      "intro": "Hi, I’m Margo — I lead financials: dashboards, payables, taxes, insurance, reserves, investor reporting, and exits."
+    },
+    "market-deals": {
+      "name": "Scout",
+      "role": "Market & Deals lead",
+      "avatar": "S",
+      "intro": "Hi, I’m Scout — I lead market & deals: sourcing, analysis, and the go/no-go."
+    },
+    "operations": {
+      "name": "Jordan",
+      "role": "Operations lead",
+      "avatar": "J",
+      "intro": "Hi, I’m Jordan — I lead operations: maintenance, build & renovate, and compliance, inspections & permits."
+    },
+    "legal": {
+      "name": "Dean",
+      "role": "Legal lead",
+      "avatar": "D",
+      "intro": "Hi, I’m Dean — I lead legal: contracts, tenant screening, and entities."
+    },
+    "it": {
+      "name": "Iris",
+      "role": "Website & IT lead",
+      "avatar": "I",
+      "intro": "Hi, I’m Iris — I lead website & IT and your connections / integrations."
+    },
+    "admin": {
+      "name": "Quinn",
+      "role": "Admin lead",
+      "avatar": "Q",
+      "intro": "Hi, I’m Quinn — I lead admin: signing, team & access, inbox, documents, and billing."
+    },
+    "tars": {
+      "name": "TARS",
+      "role": "Overview & Daily Brief · company-wide",
+      "avatar": "T",
+      "intro": "I run your overview and daily brief and can see every layer. Come to me and I’ll set up anything across the platform."
+    },
+    "_coach_companion": {
+      "name": "Coach",
+      "role": "TARS’s coaching companion",
+      "avatar": "C",
+      "intro": "I’m Coach — I ride along with TARS to teach and guide you as you go."
+    }
   }
 }
