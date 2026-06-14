@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capital Rules Watchlist — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🚩 Capital Rules Watchlist</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — per-property gate scan.</b> LTV and per-door are scored live from the shared property record (<button class="xref" type="button" data-flopen="property-file" title="Open Property File">Property File</button>); the other four of the six Capital Gates need live market + Plaid data and read UNKNOWN until then — never a faked PASS. Portfolio-level PASS/FAIL stays UNKNOWN until Plaid production.
+    <div class="wire-note" style="margin-top:8px">Thresholds follow Margo's <button class="xref" type="button" data-flopen="financials" title="Open Financials — covenant thresholds">Financials</button> covenant knobs (LTV ≤ <b id="thr-ltv">65</b>% · per-door ≥ $<b id="thr-pd">300</b>). These are the portfolio <b>covenant floors</b> — distinct by design from the Deal Decider's tighter deal <b>targets</b> (≤ 50% / ≥ 1.8×). Don't unify them.</div>
+  </div>
+
+  <div class="section-label" style="margin:4px 0 8px">SIX CAPITAL GATES</div>
+  <div class="ruleg" id="gates"></div>
+
+  <div class="card flush" data-view-section="watchlist" style="margin-top:12px">
+    <div class="section-label" style="margin-bottom:6px">PER-PROPERTY WATCHLIST</div>
+    <table>
+      <thead><tr><th>PROPERTY</th><th>LTV</th><th>PER-DOOR / mo</th><th>STATUS</th></tr></thead>
+      <tbody id="wl-rows"></tbody>
+    </table>
+    <div class="small dim" style="margin-top:8px">Flagged rows breach a live covenant gate — tap a flag to open the source tile. Sample property data until the connector phase.</div>
+  </div>
+
+</div>
+
+<script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function money(n){ if(n==null||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
+  function xref(label,id){ return '<button class="xref" type="button" data-flopen="'+esc(id)+'" title="Open '+esc(label)+'">'+esc(label)+'</button>'; }
+
+  // Portfolio COVENANT thresholds, read from Margo's Financials knobs (localStorage), else doctrine defaults.
+  // NOTE: covenant floors (LTV <= 65 / per-door >= 300) are intentionally LOOSER than the Deal Decider's deal
+  // TARGETS (<= 50 / >= 1.8x). Two threshold sets coexist BY DESIGN (TD-099) — do not unify.
+  function thresholds(){
+    var ltv=65, pd=300;
+    try{
+      for(var i=0;i<localStorage.length;i++){
+        var k=localStorage.key(i);
+        if(k && k.indexOf('tcc_tile_settings::financials::')===0){
+          var v=JSON.parse(localStorage.getItem(k)||'null');
+          if(v&&v.values){ if(v.values.ltv_max!=null) ltv=Number(v.values.ltv_max); if(v.values.per_door_floor!=null) pd=Number(v.values.per_door_floor); break; }
+        }
+      }
+    }catch(e){}
+    return {ltv:ltv, pd:pd};
+  }
+
+  var PROPS=[];
+  function gateCard(name,state,val,sub){
+    var cls=state==='RED'?'rr':(state==='GREEN'?'rg':'');
+    return '<div class="rule '+cls+'"><div class="rn">'+esc(name)+'</div><div class="rv">'+esc(val)+'</div><div class="rt">'+esc(sub)+'</div></div>';
+  }
+
+  function render(){
+    var t=thresholds();
+    document.getElementById('thr-ltv').textContent=t.ltv;
+    document.getElementById('thr-pd').textContent=t.pd;
+    var overLtv = PROPS.filter(function(p){ return Number(p.ltv_pct) > t.ltv; });
+    var underPd = PROPS.filter(function(p){ return Number(p.cash_flow_monthly) < t.pd; });
+
+    // Six Capital Gates — LTV + per-door live from property data; the rest need live market/Plaid data (honest UNKNOWN, never a faked PASS).
+    document.getElementById('gates').innerHTML=[
+      gateCard('Below replacement cost','UNKNOWN','—','pending cost data'),
+      gateCard('Below market value','UNKNOWN','—','pending market data'),
+      gateCard('Day-one cash flow','UNKNOWN','—','pending Plaid'),
+      gateCard('Per-door floor', underPd.length?'RED':'GREEN', underPd.length?String(underPd.length):'✓', underPd.length?(underPd.length+' below $'+t.pd):('all ≥ $'+t.pd)),
+      gateCard('DSCR ≥ 1.25×','UNKNOWN','—','pending Plaid'),
+      gateCard('LTV ceiling', overLtv.length?'RED':'GREEN', overLtv.length?String(overLtv.length):'✓', overLtv.length?(overLtv.length+' over '+t.ltv+'%'):('all ≤ '+t.ltv+'%'))
+    ].join('');
+
+    // Per-property watchlist
+    document.getElementById('wl-rows').innerHTML = PROPS.map(function(p){
+      var short=String(p.address||'').split(' · ')[0];
+      var ltvBad = Number(p.ltv_pct) > t.ltv;
+      var pdBad  = Number(p.cash_flow_monthly) < t.pd;
+      var reasons=[];
+      if(ltvBad) reasons.push('LTV '+esc(p.ltv_pct)+'% > '+t.ltv+'%');
+      if(pdBad)  reasons.push('per-door '+money(p.cash_flow_monthly)+' < '+money(t.pd)+(/vacant/i.test(p.status||'')?' (vacant make-ready)':''));
+      var ltvCell='<span class="tag '+(ltvBad?'b-red':'b-green')+'">'+esc(p.ltv_pct)+'%</span>';
+      var pdCell ='<span class="tag '+(pdBad?'b-red':'b-green')+'">'+money(p.cash_flow_monthly)+'</span>';
+      var statusCell = (ltvBad||pdBad)
+        ? '<button class="xref" type="button" data-flopen="'+(pdBad&&!ltvBad?'maintenance':'financials')+'" title="Open the source tile"><span class="tag b-red">'+esc(reasons.join(' · '))+' ↗</span></button>'
+        : '<span class="tag b-green">within gates</span>';
+      return '<tr><td>'+xref(short,'property-file')+'</td><td>'+ltvCell+'</td><td>'+pdCell+'</td><td>'+statusCell+'</td></tr>';
+    }).join('');
+  }
+
+  // Delegated cross-tile nav — addEventListener + data-attrs only (TD-096-safe; no inline onclick / JSON.stringify).
+  document.addEventListener('click', function(e){
+    var t=e.target.closest && e.target.closest('[data-flopen]');
+    if(t) flOpen(t.getAttribute('data-flopen'));
+  });
+  // Live re-score when Margo's covenant knob changes in the Financials tile (storage fires across same-origin iframes).
+  window.addEventListener('storage', function(e){ if(e.key && e.key.indexOf('tcc_tile_settings::financials::')===0 && PROPS.length) render(); });
+
+  fetch('../../../data/STUB_PROPERTIES.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ PROPS=d.properties||[]; if(!PROPS.length) throw 0; render(); })
+    .catch(function(){
+      document.getElementById('gates').innerHTML='<div class="muted small">Awaiting property record — shared source not reachable.</div>';
+      document.getElementById('wl-rows').innerHTML='';
+    });
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'watchlist'});</script>
+</body>
+</html>

@@ -335,6 +335,16 @@
       "params": [],
       "section": "tars"
     },
+    "watchlist": {
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T",
+        "intro": "I run your overview and daily brief and can see every layer across the platform."
+      },
+      "params": [],
+      "section": "tars"
+    },
     "calendar": {
       "employee": {
         "name": "TARS",

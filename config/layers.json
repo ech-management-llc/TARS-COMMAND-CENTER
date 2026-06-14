@@ -74,6 +74,32 @@
       "drilldown": "./layers/financials/artifact/index.html"
     },
     {
+      "id": "watchlist",
+      "title": "Capital Rules Watchlist",
+      "icon": "🚩",
+      "desc": "per-property gate breaches",
+      "group": "overview",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/watchlist/artifact/index.html",
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T"
+      },
+      "chips": [
+        "What is threatening Capital Rules?",
+        "Which properties are over 65% LTV?",
+        "Where is per-door below the floor?"
+      ],
+      "section_lead": "tars"
+    },
+    {
       "id": "treasury-10y",
       "title": "Gov't loan rate (10-yr)",
       "icon": "📈",
