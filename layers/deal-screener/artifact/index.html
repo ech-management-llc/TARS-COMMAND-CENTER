@@ -218,6 +218,16 @@
     </div>
   </div>
 
+  <div class="panel" style="grid-column: 1 / -1;">
+    <h2>Ops Takeoff — Material Estimate <span class="sub">Scout &rarr; Jordan · materials only</span></h2>
+    <div style="font-size:13px;color:#475569;line-height:1.6">
+      When a deal enters research, <b>Market &amp; Deals (Scout)</b> hands it to <b>Operations (Jordan)</b>, who runs a <b>material-only</b> takeoff with <b>cited sources</b> and feeds the trusted total into the decision above.
+      <div style="margin-top:6px;color:#64748b">The live cited web pass is the backend engine — until it ships this loads a <b>SAMPLE</b> cited price-compare (never a fabricated number).</div>
+    </div>
+    <button type="button" id="takeoff-go" style="margin-top:12px;background:#0f766e;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">&#9654; Request Ops takeoff</button>
+    <div id="takeoff-out" style="margin-top:14px"></div>
+  </div>
+
 </div>
 
 <div class="footer">
@@ -553,9 +563,52 @@ ${get('notes')}
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// --- Ops Takeoff (Scout -> Jordan): honest, cited, material-only estimate, gated behind a DD acknowledgment ---
+var TAKEOFF = null;
+function escH(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function runTakeoff(){
+  var out=document.getElementById('takeoff-out');
+  out.innerHTML='<div style="color:#64748b;font-size:13px">Scout -> Jordan · loading cited price-compare...</div>';
+  fetch('../../../data/STUB_MATERIALS.json',{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+    if(!d||!d.rows||!d.rows.length){ out.innerHTML='<div style="color:#b45309;font-size:13px">Estimate engine not yet live — manual entry only (no cited source rows).</div>'; return; }
+    var DOMAIN={lowes:'lowes.com',ace:'acehardware.com',local:'mabanklumber.com'}, LABEL={lowes:"Lowe's",ace:'Ace Hardware',local:'Mabank Lumber'};
+    var lines=[], total=0, needsSource=0;
+    d.rows.forEach(function(row){
+      var best=null; Object.keys(row.prices||{}).forEach(function(k){ var p=row.prices[k]; if(p!=null && (best===null||p<best.price)) best={src:k,price:p}; });
+      if(!best){ needsSource++; lines.push({item:row.item,src:null}); return; }
+      total+=best.price; lines.push({item:row.item,src:best.src,label:LABEL[best.src]||best.src,price:best.price,url:'https://'+(DOMAIN[best.src]||''),date:d.generated_at});
+    });
+    TAKEOFF={ total:total, lines:lines, date:d.generated_at, needsSource:needsSource, ack:false };
+    renderTakeoff();
+  }).catch(function(){ out.innerHTML='<div style="color:#b45309;font-size:13px">Estimate engine not yet live — manual entry only (source unreachable).</div>'; });
+}
+function renderTakeoff(){
+  if(!TAKEOFF) return;
+  var out=document.getElementById('takeoff-out');
+  var rows=TAKEOFF.lines.map(function(l){
+    if(!l.src) return '<tr><td style="padding:4px 8px">'+escH(l.item)+'</td><td style="padding:4px 8px;color:#b45309;font-weight:700">NEEDS SOURCE — manual review</td><td style="padding:4px 8px;text-align:right">—</td></tr>';
+    return '<tr><td style="padding:4px 8px">'+escH(l.item)+'</td><td style="padding:4px 8px"><a href="'+escH(l.url)+'" target="_blank" rel="noopener">'+escH(l.label)+'</a> <span style="color:#94a3b8">· '+escH(l.date)+'</span></td><td style="padding:4px 8px;text-align:right">'+fmtMoney(l.price)+'</td></tr>';
+  }).join('');
+  out.innerHTML=
+    '<div style="display:inline-flex;align-items:center;gap:6px;background:#ecfeff;border:1px solid #67e8f9;color:#155e75;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;margin-bottom:10px">Scout -> Jordan · Deal Research</div>'+
+    '<div style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:6px">SAMPLE — 102 Remington make-ready (WO-1041) · cheapest-source mix · cited prices, not a live scrape</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:#64748b;font-size:11px"><th style="padding:4px 8px">MATERIAL LINE</th><th style="padding:4px 8px">SOURCE · RETRIEVED</th><th style="padding:4px 8px;text-align:right">CHEAPEST</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr style="border-top:2px solid #cbd5e0;font-weight:800"><td style="padding:6px 8px">Trusted material total</td><td></td><td style="padding:6px 8px;text-align:right">'+fmtMoney(TAKEOFF.total)+'</td></tr></tfoot></table>'+
+    (TAKEOFF.needsSource?'<div style="font-size:12px;color:#b45309;margin-top:6px">'+TAKEOFF.needsSource+' line(s) flagged NEEDS SOURCE — excluded from the trusted total, never guessed.</div>':'')+
+    '<div style="font-size:12px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin-top:10px;line-height:1.6"><b>MATERIALS ONLY</b> — not labor, soft costs, or contingency (you own those lines). <b>ESTIMATE ONLY — due diligence required.</b> Sample cited prices retrieved '+escH(TAKEOFF.date)+'; the live cited web pass (per-line URLs from a source allow-list) is the backend engine. No figure is ever fabricated.</div>'+
+    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="takeoff-ack"'+(TAKEOFF.ack?' checked':'')+' style="margin-top:3px"> I acknowledge this is a material-only estimate from cited sources; due diligence required.</label>'+
+    '<div id="takeoff-fed" style="font-size:12px;font-weight:700;margin-top:8px;color:'+(TAKEOFF.ack?'#0f766e':'#94a3b8')+'">'+(TAKEOFF.ack?('&#10003; Fed into the decision matrix as Rehab/CapEx ('+fmtMoney(TAKEOFF.total)+')'):'Not counted toward the verdict until acknowledged.')+'</div>';
+  var ack=document.getElementById('takeoff-ack');
+  if(ack) ack.addEventListener('change', function(){
+    TAKEOFF.ack=ack.checked;
+    if(ack.checked){ var rh=document.getElementById('rehab'); if(rh) rh.value=String(TAKEOFF.total); }
+    compute(); renderTakeoff();
+  });
+}
+
 // Wire up
 loadState();
 FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEventListener('input', compute); el && el.addEventListener('change', compute); });
+var __takeoffGo=document.getElementById('takeoff-go'); if(__takeoffGo) __takeoffGo.addEventListener('click', runTakeoff);
 compute();
 </script>
 </body>
