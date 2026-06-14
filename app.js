@@ -47,6 +47,7 @@ const STATE = {
   registry: null,
   county: null,
   data:   { fl:null, reventure:null, census:null, dealcheck:null, fred:null },
+  briefRouter: null,                // TARS cross-section brief items, computed from stubs by shared/fl-brief-router.js
   status: { fl:'pending' },         // 'pending' | 'ok' | 'down'
   lastGoodKey: 'tcc_fl_last_success'
 };
@@ -83,6 +84,17 @@ function startApp(){
   renderHome();
   fetchAll();
   wireGlobalControls();
+  loadBriefRouter();
+}
+
+// TARS as router: compute the cross-section brief from the reference stubs, then repaint so it shows in the Daily Brief.
+function loadBriefRouter(){
+  if (!(window.FLBriefRouter && FLBriefRouter.build)) return;
+  FLBriefRouter.build().then(function(r){
+    if (!r) return;
+    STATE.briefRouter = r;
+    if (STATE.registry) renderHome();
+  }).catch(function(){});
 }
 
 function applyBranding(){
@@ -392,8 +404,9 @@ function renderHome(){
    section, and the Punch List + Recurring tiles docked at the bottom. ── */
 function renderBriefGroup(ls){
   const ai = STATE.tenant.ai_summary || {};
-  const attn = ai.attention || [];
-  const brief = ai.brief || [];
+  const r = STATE.briefRouter || { attn:[], brief:[] };
+  const attn = (r.attn || []).concat(ai.attention || []);   // routed (red) items first, then any static summary
+  const brief = (r.brief || []).concat(ai.brief || []);
   let h = '';
   if (attn.length){
     h += '<div class="brief-h urg">⚠ NEEDS ATTENTION</div>' + attn.map((it,i)=>briefItem(it,'a'+i,true)).join('');
@@ -405,14 +418,20 @@ function renderBriefGroup(ls){
   return h;
 }
 function briefItem(it, id, urgent){
+  var avStyle='display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--purplebg,#1c1830);border:1px solid var(--purpleln,#5b4b8a);color:var(--purple,#b9a7ff);font-size:9px;font-weight:800;margin-right:3px';
+  function chip(l){ return l ? '<span class="bi-route" style="margin-left:6px;font-size:11px;color:var(--mut,#9aa3b2);font-weight:700;white-space:nowrap"><span style="'+avStyle+'">'+esc(l.avatar||'?')+'</span>'+esc(l.name)+'</span>' : ''; }
+  var routed = chip(it.lead) + chip(it.co);
+  var openBtn = it.open ? '<button type="button" class="bi-open" data-open="'+esc(it.open)+'" style="margin-right:8px;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer">Open '+esc(it.lead?it.lead.name:it.open)+' ↗</button>' : '';
   return '<div class="brief-item'+(urgent?' urg':'')+'" data-briefkey="'+esc(id)+'">'+
     '<button type="button" class="bi-head">'+
       '<span class="bi-dot"></span>'+
       '<span class="bi-t">'+esc(it.t)+'</span>'+
+      routed+
       '<span class="bi-chev">▾</span>'+
     '</button>'+
     '<div class="bi-body">'+
       '<p>'+esc(it.d||'')+'</p>'+
+      openBtn+
       '<button type="button" class="bi-ask" data-ask="'+esc(it.t)+'">💬 Discuss with TARS</button>'+
     '</div>'+
   '</div>';
@@ -425,6 +444,10 @@ function bindBrief(){
   document.querySelectorAll('.brief-item .bi-ask').forEach(b => {
     if (b.__b) return; b.__b = true;
     b.addEventListener('click', e => { e.stopPropagation(); askTarsAbout(b.getAttribute('data-ask')); });
+  });
+  document.querySelectorAll('.brief-item .bi-open').forEach(b => {
+    if (b.__b) return; b.__b = true;
+    b.addEventListener('click', e => { e.stopPropagation(); var id=b.getAttribute('data-open'); if (id && typeof openLayer==='function') openLayer(id); });
   });
 }
 function askTarsAbout(topic){
