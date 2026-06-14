@@ -110,6 +110,7 @@
       <div class="gate gray"><div class="gate-rule">DSCR ≥ 1.8×</div><div class="gate-value" id="gate-dscr">—</div><div class="gate-status" id="gate-dscr-status">awaiting input</div></div>
       <div class="gate gray"><div class="gate-rule">Per-door $400-500</div><div class="gate-value" id="gate-pd">—</div><div class="gate-status" id="gate-pd-status">awaiting input</div></div>
       <div class="gate gray"><div class="gate-rule">Liquidity ≥ $500K</div><div class="gate-value" id="gate-liq">—</div><div class="gate-status" id="gate-liq-status">awaiting input</div></div>
+      <div class="gate gray"><div class="gate-rule">Portfolio headroom (post-deal)</div><div class="gate-value" id="gate-headroom">—</div><div class="gate-status" id="gate-headroom-status">awaiting input</div></div>
     </div>
   </div>
 </div>
@@ -247,6 +248,22 @@ function num(id) {
   return isFinite(v) ? v : 0;
 }
 
+// --- Portfolio-headroom inputs (ties the deal funnel to Thread 2 / Build & Renovate) ---
+var RENO = [];            // shared takeoff estimates (also read by Deal Analyzer)
+var PORTFOLIO_LIQ = null; // real portfolio liquidity is Plaid-gated (Nov): stays null (pending) until the connector phase wires it to the FL API capital_rules.liquidity. NEVER fake a sandbox pass.
+function renoFor(title){  // takeoff estimate matched to this deal by address (first two tokens), folded into cash-in when Rehab is blank
+  var t=String(title||'').toLowerCase(); if(!t||!RENO.length) return 0;
+  for(var i=0;i<RENO.length;i++){
+    var toks=String(RENO[i].property||'').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).slice(0,2).join(' ');
+    if(toks && t.indexOf(toks)>=0){ var n=Number(RENO[i].total); return isNaN(n)?0:n; }
+  }
+  return 0;
+}
+(function loadReno(){     // localStorage overlay (front-end edits) wins, else the shared base file
+  try{ var ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')||'null'); if(ov&&ov.estimates&&ov.estimates.length){ RENO=ov.estimates; return; } }catch(e){}
+  fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(d&&d.estimates){ RENO=d.estimates; if(typeof compute==='function') compute(); } }).catch(function(){});
+})();
+
 function compute() {
   const purchase = num('purchase');
   const closing = num('closing');
@@ -344,6 +361,29 @@ function compute() {
     else { liqEl.className = 'gate red'; liqStatus.textContent = 'KILL — below floor'; gates.push({name:'Liquidity',state:'red'}); }
   }
 
+  // Portfolio liquidity headroom AFTER this deal — the PORTFOLIO covenant question, distinct from the deal-level liquidity gate above.
+  // Cash-in = down + closing + reserves + reno; reno folds in the Build & Renovate takeoff (renoFor) when Rehab is blank — ties Thread 1 <-> Thread 2.
+  var dealTitle = (document.getElementById('title')||{}).value || '';
+  var renoIn = rehab > 0 ? rehab : renoFor(dealTitle);
+  var cashIn = down + closing + reserves + renoIn;
+  var renoNote = (renoIn > 0 && rehab === 0) ? (' · incl. ' + fmtMoney(renoIn) + ' takeoff') : '';
+  var hEl = document.querySelector('#gates-grid .gate:nth-child(5)');
+  var hVal = document.getElementById('gate-headroom');
+  var hStatus = document.getElementById('gate-headroom-status');
+  if (cashIn <= 0) {
+    hEl.className = 'gate gray'; hVal.textContent = '—'; hStatus.textContent = 'awaiting input';
+    gates.push({ name: 'Headroom', state: 'gray' });
+  } else if (PORTFOLIO_LIQ == null) {
+    // Honest: portfolio liquidity goes live with Plaid. Show the deal's cash-in; defer the pass/fail.
+    hEl.className = 'gate gray'; hVal.textContent = fmtMoney(cashIn); hStatus.textContent = 'cash-in' + renoNote + ' · headroom pending Plaid';
+    gates.push({ name: 'Headroom', state: 'gray' });
+  } else {
+    var headroom = PORTFOLIO_LIQ - 500000;
+    hVal.textContent = fmtMoney(cashIn);
+    if (cashIn <= headroom) { hEl.className = 'gate green'; hStatus.textContent = 'within headroom' + renoNote; gates.push({ name: 'Headroom', state: 'green' }); }
+    else { hEl.className = 'gate red'; hStatus.textContent = 'KILL — draws below $500K floor'; gates.push({ name: 'Headroom', state: 'red', reason: 'would draw liquidity below the $500K floor' }); }
+  }
+
   // Verdict
   const reds = gates.filter(g => g.state === 'red').map(g => g.name);
   const yellows = gates.filter(g => g.state === 'yellow').map(g => g.name);
@@ -361,7 +401,8 @@ function compute() {
   } else if (reds.length > 0) {
     verdictEl.className = 'verdict red';
     verdictHeadline.textContent = '🛑 KILL';
-    verdictReasons.textContent = `Hard rule(s) breached: ${reds.join(', ')}. ` + (yellows.length ? `Also caution on: ${yellows.join(', ')}.` : '');
+    const redReasons = gates.filter(g => g.state === 'red' && g.reason).map(g => g.reason);
+    verdictReasons.textContent = `Hard rule(s) breached: ${reds.join(', ')}. ` + (redReasons.length ? redReasons.join('; ') + '. ' : '') + (yellows.length ? `Also caution on: ${yellows.join(', ')}.` : '');
   } else if (yellows.length > 0) {
     verdictEl.className = 'verdict yellow';
     verdictHeadline.textContent = '⚠ CAUTION';
