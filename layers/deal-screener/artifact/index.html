@@ -94,6 +94,16 @@
   <span style="font-weight:700;color:#9a9aa2">3 · Deal Decider — you are here</span>
 </div>
 
+<!-- CARRY-IN from Deal Analyzer (numbers propagate Finder -> Analyzer -> Decider) -->
+<div id="analyzer-carry" style="display:none;max-width:1400px;margin:0 auto;padding:0 16px 4px">
+  <div style="background:#eff6ff;border:1.5px solid #3b82f6;border-radius:10px;padding:10px 14px;font-size:13px;color:#1e3a8a;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <b>📊 Carried from Deal Analyzer:</b> <span id="analyzer-carry-txt"></span>
+    <button type="button" id="analyzer-carry-load" style="margin-left:auto;background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">↺ Load into the Decider</button>
+    <button type="button" onclick="flOpen('deal-analyzer')" style="background:transparent;color:#3b82f6;border:1px solid #93c5fd;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">Deal Analyzer ↗</button>
+  </div>
+  <div style="font-size:10.5px;color:#1d4ed8;margin-top:3px;padding-left:2px">The Decider applies its own deal-target gates (LTV ≤ 50% · DSCR ≥ 1.8×) — distinct by design from the Analyzer's covenant view.</div>
+</div>
+
 <div class="verdict-section">
   <div id="verdict" class="verdict gray">
     <div class="verdict-label">Verdict</div>
@@ -310,7 +320,7 @@ function compute() {
   document.getElementById('c-cf').textContent = fmtMoney(cashFlow);
   document.getElementById('c-dscr').textContent = fmtMult(dscr);
   document.getElementById('c-pd').textContent = perDoor === null ? '—' : fmtMoney(perDoor);
-  document.getElementById('c-liq').textContent = fmtMoney(liqAfter);
+  document.getElementById('c-liq').textContent = (liqCurrent === 0) ? '—' : fmtMoney(liqAfter);
 
   // Gates
   const gates = [];
@@ -361,8 +371,11 @@ function compute() {
   const liqEl = document.querySelector('#gates-grid .gate:nth-child(4)');
   const liqValEl = document.getElementById('gate-liq');
   const liqStatus = document.getElementById('gate-liq-status');
-  if (liqCurrent === 0 && liqOut === 0) {
-    liqEl.className = 'gate gray'; liqValEl.textContent = '—'; liqStatus.textContent = 'awaiting input';
+  if (liqCurrent === 0) {
+    // Post-close liquidity is meaningless without current liquidity (which is portfolio-level / Plaid-gated).
+    // Stay gray until the user enters it — never KILL a deal just because cash-in is known but current liquidity isn't.
+    liqEl.className = 'gate gray'; liqValEl.textContent = '—';
+    liqStatus.textContent = (liqOut > 0) ? 'enter current liquidity to assess' : 'awaiting input';
     gates.push({ name: 'Liquidity', state: 'gray' });
   } else {
     liqValEl.textContent = fmtMoney(liqAfter);
@@ -607,9 +620,43 @@ function renderTakeoff(){
 
 // Wire up
 loadState();
+var __hadSavedDeal=false; try{ __hadSavedDeal=!!localStorage.getItem(STORAGE_KEY); }catch(e){} // capture BEFORE compute() saves
 FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEventListener('input', compute); el && el.addEventListener('change', compute); });
 var __takeoffGo=document.getElementById('takeoff-go'); if(__takeoffGo) __takeoffGo.addEventListener('click', runTakeoff);
 compute();
+
+// --- Carry-in from the Deal Analyzer: map its published result (fl_deal_analysis_v1) into the Decider's fields ---
+function applyAnalysis(a){
+  if(!a) return;
+  var set=function(id,val){ var el=document.getElementById(id); if(el && val!=null && val!=='') el.value=val; };
+  set('title', a.address);
+  if(a.units!=null) set('units', a.units);
+  set('purchase', a.price!=null?Math.round(a.price):null);
+  set('closing', a.closing!=null?Math.round(a.closing):null);
+  set('rehab', a.rehab!=null?Math.round(a.rehab):null);
+  set('down', a.down!=null?Math.round(a.down):null);
+  set('loan', a.loan!=null?Math.round(a.loan):null);
+  set('rents', a.rentMonthly!=null?Math.round(a.rentMonthly):null);
+  if(a.vacPct!=null) set('vacancy', a.vacPct);
+  set('opex', a.opexMonthly!=null?Math.round(a.opexMonthly):null);
+  set('debt', a.debtMonthly!=null?Math.round(a.debtMonthly):null);
+  set('liq-out', a.cashIn!=null?Math.round(a.cashIn):null);
+  compute();
+}
+(function analyzerCarry(){
+  var a=null; try{ a=JSON.parse(localStorage.getItem('fl_deal_analysis_v1')); }catch(e){}
+  if(!a) return;
+  var bn=document.getElementById('analyzer-carry'), tx=document.getElementById('analyzer-carry-txt');
+  if(bn&&tx){
+    var parts=[]; if(a.address)parts.push(a.address); if(a.price!=null)parts.push('$'+Math.round(a.price).toLocaleString());
+    var m=[]; if(a.cap!=null)m.push(a.cap.toFixed(1)+'% cap'); if(a.cfMo!=null)m.push('$'+Math.round(a.cfMo).toLocaleString()+'/mo'); if(a.dscr!=null)m.push('DSCR '+a.dscr.toFixed(2)+'×'); if(a.ltv!=null)m.push('LTV '+Math.round(a.ltv)+'%');
+    tx.textContent=parts.join(' · ')+(m.length?(' — '+m.join(', ')):'');
+    bn.style.display='block';
+  }
+  var btn=document.getElementById('analyzer-carry-load');
+  if(btn) btn.addEventListener('click', function(){ applyAnalysis(a); });
+  if(!__hadSavedDeal) applyAnalysis(a); // first visit (no saved deal) with a carried analysis -> load it automatically
+})();
 </script>
 </body>
 </html>

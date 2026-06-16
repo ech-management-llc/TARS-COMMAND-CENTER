@@ -949,7 +949,7 @@
       var perDoor = cfMo/units;
       return { price:price, rehab:rehab, closing:closing, rent:rent, units:units,
                gsi:gsi, egi:egi, noi:noi, allIn:allIn, down:down, loan:loan, pi:pi, ads:ads,
-               cfMo:cfMo, cfYr:cfYr, cashIn:cashIn, coc:coc, cap:cap, dscr:dscr, ltv:ltv, perDoor:perDoor };
+               cfMo:cfMo, cfYr:cfYr, cashIn:cashIn, coc:coc, cap:cap, dscr:dscr, ltv:ltv, perDoor:perDoor, opex:opex };
     }
 
     function rate(val, redLt, yelLt){ // higher is better; returns class
@@ -1016,6 +1016,9 @@
 
       // ── risk ──
       renderRisk(c);
+
+      // ── publish to the Decider (Finder -> Analyzer -> Decider) ──
+      writeAnalysis(c);
     }
 
     function pill(state, label){ return '<span class="gate-pill '+state+'">'+label+'</span>'; }
@@ -1054,27 +1057,28 @@
       html('ana-gates', rows);
     }
 
-    function renderVerdict(c){
-      var fails=[], cautions=[];
+    function verdictOf(c){
+      var fails=[], cautions=[], unconfirmed=[];
       if(c.cfMo<=0) fails.push('negative cash flow');
       if(c.perDoor<300) fails.push('per-door under the $300 floor');
       if(c.dscr<1.25) fails.push('DSCR under the 1.25 covenant');
       if(c.ltv>65) fails.push('LTV over the 65% covenant');
       if(S.market!=null && c.price>=+S.market) fails.push('not below market value');
       if(S.replacement!=null && c.allIn>=+S.replacement) fails.push('not below replacement cost');
-
       if(c.perDoor>=300 && c.perDoor<400) cautions.push('per-door below the $400 target');
       if(c.dscr>=1.25 && c.dscr<1.40) cautions.push('DSCR below the 1.40 comfort line');
       if(c.ltv>50 && c.ltv<=65) cautions.push('LTV above the 50% target');
-
-      var unconfirmed=[];
       if(S.market==null) unconfirmed.push('below-market');
       if(S.replacement==null) unconfirmed.push('below-replacement');
-
-      var el=document.getElementById('ana-verdict'), kind, title;
-      if(fails.length){ kind='skip'; title='⛔ Skip — fails a hard Capital Gate'; }
-      else if(!cautions.length){ kind='good'; title='✅ Strong — clears every gate'; }
-      else { kind='marginal'; title='⚠️ Marginal — buy with discipline'; }
+      var kind = fails.length ? 'skip' : (cautions.length ? 'marginal' : 'good');
+      return { kind:kind, fails:fails, cautions:cautions, unconfirmed:unconfirmed };
+    }
+    function renderVerdict(c){
+      var v=verdictOf(c), fails=v.fails, cautions=v.cautions, unconfirmed=v.unconfirmed, kind=v.kind;
+      var el=document.getElementById('ana-verdict'), title;
+      if(kind==='skip') title='⛔ Skip — fails a hard Capital Gate';
+      else if(kind==='good') title='✅ Strong — clears every gate';
+      else title='⚠️ Marginal — buy with discipline';
       el.className='verdict '+kind;
       txt('ana-verdict-title', title);
 
@@ -1124,6 +1128,21 @@
     }
     function riskRow(label, impact){
       return '<div class="risk-row"><div class="risk-scenario-label">'+label+'</div><div class="risk-impact">'+impact+'</div></div>';
+    }
+
+    // ── publish a normalized result the Deal Decider ingests ──
+    function writeAnalysis(c){
+      var v=verdictOf(c);
+      var rec={
+        address:S.address||'', source:S.source||'',
+        price:c.price, rehab:c.rehab, closing:c.closing, units:c.units,
+        rentMonthly:c.rent, vacPct:(+S.vac||0),
+        opexMonthly:c.opex/12, debtMonthly:c.pi, down:c.down, loan:c.loan, cashIn:c.cashIn,
+        cap:c.cap, cfMo:c.cfMo, perDoor:c.perDoor,
+        dscr:isFinite(c.dscr)?c.dscr:null, ltv:c.ltv, coc:isFinite(c.coc)?c.coc:null,
+        verdict:v.kind, at:new Date().toISOString()
+      };
+      try{ localStorage.setItem('fl_deal_analysis_v1', JSON.stringify(rec)); }catch(e){}
     }
 
     // ── inputs ──
