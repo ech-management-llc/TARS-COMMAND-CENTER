@@ -89,7 +89,20 @@
 
       // 4 — Deal flow (deal-in-research with a pending takeoff → Scout): no deals-in-research stub exists yet, so nothing is emitted (honest — no fake deal). Wire at the connector phase.
 
-      // 5 — Work orders against Jordan's knobs (approval threshold, urgent).
+      // 5 — Work orders against Jordan's knobs (approval threshold, urgent, EMERGENCY).
+      //  EMERGENCY = a LIVE urgent work order on a hazard system (electrical / plumbing / HVAC).
+      //  It pins RED to the TOP of the brief and (backend lane) texts+emails management + the
+      //  maintenance team. Dispatch is NOT faked here — the item states the alert honestly.
+      var emerg=[];
+      var HAZARD={ electrical:1, plumbing:1, hvac:1 };
+      function woSystem(w){
+        if (w.system) return String(w.system).toLowerCase();
+        var s=(w.summary||'').toLowerCase();
+        if (/electric|sparking|no power|breaker|outlet|wiring|shock/.test(s)) return 'electrical';
+        if (/plumb|leak|water|sewage|sewer|burst|flood|drain|pipe|overflow/.test(s)) return 'plumbing';
+        if (/\bac\b|a\/c|air.?condition|hvac|furnace|\bheat\b|cooling/.test(s)) return 'hvac';
+        return 'general';
+      }
       wos.forEach(function(w){
         var live=(w.status!=='done'&&w.status!=='closed');
         var cost=(w.bill&&w.bill.amount!=null)?w.bill.amount:(w.est_cost!=null?w.est_cost:0);
@@ -98,11 +111,22 @@
             d:'Over the '+money(mt.approval)+' approval threshold — sign off before dispatch.', lead:LEAD.Jordan, open:'maintenance' });
         }
         if (live && w.priority==='urgent'){
-          brief.push({ sev:'amber', t:w.id+' '+short(w.property)+' — urgent', d:String(w.summary||''), lead:LEAD.Jordan, open:'maintenance' });
+          var sys=woSystem(w);
+          if (HAZARD[sys]){
+            var label=(sys==='hvac')?'HVAC / A·C':sys.charAt(0).toUpperCase()+sys.slice(1);
+            emerg.push({ sev:'red', emergency:true, system:sys,
+              t:'EMERGENCY · '+label+' — '+short(w.property),
+              d:String(w.summary||'')+' ('+w.id+'). Auto-alert: management + maintenance team by TEXT + EMAIL — dispatch wires at the backend (Rule 27 + email lane).',
+              lead:LEAD.Jordan, co:LEAD.TARS, open:'maintenance',
+              alert:{ channels:['sms','email'], to:'management + maintenance' } });
+          } else {
+            brief.push({ sev:'amber', t:w.id+' '+short(w.property)+' — urgent', d:String(w.summary||''), lead:LEAD.Jordan, open:'maintenance' });
+          }
         }
       });
 
-      return { attn:attn, brief:brief };
+      // EMERGENCIES pin to the very top of Needs-Attention.
+      return { attn:emerg.concat(attn), brief:brief };
     }).catch(function(){ return { attn:[], brief:[] }; });
   }
 

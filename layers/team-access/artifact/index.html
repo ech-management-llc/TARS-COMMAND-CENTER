@@ -64,7 +64,7 @@
 <script>
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   // Consolidation section leads (matches consolidate.py). Layers carry section_lead; baseline is always granted.
-  var SECTIONS=[['tars','Overview & Brief · TARS'],['portfolio','Portfolio · Reed'],['financials','Financials · Margo'],['market-deals','Market & Deals · Scout'],['operations','Operations · Jordan'],['legal','Legal · Dean'],['it','Website & IT · Iris'],['admin','Admin · Quinn']];
+  var SECTIONS=[['tars','Overview & Brief · TARS'],['portfolio','Portfolio · Reed'],['financials','Financials · Margo'],['market-deals','Market & Deals · Scout'],['operations','Build, Renovate & Maintenance · Jordan'],['legal','Legal · Dean'],['it','Website, IT & Marketing · Iris'],['admin','Admin · Quinn']];
   var BASELINE=['inbox','calendar'];
   var LAYERS=[], BYSEC={}, OVERLAY=load(), CUR={sections:{}, tiles:{}};
 

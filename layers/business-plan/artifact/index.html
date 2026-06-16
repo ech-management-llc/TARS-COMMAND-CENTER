@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Business Plan — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .bp-mode{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
+  .bp-seg{display:inline-flex;border:1px solid var(--line,#2a2d3a);border-radius:8px;overflow:hidden}
+  .bp-seg button{background:var(--surf2,#1a1d27);color:var(--mut,#9aa3b2);border:0;padding:7px 13px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .bp-seg button.on{background:var(--accent,#8b7ff0);color:#10121a}
+  .bp-sec{margin-top:10px}
+  .bp-sec .bp-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+  .bp-sec .bp-t{font-size:12px;font-weight:800;letter-spacing:.3px;color:var(--fg,#e8e8ea)}
+  .bp-src{font-size:10.5px;font-weight:700;color:var(--mut,#9aa3b2);background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);border-radius:999px;padding:2px 8px}
+  .bp-ta{width:100%;box-sizing:border-box;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:7px;padding:8px 10px;font-size:13px;line-height:1.5;resize:vertical}
+  .bp-auto{background:var(--surf,#15171f);border:1px solid var(--line,#2a2d3a);border-left:3px solid var(--accent,#8b7ff0);border-radius:7px;padding:9px 11px;font-size:13px;line-height:1.5;color:var(--txt,#e8e8ea)}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">📋 Business Plan</div>
+
+  <div class="preview-banner">
+    <b>Your living business plan.</b> Quinn (your Business Plan employee) can write and <b>keep it updated automatically</b> from your live tiles — or you can fill it in by hand. It <b>attaches to your Lender Packet</b>, so a lender sees one coherent story.
+  </div>
+
+  <!-- MODE -->
+  <div class="card">
+    <div class="bp-mode">
+      <span style="font-size:11px;font-weight:700;color:var(--mut,#9aa3b2);letter-spacing:.3px">HOW IT'S MAINTAINED</span>
+      <span class="bp-seg" id="bp-seg">
+        <button type="button" data-mode="auto" class="on">🔄 Employee (auto-updates)</button>
+        <button type="button" data-mode="manual">✍️ Manual (you keep it current)</button>
+      </span>
+    </div>
+    <div id="bp-mode-note" style="font-size:11.5px;color:var(--dim);margin-top:6px"></div>
+    <div class="row-sb" style="margin-top:10px">
+      <button class="btn" type="button" id="bp-resync">🔄 Re-sync now</button>
+      <button class="xref" type="button" id="bp-to-lender" title="Open Lender Packet">📎 Attach to Lender Packet ↗</button>
+    </div>
+  </div>
+
+  <div id="bp-body"></div>
+
+  <div class="wire-note" style="text-align:center;margin-top:12px">
+    Manual edits save to this tile and stay put. With the employee add-on, Quinn refreshes each section from <b>Entities · Financials · Portfolio · Capital Rules · Market & Deals</b> as those change — live sync wires at the connector phase. Sample content until then.
+  </div>
+</div>
+
+<script>
+  var MODE_KEY='fl_bizplan_mode', PLAN_KEY='fl_business_plan_v1';
+  function $(id){ return document.getElementById(id); }
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+
+  // section model: id, title, the live source the employee syncs from, a sample auto line, manual placeholder
+  var SECTIONS=[
+    ['exec','Executive Summary','Portfolio + Goals','ECH Management operates a Texas single-family + small-multi rental portfolio in Henderson/Kaufman counties, targeting 45–50% LTV, ~1.8 DSCR, and $400–500/door, scaling toward 200+ units.','Two or three sentences: who you are, what you own/buy, and the goal.'],
+    ['company','Company & Entities','Entities tile','Holding + management structure across the ECH LLCs (Mabank, Athens, Malakoff, Developments & Holdings), managed by ECH Management Services LLC.','List the entities, ownership, and management structure.'],
+    ['market','Market & Strategy','Market & Deals + Strategy','Buy below replacement and below market with forced-equity potential; East-TX lake + commuter markets; BRRRR + buy-and-hold.','Your market, buy box, and the strategy/edge.'],
+    ['portfolio','Portfolio & Pipeline','Portfolio + Deal pipeline','Current doors, occupancy, and the active acquisition pipeline from the Deal Finder/Analyzer.','Current holdings + what is under contract / in the pipeline.'],
+    ['financials','Financials & Capital Rules','Financial Dashboard + Capital Rules','Liquidity, NOI, DSCR, LTV, and per-door vs. the covenant floors — pulled live from the Financial Dashboard.','Revenue, NOI, debt, liquidity, and how you stack vs. your rules.'],
+    ['capital','Use of Funds / Capital Plan','Your ask','The capital ask, how it deploys (acquisition, rehab, reserves), and the expected return + exit.','How much you are raising/borrowing and exactly how it will be used.'],
+    ['team','Team','Team & Access','Principals + roles; property management, contractors, and advisors.','Who does what — principals, PM, contractors, lender, attorney, CPA.'],
+    ['risks','Risks & Mitigants','Risk Watchlist','Key risks (rate, vacancy, capex, concentration) and how each is mitigated + the reserve floor.','The honest risks and how you protect against each.']
+  ];
+
+  function mode(){ try{ return localStorage.getItem(MODE_KEY)||'auto'; }catch(e){ return 'auto'; } }
+  function plan(){ try{ return JSON.parse(localStorage.getItem(PLAN_KEY)||'{}'); }catch(e){ return {}; } }
+  function savePlanField(id,val){ var p=plan(); p[id]=val; try{ localStorage.setItem(PLAN_KEY, JSON.stringify(p)); }catch(e){} }
+
+  function render(){
+    var m=mode(), p=plan();
+    // segment active state
+    $('bp-seg').querySelectorAll('[data-mode]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')===m); });
+    $('bp-mode-note').innerHTML = (m==='auto')
+      ? '<b>Employee mode.</b> Quinn keeps every section current from your live tiles — you do nothing. (Add-on; live sync at the connector phase.)'
+      : '<b>Manual mode.</b> You write each section and it stays exactly as you leave it — <b>it will not auto-update</b>. Buy the employee add-on to have it maintained for you.';
+    $('bp-resync').style.display = (m==='auto') ? '' : 'none';
+    var html = SECTIONS.map(function(s){
+      var id=s[0], title=s[1], src=s[2], auto=s[3], ph=s[4];
+      var body;
+      if(m==='auto'){
+        body = '<div class="bp-auto">'+auto+' <span style="color:var(--dim);font-size:11px">— auto-synced (sample)</span></div>';
+      } else {
+        var val=(p[id]!=null?p[id]:'');
+        body = '<textarea class="bp-ta" rows="3" data-sec="'+id+'" placeholder="'+ph.replace(/"/g,'&quot;')+'">'+(val.replace(/</g,'&lt;'))+'</textarea>';
+      }
+      return '<div class="card bp-sec"><div class="bp-h"><span class="bp-t">'+title+'</span>'+
+             (m==='auto'?'<span class="bp-src">🔄 '+src+'</span>':'<span class="bp-src">✍️ manual</span>')+'</div>'+body+'</div>';
+    }).join('');
+    $('bp-body').innerHTML = html;
+    if(m==='manual'){
+      $('bp-body').querySelectorAll('textarea[data-sec]').forEach(function(ta){
+        ta.addEventListener('input', function(){ savePlanField(ta.getAttribute('data-sec'), ta.value); });
+      });
+    }
+  }
+
+  $('bp-seg').querySelectorAll('[data-mode]').forEach(function(b){
+    b.addEventListener('click', function(){ try{ localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); }catch(e){} render(); });
+  });
+  $('bp-resync').addEventListener('click', function(){
+    $('bp-mode-note').innerHTML='<b>Re-synced (sample).</b> In production Quinn re-pulls each section from its source tile; here it confirms the wiring without inventing live numbers.';
+  });
+  $('bp-to-lender').addEventListener('click', function(){
+    // ensure the current plan is saved so the Lender Packet can attach it, then open the packet
+    var p=plan(); try{ localStorage.setItem(PLAN_KEY, JSON.stringify(p)); }catch(e){}
+    flOpen('lender-packet');
+  });
+
+  render();
+
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  window.addEventListener('message', function(e){ var d=e.data||{};
+    if(d&&d.type==='tcc:viewcfg'){ /* whole-tile sections are dynamic; view-config is a no-op here */ } });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'business-plan'});</script>
+</body>
+</html>

@@ -20,7 +20,7 @@
 </head>
 <body>
 <div class="art-wrap">
-  <div class="art-head">🎓 Learn &amp; Coach</div>
+  <div class="art-head">🎓 Learn, Coach &amp; Strategy</div>
 
   <div class="card" data-view-section="intro" style="background:#10211b;border-color:var(--greenln);font-size:13px;line-height:1.55">
     Your copilot. Built by someone who started from scratch with no money and no clue — so nothing here
@@ -77,6 +77,31 @@
   </div>
 
   <div class="wire-note" style="text-align:center;margin-top:14px">The “explain this” button lives on every tile. Coach remembers what you already know, so it never over-explains. Free-form answers turn on when the live model is connected. Sample content.</div>
+  <!-- STRATEGY — talk through YOUR situation with TARS -->
+  <div class="card" data-view-section="strategy" style="border-color:var(--purpleln,#5b4b8a)">
+    <div class="section-label">🧭 STRATEGY — how YOU get started</div>
+    <div style="font-size:13px;line-height:1.55;color:var(--txt,#e8e8ea);margin-bottom:10px">
+      Tell TARS where you stand and we'll talk through real <b>options and trade-offs</b> for getting a deal done — financing paths, what fits your situation, and the next concrete step. This is <b>education, not advice</b> (see below).
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--mut,#9aa3b2);letter-spacing:.3px;margin-bottom:5px">YOUR SITUATION — pick what fits (or type your own)</div>
+    <div id="sg-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+      <button class="btn" type="button" data-sit="limited-cash">I only have a little cash to start</button>
+      <button class="btn" type="button" data-sit="have-equity">I have equity in a property</button>
+      <button class="btn" type="button" data-sit="nothing">I don't have much of anything yet</button>
+      <button class="btn" type="button" data-sit="partner">I have a partner with capital</button>
+      <button class="btn" type="button" data-sit="income">I have strong W-2 income</button>
+    </div>
+    <textarea id="sg-text" rows="2" placeholder="e.g. I have about $25k and decent credit, no real estate yet" style="width:100%;box-sizing:border-box;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:7px;padding:8px 10px;font-size:13px"></textarea>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn term-open" id="sg-go" type="button" style="cursor:pointer">💬 Talk strategy with TARS</button>
+      <button class="btn" id="sg-deep" type="button" style="cursor:pointer">Open full TARS chat ↗</button>
+    </div>
+    <div id="sg-out" style="margin-top:12px"></div>
+    <div style="margin-top:14px;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);border-left:3px solid var(--yellow,#eab308);border-radius:8px;padding:10px 12px;font-size:11.5px;line-height:1.5;color:var(--mut,#9aa3b2)">
+      <b>Educational reference only — not financial, legal, lending, or investment advice.</b> Options shown are general frameworks, not recommendations for your specific situation. <b>Do your own due diligence</b>, run your own numbers, and consult qualified professionals (lender, attorney, CPA) before committing. <b>Ultimate responsibility for any decision is the owner's.</b>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -101,6 +126,74 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try { if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'}, '*'); } catch(err){}
+</script>
+<script>
+  // STRATEGY — honest coaching stub. Reflects the user's situation back and lays out
+  // RELEVANT financing OPTIONS with trade-offs (not a personalized recommendation, no
+  // invented numbers). Live free-form answers + lender-term scraping connect at the model
+  // / connector phase. Always paired with the on-card educational disclaimer.
+  (function(){
+    var SIT={
+      'limited-cash':'a limited amount of starting cash',
+      'have-equity':'equity in a property you already own',
+      'nothing':'little or nothing saved yet',
+      'partner':'a partner who can bring capital',
+      'income':'strong documented W-2 income'
+    };
+    var OPT={
+      dscr:['DSCR loan','Qualifies on the <b>property\'s</b> rent vs. its payment — not your personal income. Usually ~20–25% down. Good when the deal cash-flows but your documented income is thin.'],
+      conv:['Conventional / portfolio loan','Best rates, but needs income docs + reserves. Fewer of these as you scale (Fannie limits).'],
+      seller:['Seller financing','The owner acts as the bank — flexible down payment + terms. Preserves your cash; great when sellers own free-and-clear and want the income.'],
+      subto:['Subject-to (take over payments)','Minimal cash — you take title and keep their existing loan in place. <b>Due-on-sale + legal risk — get an attorney</b> before ever using this.'],
+      jv:['Partnership / JV','Partner brings the capital, you bring the deal + management. Split equity/cash-flow by agreement. Fastest path when you have <b>deals but not dollars</b>.'],
+      heloc:['HELOC / cash-out refi','Tap equity you already hold to fund the next purchase. Turns dead equity into a down payment — watch the added debt service.'],
+      hard:['Hard money + BRRRR','Short-term rehab financing, then refinance out and repeat. For value-add/fixers; expensive short-term, so the numbers must work.']
+    };
+    var PLAN={
+      'limited-cash':['seller','dscr','jv','hard'],
+      'have-equity':['heloc','dscr','conv'],
+      'nothing':['seller','subto','jv'],
+      'partner':['jv','dscr','conv'],
+      'income':['conv','dscr','heloc']
+    };
+    var chosen=null;
+    function $(id){return document.getElementById(id);}
+    $('sg-chips').querySelectorAll('[data-sit]').forEach(function(b){
+      b.addEventListener('click',function(){
+        chosen=b.getAttribute('data-sit');
+        $('sg-chips').querySelectorAll('[data-sit]').forEach(function(x){x.classList.remove('term-open');});
+        b.classList.add('term-open');
+        if(!$('sg-text').value.trim()) $('sg-text').value=SIT[chosen]?('I have '+SIT[chosen]+'.'):'';
+      });
+    });
+    function compose(){
+      var sit=chosen, free=$('sg-text').value.trim();
+      var keys = PLAN[sit] || ['seller','dscr','jv','heloc','conv'];
+      // light keyword nudge from free text
+      var t=free.toLowerCase();
+      if(/equity|heloc|own a home|paid off/.test(t) && keys.indexOf('heloc')<0) keys.unshift('heloc');
+      if(/partner|investor|jv/.test(t) && keys.indexOf('jv')<0) keys.unshift('jv');
+      keys=keys.slice(0,4);
+      var head = sit ? ('Based on <b>'+(SIT[sit]||'your situation')+'</b>, here are paths worth weighing') : 'Here are common paths worth weighing';
+      var li=keys.map(function(k){ return '<li style="padding:7px 0;border-top:1px solid var(--line,#2a2d3a)"><b style="color:var(--purple,#b9a7ff)">'+OPT[k][0]+'</b> — '+OPT[k][1]+'</li>'; }).join('');
+      return '<div class="term-detail" style="border-color:var(--purpleln,#5b4b8a)">'+
+        '<div class="lead">'+head+' — let\'s pressure-test them against your actual numbers:</div>'+
+        '<ul style="list-style:none;margin:0;padding:0">'+li+'</ul>'+
+        '<div style="font-size:11.5px;color:var(--dim);margin-top:10px">Next: model a real property in the <b>Deal Analyzer</b>, then the <b>Decider</b>. '+
+        'When connected, I\'ll <b>scrape current lender programs + terms</b> (DSCR rates, seller-finance norms, local hard-money) that best fit your situation — that\'s the connected step; nothing here is a live quote.</div>'+
+        '</div>';
+    }
+    $('sg-go').addEventListener('click',function(){
+      if(!chosen && !$('sg-text').value.trim()){ $('sg-text').focus(); return; }
+      $('sg-out').innerHTML=compose();
+      $('sg-out').scrollIntoView({behavior:'smooth',block:'nearest'});
+    });
+    $('sg-deep').addEventListener('click',function(){
+      var sit=chosen?(SIT[chosen]||chosen):'', free=$('sg-text').value.trim();
+      var prompt='Strategy: my situation is — '+(free||sit||'getting started')+'. Walk me through the financing options and trade-offs to get my first/next deal done, given that. Educational only.';
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:ask-tars', prompt:prompt},'*'); }catch(e){}
+    });
+  })();
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
 <script>FLSettings.mount({tileId:'learn-coach'});</script>

@@ -321,7 +321,8 @@ const GROUP_STYLE = {
   financial:   { a:'#3b82f6', bg:'rgba(59,130,246,.06)',  ico:'💰' },
   deals:       { a:'#2dd4bf', bg:'rgba(45,212,191,.06)',  ico:'🏗️' },
   it:          { a:'#ec4899', bg:'rgba(236,72,153,.06)',  ico:'🌐' },
-  admin:       { a:'#94a3b8', bg:'rgba(148,163,184,.06)', ico:'🗂️' }
+  admin:       { a:'#94a3b8', bg:'rgba(148,163,184,.06)', ico:'🗂️' },
+  legal:       { a:'#c8a24a', bg:'rgba(200,162,74,.06)',  ico:'⚖️' }
 };
 function collapsedSet(){ try { return new Set(JSON.parse(localStorage.getItem('tcc_collapsed')||'[]')); } catch(e){ return new Set(); } }
 
@@ -420,8 +421,13 @@ function renderBriefGroup(ls){
     attn = attn.filter(ok); brief = brief.filter(ok);
   }
   let h = '';
-  if (attn.length){
-    h += '<div class="brief-h urg">⚠ NEEDS ATTENTION</div>' + attn.map((it,i)=>briefItem(it,'a'+i,true)).join('');
+  const emerg = attn.filter(it => it.emergency);
+  const rest  = attn.filter(it => !it.emergency);
+  if (emerg.length){
+    h += '<div class="brief-h" style="color:#fff;background:#b91c1c;border-radius:8px;padding:6px 11px;margin:2px 0 7px;font-weight:800;letter-spacing:.04em">🚨 EMERGENCY — DISPATCH NOW</div>' + emerg.map((it,i)=>briefItem(it,'e'+i,true)).join('');
+  }
+  if (rest.length){
+    h += '<div class="brief-h urg">⚠ NEEDS ATTENTION</div>' + rest.map((it,i)=>briefItem(it,'a'+i,true)).join('');
   }
   h += '<div class="brief-h">TODAY’S BRIEF</div>' + brief.map((it,i)=>briefItem(it,'b'+i,false)).join('');
   if (!ai.live) h += '<div class="src-note" style="margin:8px 2px 4px">'+esc(ai.note||'Static for v1.')+'</div>';
@@ -433,8 +439,9 @@ function briefItem(it, id, urgent){
   var avStyle='display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--purplebg,#1c1830);border:1px solid var(--purpleln,#5b4b8a);color:var(--purple,#b9a7ff);font-size:9px;font-weight:800;margin-right:3px';
   function chip(l){ return l ? '<span class="bi-route" style="margin-left:6px;font-size:11px;color:var(--mut,#9aa3b2);font-weight:700;white-space:nowrap"><span style="'+avStyle+'">'+esc(l.avatar||'?')+'</span>'+esc(l.name)+'</span>' : ''; }
   var routed = chip(it.lead) + chip(it.co);
+  var emStyle = it.emergency ? ' style="border-left:3px solid #ef4444;background:rgba(239,68,68,.08);border-radius:6px;padding-left:9px"' : '';
   var openBtn = it.open ? '<button type="button" class="bi-open" data-open="'+esc(it.open)+'" style="margin-right:8px;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer">Open '+esc(it.lead?it.lead.name:it.open)+' ↗</button>' : '';
-  return '<div class="brief-item'+(urgent?' urg':'')+'" data-briefkey="'+esc(id)+'">'+
+  return '<div class="brief-item'+(urgent?' urg':'')+'"'+emStyle+' data-briefkey="'+esc(id)+'">'+
     '<button type="button" class="bi-head">'+
       '<span class="bi-dot"></span>'+
       '<span class="bi-t">'+esc(it.t)+'</span>'+
@@ -903,6 +910,12 @@ function wireGlobalControls(){
     // cross-tile nav: a drill-in iframe asks the shell to open another tile
     // (front-end cross-reference only — artifacts post {type:'tcc:open-layer', layer:'<id>'})
     if (d && d.type === 'tcc:open-layer' && typeof d.layer === 'string') openLayer(d.layer);
+    // a tile hands a primed prompt to the global TARS chat (e.g. Strategy in Learn, Coach & Strategy)
+    if (d && d.type === 'tcc:ask-tars' && typeof d.prompt === 'string' && window.Agents){
+      Agents.openGlobal();
+      const gi = $('ginput'), gs = $('gsend');
+      if (gi && gs){ gi.value = d.prompt; gs.click(); }
+    }
   });
 }
 

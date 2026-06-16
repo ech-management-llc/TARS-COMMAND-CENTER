@@ -196,12 +196,23 @@
 </div>
 
 <div id="panel-punch" class="panel active">
-  <div class="filters">
+  <div class="filters" id="punch-owner-filters">
     <button class="filter-btn active" data-owner="all">All</button>
     <button class="filter-btn" data-owner="Jerry">Jerry</button>
     <button class="filter-btn" data-owner="TARS">TARS</button>
     <button class="filter-btn" data-owner="Both">Jerry + TARS</button>
   </div>
+  <div class="filters" id="punch-track-filters">
+    <button class="filter-btn active" data-track="all">All tracks</button>
+    <button class="filter-btn" data-track="Admin">Admin</button>
+    <button class="filter-btn" data-track="IT">IT</button>
+    <button class="filter-btn" data-track="Build & Maintenance">Build &amp; Maint</button>
+    <button class="filter-btn" data-track="Legal">Legal</button>
+    <button class="filter-btn" data-track="Financial">Financial</button>
+    <button class="filter-btn" data-track="Portfolio">Portfolio</button>
+    <button class="filter-btn" data-track="Market & Deals">Market &amp; Deals</button>
+  </div>
+  <div style="font-size:11px;color:#64748b;margin:2px 2px 10px">👁 Shared with the team — members see the tracks they're granted (like the Calendar). Per-member visibility enforces server-side at the auth phase.</div>
   <div id="punch-list"></div>
 </div>
 
@@ -335,6 +346,7 @@ let state = {
   punchClosed: [],
   debtItems: [],
   punchOwnerFilter: "all",
+  punchTrackFilter: "all",
   debtTierFilter: "all",
   source: "fallback",
   punchUpdated: "",
@@ -358,16 +370,34 @@ function renderKPIs() {
   document.getElementById("count-closed").textContent = state.punchClosed.length + state.debtItems.filter(d => d.status === "resolved").length;
 }
 
+// Infer a TRACK (mirrors the home lassos) from an item's text. Items have no track
+// field yet (they come from PUNCH_LIST.md); this classifies until items carry a track
+// tag at the source. Most current items are dev/IT work.
+function punchTrack(p) {
+  if (p.track) return p.track;
+  const t = ((p.title || '') + ' ' + (p.notes || '')).toLowerCase();
+  if (/lease|tenant|legal|entit|\bsign\b|llc|filing|contract/.test(t)) return 'Legal';
+  if (/maintenance|renovate|\bbuild\b|permit|inspection|make-ready|repair/.test(t)) return 'Build & Maintenance';
+  if (/financial|report|\btax\b|insurance|reserve|payable|invoice|billing|quickbook|\bqb\b|capital|altra|export/.test(t)) return 'Financial';
+  if (/rent roll|property file|lender|portfolio/.test(t)) return 'Portfolio';
+  if (/\bdeal\b|market|acquisition|underwrite|screener|analyzer/.test(t)) return 'Market & Deals';
+  if (/github|mcp|plugin|dashboard|\bapi\b|backend|repo|token|\bpat\b|cron|schedul|file-clerk|connector|zapier|supabase|rentredi|foundationledger|automation|\bfl\b/.test(t)) return 'IT';
+  if (/seat|account|\brole\b|customization|trial|gusto|monday/.test(t)) return 'Admin';
+  return 'Admin';
+}
 function renderPunch() {
-  const filtered = state.punchActive.filter(p => state.punchOwnerFilter === "all" || p.owner === state.punchOwnerFilter);
+  const filtered = state.punchActive.filter(p =>
+    (state.punchOwnerFilter === "all" || p.owner === state.punchOwnerFilter) &&
+    (state.punchTrackFilter === "all" || punchTrack(p) === state.punchTrackFilter));
   const html = filtered.length === 0
-    ? `<div class="empty">No items match filter</div>`
+    ? `<div class="empty">No items in this track / filter — that's fine.</div>`
     : filtered.map(p => `
       <div class="item">
         <div class="item-head">
           <span class="item-id">#${p.id}</span>
           <span class="item-title">${escapeHtml(p.title)}</span>
           <span class="item-tag tag-${p.owner === 'Jerry' ? 'medium' : p.owner === 'TARS' ? 'low' : 'high'}">${p.owner}</span>
+          <span class="item-tag" style="background:#e2e8f0;color:#334155">${escapeHtml(punchTrack(p))}</span>
         </div>
         ${p.notes ? `<div class="item-notes">${escapeHtml(p.notes.slice(0, 240))}${p.notes.length > 240 ? '…' : ''}</div>` : ''}
       </div>
@@ -461,11 +491,19 @@ document.querySelectorAll(".tab").forEach(t => {
     document.getElementById("panel-" + t.dataset.tab).classList.add("active");
   });
 });
-document.querySelectorAll("#panel-punch .filter-btn").forEach(b => {
+document.querySelectorAll("#punch-owner-filters .filter-btn").forEach(b => {
   b.addEventListener("click", () => {
-    document.querySelectorAll("#panel-punch .filter-btn").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll("#punch-owner-filters .filter-btn").forEach(x => x.classList.remove("active"));
     b.classList.add("active");
     state.punchOwnerFilter = b.dataset.owner;
+    renderPunch();
+  });
+});
+document.querySelectorAll("#punch-track-filters .filter-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#punch-track-filters .filter-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    state.punchTrackFilter = b.dataset.track;
     renderPunch();
   });
 });

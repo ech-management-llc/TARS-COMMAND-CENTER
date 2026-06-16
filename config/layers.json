@@ -33,6 +33,11 @@
       "render": "card"
     },
     {
+      "id": "legal",
+      "label": "LEGAL",
+      "render": "card"
+    },
+    {
       "id": "it",
       "label": "IT & MARKETING",
       "render": "card"
@@ -96,6 +101,34 @@
         "What is threatening Capital Rules?",
         "Which properties are over 65% LTV?",
         "Where is per-door below the floor?"
+      ],
+      "section_lead": "tars"
+    },
+    {
+      "id": "learn-coach",
+      "title": "Learn, Coach & Strategy",
+      "icon": "🎓",
+      "desc": "plain-English copilot · first-deal guide · strategy",
+      "group": "overview",
+      "tier": "L0",
+      "featured": true,
+      "baseline": true,
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/learn-coach/artifact/index.html",
+      "employee": {
+        "name": "Coach",
+        "role": "TARS’s coaching companion",
+        "avatar": "C"
+      },
+      "chips": [
+        "Explain cap rate",
+        "Walk me through buying my first deal",
+        "What does DSCR mean?"
       ],
       "section_lead": "tars"
     },
@@ -234,34 +267,6 @@
       "status_rules": "snapshot",
       "drilldown": "./layers/deal-analyzer/artifact/index.html",
       "source_tag": "DEALCHECK"
-    },
-    {
-      "id": "learn-coach",
-      "title": "Learn & Coach",
-      "icon": "🎓",
-      "desc": "plain-English copilot · first-deal guide",
-      "group": "admin",
-      "tier": "L0",
-      "featured": true,
-      "baseline": true,
-      "enabled": true,
-      "entitled": true,
-      "data": {
-        "type": "static"
-      },
-      "status_rules": "neutral",
-      "drilldown": "./layers/learn-coach/artifact/index.html",
-      "employee": {
-        "name": "Coach",
-        "role": "TARS’s coaching companion",
-        "avatar": "C"
-      },
-      "chips": [
-        "Explain cap rate",
-        "Walk me through buying my first deal",
-        "What does DSCR mean?"
-      ],
-      "section_lead": "tars"
     },
     {
       "id": "property-file",
@@ -633,7 +638,7 @@
       "title": "Legal",
       "icon": "⚖️",
       "desc": "contracts · closing · law lookup",
-      "group": "admin",
+      "group": "legal",
       "tier": "L2",
       "enabled": true,
       "entitled": true,
@@ -660,7 +665,7 @@
       "title": "Sign",
       "icon": "✍️",
       "desc": "e-signature · leases · closing",
-      "group": "admin",
+      "group": "legal",
       "tier": "L1",
       "enabled": true,
       "entitled": true,
@@ -679,7 +684,7 @@
         "What is out for signature?",
         "Resend the closing docs reminder"
       ],
-      "section_lead": "admin"
+      "section_lead": "legal"
     },
     {
       "id": "sell-exit",
@@ -790,7 +795,7 @@
       "title": "Connections",
       "icon": "🔌",
       "desc": "email · team phones · apps · TARS line",
-      "group": "admin",
+      "group": "it",
       "tier": "L1",
       "enabled": true,
       "entitled": true,
@@ -816,7 +821,7 @@
       "title": "Entities",
       "icon": "🏢",
       "desc": "companies · LLCs · filings",
-      "group": "admin",
+      "group": "legal",
       "tier": "L1",
       "enabled": true,
       "entitled": true,
@@ -894,7 +899,7 @@
       "title": "Tenant Screening",
       "icon": "📝",
       "desc": "apps · credit · approve",
-      "group": "admin",
+      "group": "legal",
       "tier": "L1",
       "enabled": true,
       "entitled": true,
@@ -920,7 +925,7 @@
       "title": "Compliance, Inspections & Permits",
       "icon": "✅",
       "desc": "licenses · inspections · permits",
-      "group": "admin",
+      "group": "deals",
       "tier": "L1",
       "enabled": true,
       "entitled": true,
@@ -963,6 +968,32 @@
       "chips": [
         "Find the current lease for 415 Skiles",
         "Show that tenant driver license"
+      ],
+      "section_lead": "admin"
+    },
+    {
+      "id": "business-plan",
+      "title": "Business Plan",
+      "icon": "📋",
+      "desc": "living plan · feeds the lender packet",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/business-plan/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Business Plan author",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Draft my executive summary",
+        "Refresh the plan from my latest numbers",
+        "What do lenders want to see?"
       ],
       "section_lead": "admin"
     },

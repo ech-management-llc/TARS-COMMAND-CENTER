@@ -1,8 +1,27 @@
 {
   "schema_version": 2,
-  "_note": "SAMPLE work-order tracking for the ECH reference install. Honest placeholders — NOT live. Single shared source the Maintenance tile reads (and Property File's open-work-order counts mirror — DRAFT status is excluded from open counts everywhere: a draft isn't a real work order yet). Property strings match STUB_PROPERTIES.json addresses exactly; the closed/billed example reuses the Lone Star Plumbing $1,200 bill already in STUB_DEADLINES.json so the close→bill story is coherent across tiles. v2 (pass #6): status 'draft' = auto-drafted from an inbound report (Inbox routing), with photos + reported_by + source; Jordan dispatches by SMS (Rule 27 lane, Draft/Auto gated). Real entries arrive via the intake connectors (RentRedi, Gmail, Tenant Portal, SMS).",
-  "generated_at": "2026-06-11",
+  "_note": "SAMPLE work-order tracking for the ECH reference install. Honest placeholders — NOT live. Single shared source the Maintenance tile reads (and Property File's open-work-order counts mirror — DRAFT status is excluded from open counts everywhere: a draft isn't a real work order yet). Property strings match STUB_PROPERTIES.json addresses exactly; the closed/billed example reuses the Lone Star Plumbing $1,200 bill already in STUB_DEADLINES.json so the close→bill story is coherent across tiles. v2 (pass #6): status 'draft' = auto-drafted from an inbound report (Inbox routing), with photos + reported_by + source; Jordan dispatches by SMS (Rule 27 lane, Draft/Auto gated). Real entries arrive via the intake connectors (RentRedi, Gmail, Tenant Portal, SMS). v3 (2026-06-14): added `system` (electrical|plumbing|hvac|structural|general) — urgent + a hazard system (electrical/plumbing/hvac) = EMERGENCY: pinned red at top of the Daily Brief and (backend lane) texted+emailed to management + maintenance.",
+  "generated_at": "2026-06-16",
   "work_orders": [
+    {
+      "id": "WO-1044",
+      "property": "102 Remington · Mabank, TX",
+      "opened": "2026-06-16",
+      "due": null,
+      "status": "open",
+      "priority": "urgent",
+      "summary": "Burning smell + sparking outlet in kitchen — breaker keeps tripping (tenant report)",
+      "reported_by": "D. Carter (tenant)",
+      "source": "SMS",
+      "photos": 1,
+      "assigned_to": {
+        "type": "vendor",
+        "name": "Henderson Electric"
+      },
+      "est_cost": null,
+      "bill": null,
+      "system": "electrical"
+    },
     {
       "id": "WO-1042",
       "property": "415 Skiles St · Mabank, TX",
@@ -14,9 +33,13 @@
       "reported_by": "J. Morales (tenant)",
       "source": "RentRedi",
       "photos": 2,
-      "assigned_to": { "type": "vendor", "name": "Lone Star Plumbing" },
+      "assigned_to": {
+        "type": "vendor",
+        "name": "Lone Star Plumbing"
+      },
       "est_cost": null,
-      "bill": null
+      "bill": null,
+      "system": "plumbing"
     },
     {
       "id": "WO-1043",
@@ -29,9 +52,13 @@
       "reported_by": "L. Nguyen (tenant)",
       "source": "Gmail",
       "photos": 1,
-      "assigned_to": { "type": "vendor", "name": "Cool Air TX" },
+      "assigned_to": {
+        "type": "vendor",
+        "name": "Cool Air TX"
+      },
       "est_cost": null,
-      "bill": null
+      "bill": null,
+      "system": "hvac"
     },
     {
       "id": "WO-1041",
@@ -41,9 +68,13 @@
       "status": "open",
       "priority": "normal",
       "summary": "Make-ready: interior paint + carpet clean before listing",
-      "assigned_to": { "type": "team", "name": "Field supervisor" },
+      "assigned_to": {
+        "type": "team",
+        "name": "Field supervisor"
+      },
       "est_cost": 1800,
-      "bill": null
+      "bill": null,
+      "system": "general"
     },
     {
       "id": "WO-1038",
@@ -53,9 +84,18 @@
       "status": "done",
       "priority": "urgent",
       "summary": "Water heater leak — replace T&P valve",
-      "assigned_to": { "type": "vendor", "name": "Lone Star Plumbing" },
+      "assigned_to": {
+        "type": "vendor",
+        "name": "Lone Star Plumbing"
+      },
       "est_cost": 1200,
-      "bill": { "vendor": "Lone Star Plumbing", "amount": 1200, "posted_to": "vendors-payables", "due": "2026-06-04" }
+      "bill": {
+        "vendor": "Lone Star Plumbing",
+        "amount": 1200,
+        "posted_to": "vendors-payables",
+        "due": "2026-06-04"
+      },
+      "system": "plumbing"
     }
   ]
 }
