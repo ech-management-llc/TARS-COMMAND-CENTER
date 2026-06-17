@@ -143,7 +143,9 @@
     }).join('') : '<div class="small dim">No inbound drafts.</div>';
   }
 
-  // Jordan's dispatch: SMS to the vendor on file + FYI to the manager — Rule 27 lane, Draft/Auto gated
+  // Jordan's dispatch: REAL tap-to-send SMS/email to the vendor on file + FYI to the manager (Rule 27 lane).
+  // Opens the device app prefilled; automated auto-send is the backend lane.
+  function telD(p){ var d=String(p==null?'':p).replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }
   function renderDispatch(drafts, conns){
     var el = document.getElementById('dispatch-flow');
     if(!drafts.length){ el.innerHTML='<div class="small dim">Nothing to dispatch.</div>'; return; }
@@ -155,17 +157,18 @@
     }
     var mode = document.querySelector('#dispatchmode button.on');
     var isDraftMode = !mode || mode.getAttribute('data-mode')==='draft';
-    function bub(to, phone, msg){
-      var held = isDraftMode;
-      return '<div style="background:#0d1f16;border:1px solid var(--greenln);border-radius:10px;padding:8px 11px;font-size:12px;margin-bottom:7px'+(held?';border-style:dashed':'')+'">'+
-        '<b>SMS → '+esc(to)+(phone?' '+esc(phone):'')+':</b> "'+msg+'"'+
-        (held?' <span class="tag b-yellow">DRAFT — held</span> <button class="fbtn" style="padding:2px 10px;font-size:10px" onclick="this.outerHTML=\'<span class=&quot;small&quot; style=&quot;color:var(--green);font-weight:700&quot;>✓ sent</span>\'">✓ Approve &amp; send</button>'
-            :' <span class="tag b-green">sent (auto)</span>')+'</div>';
+    function bub(to, phone, email, rawMsg){
+      var td=telD(phone), body=encodeURIComponent(rawMsg), subj=encodeURIComponent('Work order '+(w.id||''));
+      var sms = td ? '<a href="sms:'+td+'?&amp;body='+body+'" class="fbtn" style="padding:2px 10px;font-size:10px;text-decoration:none">📲 Text now</a>' : '<span class="small dim">no phone on file</span>';
+      var eml = email ? ' <a href="mailto:'+esc(email)+'?subject='+subj+'&amp;body='+body+'" class="fbtn" style="padding:2px 10px;font-size:10px;text-decoration:none">✉️ Email</a>' : '';
+      return '<div style="background:#0d1f16;border:1px solid var(--greenln);border-radius:10px;padding:8px 11px;font-size:12px;margin-bottom:7px'+(isDraftMode?';border-style:dashed':'')+'">'+
+        '<b>'+esc(to)+(phone?' · '+esc(phone):'')+':</b> "'+esc(rawMsg)+'" '+sms+eml+
+        '<div class="small dim" style="margin-top:3px">'+(isDraftMode?'Draft — review, then tap to send.':'Auto-send wires at the backend; tap to send now.')+'</div></div>';
     }
     var vName = w.assigned_to ? w.assigned_to.name : 'vendor on file';
     el.innerHTML =
-      bub(vName, vendor&&vendor.phone, esc(w.id)+': '+esc(w.summary.split(' (')[0])+' @ '+esc(String(w.property).split(' · ')[0])+', tenant '+esc((w.reported_by||'').split(' (')[0])+', photos: [link]. Reply YES + day to take it.')+
-      bub('Ashley (manager)', mgr&&mgr.phone, 'FYI — new '+esc(w.id)+' at '+esc(String(w.property).split(' · ')[0])+' ('+esc(w.summary.split(' (')[0].toLowerCase())+', '+esc(w.priority)+'). Dispatching '+esc(vName)+'. Reply STOP to hold.');
+      bub(vName, vendor&&vendor.phone, vendor&&vendor.email, w.id+': '+w.summary.split(' (')[0]+' @ '+String(w.property).split(' · ')[0]+', tenant '+(w.reported_by||'').split(' (')[0]+', photos: [link]. Reply YES + day to take it.')+
+      bub('Ashley (manager)', mgr&&mgr.phone, mgr&&mgr.email, 'FYI - new '+w.id+' at '+String(w.property).split(' · ')[0]+' ('+w.summary.split(' (')[0].toLowerCase()+', '+w.priority+'). Dispatching '+vName+'. Reply STOP to hold.');
   }
 
   // In-tile view config from the core: show/hide sections + table rows. Never touches data.

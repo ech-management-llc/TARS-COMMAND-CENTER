@@ -63,6 +63,7 @@
 <script src="../../../shared/fl-tile-settings.js"></script>
 <script>
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function telD(p){ var d=String(p==null?'':p).replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }
   // Consolidation section leads (matches consolidate.py). Layers carry section_lead; baseline is always granted.
   var SECTIONS=[['tars','Overview & Brief · TARS'],['portfolio','Portfolio · Reed'],['financials','Financials · Margo'],['market-deals','Market & Deals · Scout'],['operations','Build, Renovate & Maintenance · Jordan'],['legal','Legal · Dean'],['it','Website, IT & Marketing · Iris'],['admin','Admin · Quinn']];
   var BASELINE=['inbox','calendar'];
@@ -131,7 +132,10 @@
   function paintTeam(){
     var rows=members().map(function(m){
       var acc = m.access ? (((m.access.sections||[]).length)+' sec · '+((m.access.tiles||[]).length)+' tile') : (m.seed?'(shared record)':'—');
-      var contacts=(m.phone?esc(m.phone):'<span class="ta-req">no phone</span>')+'<br><span class="small muted">'+(m.email?esc(m.email):'<span class="ta-req">no email</span>')+'</span>';
+      var td=telD(m.phone);
+      var phoneCell=m.phone?('<a href="tel:'+td+'" style="color:var(--fg);text-decoration:none">'+esc(m.phone)+'</a> <a href="sms:'+td+'" title="text" style="text-decoration:none">💬</a>'):'<span class="ta-req">no phone</span>';
+      var emailCell=m.email?('<a href="mailto:'+esc(m.email)+'" class="small muted" style="text-decoration:none">'+esc(m.email)+'</a>'):'<span class="small muted"><span class="ta-req">no email</span></span>';
+      var contacts=phoneCell+'<br>'+emailCell;
       return '<tr><td>'+esc(m.name)+(m.status==='invited'?' <span class="tag b-yellow">invited</span>':'')+'</td><td>'+esc(m.role||'—')+'</td><td>'+contacts+'</td><td>'+esc(acc)+'</td><td>'+(m.can_command_tars?'<span class="tag b-green">text ✓</span>':'<span class="tag b-gray">no</span>')+'</td>'+
         '<td>'+(m.access?'<button class="btn sm" data-prev="'+esc(m.id)+'">preview</button>':'')+'</td></tr>';
     }).join('');
