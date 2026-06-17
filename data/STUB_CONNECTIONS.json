@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "_note": "SAMPLE connection inventory for the ECH reference install. Honest placeholders — NOT live; toggling a chip in the Connections screen flips front-end state (localStorage fl_connections_overlay_v1) until the connector phase wires real OAuth/API links. Single source for the Connections screen AND the Text-TARS allow-list (Rule 27): can_command_tars: true team members may command TARS by SMS; unknown numbers NEVER execute commands — they file to the Inbox as correspondence. Phone numbers are sample. No credentials live here or anywhere in FL CC — passkey/YubiKey model; SYSTEM_KEYS holds the account inventory, not secrets.",
-  "generated_at": "2026-06-10",
+  "_note": "SAMPLE connection inventory for the ECH reference install. Honest placeholders — NOT live; toggling a chip in the Connections screen flips front-end state (localStorage fl_connections_overlay_v1) until the connector phase wires real OAuth/API links. Single source for the Connections screen AND the Text-TARS allow-list (Rule 27): can_command_tars: true team members may command TARS by SMS; unknown numbers NEVER execute commands — they file to the Inbox as correspondence. Phone numbers and emails are sample (echmanagement.services for staff; .example for vendors). No credentials live here or anywhere in FL CC — passkey/YubiKey model; SYSTEM_KEYS holds the account inventory, not secrets.",
+  "generated_at": "2026-06-16",
   "tars_line": {
     "id": "tars-line",
     "label": "TARS line",
@@ -15,11 +15,11 @@
     { "id": "em-accounting", "label": "accounting@echmanagement.services", "desc": "statements + invoices", "connected": false }
   ],
   "team": [
-    { "id": "tm-ashley", "name": "Ashley", "role": "property manager", "phone": "(903) 555-0142",
+    { "id": "tm-ashley", "name": "Ashley", "role": "property manager", "phone": "(903) 555-0142", "email": "ashley@echmanagement.services",
       "desc": "SMS scheduling ✓ · can command TARS by text", "can_command_tars": true, "connected": true },
-    { "id": "tm-jerry", "name": "Jerry", "role": "owner", "phone": "(903) 555-0101",
+    { "id": "tm-jerry", "name": "Jerry", "role": "owner", "phone": "(903) 555-0101", "email": "jerry.eads@echmanagement.services",
       "desc": "escalations · can command TARS by text", "can_command_tars": true, "connected": true },
-    { "id": "tm-fieldsup", "name": "Field supervisor", "role": "field", "phone": null,
+    { "id": "tm-fieldsup", "name": "Field supervisor", "role": "field", "phone": null, "email": null,
       "desc": "add phone to enable dispatch texts", "can_command_tars": false, "connected": false }
   ],
   "applications": [
@@ -30,9 +30,10 @@
     { "id": "app-apartments", "label": "Apartments.com", "desc": "listing inquiries", "connected": false }
   ],
   "maintenance_personnel": [
-    { "id": "mp-lonestar", "name": "Lone Star Plumbing", "trade": "plumbing", "phone": "(903) 555-0188", "desc": "vendor on file · SMS dispatch", "connected": true },
-    { "id": "mp-coolair", "name": "Cool Air TX", "trade": "HVAC", "phone": "(903) 555-0166", "desc": "vendor on file · SMS dispatch", "connected": true },
-    { "id": "mp-fieldsup", "name": "Field supervisor", "trade": "general", "phone": null, "desc": "add phone to enable dispatch texts", "connected": false }
+    { "id": "mp-lonestar", "name": "Lone Star Plumbing", "trade": "plumbing", "phone": "(903) 555-0188", "email": "dispatch@lonestarplumbing.example", "desc": "vendor on file · SMS dispatch", "connected": true },
+    { "id": "mp-coolair", "name": "Cool Air TX", "trade": "HVAC", "phone": "(903) 555-0166", "email": "service@coolairtx.example", "desc": "vendor on file · SMS dispatch", "connected": true },
+    { "id": "mp-henderson", "name": "Henderson Electric", "trade": "electrical", "phone": "(903) 555-0173", "email": "dispatch@hendersonelectric.example", "desc": "vendor on file · SMS dispatch · matches WO-1044", "connected": true },
+    { "id": "mp-fieldsup", "name": "Field supervisor", "trade": "general", "phone": null, "email": null, "desc": "add phone to enable dispatch texts", "connected": false }
   ],
   "tools": {
     "_note": "Per-employee/role connected + suggested tools (platform standard, pass #6). Suggested shows when nothing is connected, with an honest connect affordance — real hookups land at the connector phase.",

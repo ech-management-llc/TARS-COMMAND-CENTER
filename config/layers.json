@@ -1053,6 +1053,7 @@
       "icon": "🚪",
       "desc": "tenant self-service",
       "group": "admin",
+      "section_lead": "admin",
       "tier": "L1",
       "enabled": true,
       "entitled": false,

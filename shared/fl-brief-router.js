@@ -17,7 +17,8 @@
 
   var LEAD = {
     Margo:{name:'Margo',avatar:'M'}, Reed:{name:'Reed',avatar:'R'}, Jordan:{name:'Jordan',avatar:'J'},
-    Dean:{name:'Dean',avatar:'D'}, Scout:{name:'Scout',avatar:'S'}, TARS:{name:'TARS',avatar:'T'}
+    Dean:{name:'Dean',avatar:'D'}, Scout:{name:'Scout',avatar:'S'}, TARS:{name:'TARS',avatar:'T'},
+    Iris:{name:'Iris',avatar:'I'}, Quinn:{name:'Quinn',avatar:'Q'}
   };
   var DEADLINE_WINDOW = 60;   // days — a deadline within this window surfaces as amber
 
@@ -38,12 +39,14 @@
       j('./data/STUB_PROPERTIES.json'),
       j('./data/STUB_DEADLINES.json'),
       j('./data/STUB_RENT_ROLL.json'),
-      j('./data/STUB_WORKORDERS.json')
+      j('./data/STUB_WORKORDERS.json'),
+      j('./data/STUB_CONNECTIONS.json')
     ]).then(function(res){
       var props=(res[0]&&res[0].properties)||[];
       var deads=(res[1]&&res[1].deadlines)||[];
       var rr   =(res[2]&&res[2].properties)||[];
       var wos  =(res[3]&&res[3].work_orders)||[];
+      var conn =(res[4])||{};
       var ft=finThresholds(), mt=maintThresholds();
       var attn=[], brief=[];
 
@@ -95,6 +98,20 @@
       //  maintenance team. Dispatch is NOT faked here — the item states the alert honestly.
       var emerg=[];
       var HAZARD={ electrical:1, plumbing:1, hvac:1 };
+      // EMERGENCY recipients resolved from the connections roster → real tap-to-text/email (sms:/mailto:).
+      var TEAM=(conn.team||[]), MAINT=(conn.maintenance_personnel||[]);
+      function isMgmt(m){ var r=String(m.role||'').toLowerCase(); return r==='owner'||r==='property manager'||r==='manager'; }
+      function telDigits(p){ var d=String(p||'').replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }
+      function emergencyAlert(w, sys, label){
+        var mgmt=TEAM.filter(isMgmt);
+        var vend=MAINT.filter(function(m){ return String(m.trade||'').toLowerCase()===sys; });
+        if(!vend.length) vend=MAINT.filter(function(m){ return m.phone||m.email; });
+        var rec=mgmt.concat(vend), phones=[], emails=[], names=[];
+        rec.forEach(function(m){ var t=telDigits(m.phone); if(t)phones.push(t); if(m.email)emails.push(m.email); names.push(m.name); });
+        var body='EMERGENCY - '+label+' at '+short(w.property)+': '+String(w.summary||'')+' ('+w.id+'). Please respond ASAP.';
+        return { channels:['sms','email'], to:'management + maintenance', names:names.join(', '),
+                 sms:phones.join(','), email:emails.join(','), body:body, subject:'EMERGENCY: '+label+' - '+short(w.property) };
+      }
       function woSystem(w){
         if (w.system) return String(w.system).toLowerCase();
         var s=(w.summary||'').toLowerCase();
@@ -114,11 +131,11 @@
           var sys=woSystem(w);
           if (HAZARD[sys]){
             var label=(sys==='hvac')?'HVAC / A·C':sys.charAt(0).toUpperCase()+sys.slice(1);
+            var al=emergencyAlert(w, sys, label);
             emerg.push({ sev:'red', emergency:true, system:sys,
               t:'EMERGENCY · '+label+' — '+short(w.property),
-              d:String(w.summary||'')+' ('+w.id+'). Auto-alert: management + maintenance team by TEXT + EMAIL — dispatch wires at the backend (Rule 27 + email lane).',
-              lead:LEAD.Jordan, co:LEAD.TARS, open:'maintenance',
-              alert:{ channels:['sms','email'], to:'management + maintenance' } });
+              d:String(w.summary||'')+' ('+w.id+'). '+(al.names?('Reaches '+al.names+'. '):'')+'Tap Text/Email to send now — opens your app, prefilled. Auto-dispatch wires at the backend (Rule 27 + email lane).',
+              lead:LEAD.Jordan, co:LEAD.TARS, open:'maintenance', alert:al });
           } else {
             brief.push({ sev:'amber', t:w.id+' '+short(w.property)+' — urgent', d:String(w.summary||''), lead:LEAD.Jordan, open:'maintenance' });
           }

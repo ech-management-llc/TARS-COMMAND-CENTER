@@ -441,6 +441,16 @@ function briefItem(it, id, urgent){
   var routed = chip(it.lead) + chip(it.co);
   var emStyle = it.emergency ? ' style="border-left:3px solid #ef4444;background:rgba(239,68,68,.08);border-radius:6px;padding-left:9px"' : '';
   var openBtn = it.open ? '<button type="button" class="bi-open" data-open="'+esc(it.open)+'" style="margin-right:8px;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer">Open '+esc(it.lead?it.lead.name:it.open)+' ↗</button>' : '';
+  // Real tap-to-send affordance for items that carry recipients (e.g. the maintenance EMERGENCY alert).
+  // Opens the device SMS/email app prefilled; automated dispatch is the backend lane.
+  var alertBtns='';
+  if (it.alert && (it.alert.sms || it.alert.email)){
+    var _b=encodeURIComponent(it.alert.body||it.t||''), _s=encodeURIComponent(it.alert.subject||it.t||'');
+    var aStyle='display:inline-flex;align-items:center;gap:4px;margin-right:8px;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;text-decoration:none;color:#fff';
+    if (it.alert.sms) alertBtns += '<a class="bi-sms" href="sms:'+esc(it.alert.sms)+'?&amp;body='+_b+'" style="'+aStyle+';background:#b91c1c;border:1px solid #ef4444">📲 Text now</a>';
+    if (it.alert.email) alertBtns += '<a class="bi-email" href="mailto:'+esc(it.alert.email)+'?subject='+_s+'&amp;body='+_b+'" style="'+aStyle+';background:#7f1d1d;border:1px solid #ef4444">✉️ Email now</a>';
+    alertBtns += '<span style="font-size:10.5px;color:var(--mut,#9aa3b2);margin-right:8px">opens your app, prefilled · auto-dispatch lands with the backend</span>';
+  }
   return '<div class="brief-item'+(urgent?' urg':'')+'"'+emStyle+' data-briefkey="'+esc(id)+'">'+
     '<button type="button" class="bi-head">'+
       '<span class="bi-dot"></span>'+
@@ -450,6 +460,7 @@ function briefItem(it, id, urgent){
     '</button>'+
     '<div class="bi-body">'+
       '<p>'+esc(it.d||'')+'</p>'+
+      alertBtns+
       openBtn+
       '<button type="button" class="bi-ask" data-ask="'+esc(it.t)+'">💬 Discuss with TARS</button>'+
     '</div>'+
