@@ -47,6 +47,26 @@
 <script>
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  // Tap-to-contact for any payee we actually have contact data for (single-source from STUB_CONNECTIONS — vendors
+  // not in the roster, e.g. utilities, get no link rather than a fabricated one).
+  (function(){
+    function telD(p){ var x=String(p==null?'':p).replace(/[^0-9]/g,''); if(!x) return ''; if(x.length===10) x='1'+x; return '+'+x; }
+    fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      if(!d) return;
+      var map={}; (d.maintenance_personnel||[]).concat(d.team||[]).forEach(function(m){ if(m.name) map[m.name.toLowerCase()]={phone:m.phone,email:m.email}; });
+      document.querySelectorAll('table tr').forEach(function(tr){
+        var td=tr.querySelector('td'); if(!td) return;
+        var name=(td.textContent||'').trim().toLowerCase();
+        Object.keys(map).forEach(function(k){
+          if(name.indexOf(k)!==0) return;
+          var c=map[k], frag='', t=telD(c.phone);
+          if(t) frag+=' <a href="sms:'+t+'" title="Text '+k+'" style="text-decoration:none">💬</a>';
+          if(c.email) frag+=' <a href="mailto:'+c.email+'" title="Email '+k+'" style="text-decoration:none">✉️</a>';
+          if(frag) td.insertAdjacentHTML('beforeend', frag);
+        });
+      });
+    }).catch(function(){});
+  })();
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
 <script>FLSettings.mount({tileId:'vendors-payables'});</script>

@@ -84,9 +84,13 @@
       rr.forEach(function(p){ (p.units||[]).forEach(function(u){
         if (u.status==='late'){
           var notice=(Number(u.days_late)||0) >= 10;
+          var ten=u.tenant||{}, tph=telDigits(ten.phone), tem=ten.email||'';
+          var tAlert=(tph||tem)?{ channels:['sms','email'], to:(ten.name||'tenant'), names:(ten.name||'tenant'), sms:tph, email:tem,
+            subject:'Rent reminder - '+short(p.address),
+            body:'Hi'+(ten.name?(' '+String(ten.name).split(' ')[0]):'')+', a reminder that rent of '+money(u.rent)+' for '+short(p.address)+((u.unit&&u.unit!=='House')?(' '+u.unit):'')+' is '+u.days_late+' days past due'+(u.late_fee?(' (late fee '+money(u.late_fee)+')'):'')+'. Please reply to arrange payment. Thank you.' }:undefined;
           attn.push({ sev:'red', t:short(p.address)+((u.unit&&u.unit!=='House')?(' · '+u.unit):'')+' — rent '+u.days_late+'d late',
             d:money(u.rent)+' rent, late fee '+money(u.late_fee||0)+'. '+(notice?'Past 10 days — start the formal notice with Legal.':'Follow up with the tenant.'),
-            lead:LEAD.Reed, open:'rent-roll', co:(notice?LEAD.Dean:null) });
+            lead:LEAD.Reed, open:'rent-roll', co:(notice?LEAD.Dean:null), alert:tAlert });
         }
       }); });
 

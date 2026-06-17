@@ -446,9 +446,12 @@ function briefItem(it, id, urgent){
   var alertBtns='';
   if (it.alert && (it.alert.sms || it.alert.email)){
     var _b=encodeURIComponent(it.alert.body||it.t||''), _s=encodeURIComponent(it.alert.subject||it.t||'');
-    var aStyle='display:inline-flex;align-items:center;gap:4px;margin-right:8px;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;text-decoration:none;color:#fff';
-    if (it.alert.sms) alertBtns += '<a class="bi-sms" href="sms:'+esc(it.alert.sms)+'?&amp;body='+_b+'" style="'+aStyle+';background:#b91c1c;border:1px solid #ef4444">📲 Text now</a>';
-    if (it.alert.email) alertBtns += '<a class="bi-email" href="mailto:'+esc(it.alert.email)+'?subject='+_s+'&amp;body='+_b+'" style="'+aStyle+';background:#7f1d1d;border:1px solid #ef4444">✉️ Email now</a>';
+    var _em=!!it.emergency, _base='display:inline-flex;align-items:center;gap:4px;margin-right:8px;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;text-decoration:none;';
+    var _smsS=_base+(_em?'color:#fff;background:#b91c1c;border:1px solid #ef4444':'color:var(--fg,#e8e8ea);background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a)');
+    var _emlS=_base+(_em?'color:#fff;background:#7f1d1d;border:1px solid #ef4444':'color:var(--fg,#e8e8ea);background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a)');
+    var _lab=_em?' now':'';
+    if (it.alert.sms) alertBtns += '<a class="bi-sms" href="sms:'+esc(it.alert.sms)+'?&amp;body='+_b+'" style="'+_smsS+'">📲 Text'+_lab+'</a>';
+    if (it.alert.email) alertBtns += '<a class="bi-email" href="mailto:'+esc(it.alert.email)+'?subject='+_s+'&amp;body='+_b+'" style="'+_emlS+'">✉️ Email'+_lab+'</a>';
     alertBtns += '<span style="font-size:10.5px;color:var(--mut,#9aa3b2);margin-right:8px">opens your app, prefilled · auto-dispatch lands with the backend</span>';
   }
   return '<div class="brief-item'+(urgent?' urg':'')+'"'+emStyle+' data-briefkey="'+esc(id)+'">'+
