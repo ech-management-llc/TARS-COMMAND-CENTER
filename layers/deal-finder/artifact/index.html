@@ -171,12 +171,22 @@
     if(b.kw)$('df-kw').value=b.kw; if(b.fsbo===false)$('df-fsbo').checked=false;
     saveBuyBox();
   }
-  // hand a property + the buy box to the Analyzer
+  // hand a property + the buy box to the Analyzer (+ persist a deal to the backend when signed in)
   function sendToAnalyzer(addr, price, src){
     var pipe={ address:addr||'', price:(price!=null?Number(price):null), source:src||'manual',
       buybox:readBuyBox(), at:new Date().toISOString() };
     try{ localStorage.setItem(PIPE_KEY, JSON.stringify(pipe)); }catch(e){}
-    flOpen('deal-analyzer');
+    // Persist to /api/deals when there's a session; otherwise localStorage-only (unchanged behavior).
+    if(window.flDeals && window.flApi && flApi.authed()){
+      var bb=Object.assign({}, pipe.buybox||{}, {price:pipe.price});
+      flDeals.create({address:pipe.address, source:pipe.source, stage:'finder', buy_box:bb})
+        .then(function(deal){
+          if(deal && deal.id){ pipe.deal_id=deal.id; try{ localStorage.setItem(PIPE_KEY, JSON.stringify(pipe)); }catch(e){} }
+          flOpen('deal-analyzer');
+        });
+    } else {
+      flOpen('deal-analyzer');
+    }
   }
 
   document.addEventListener('input', function(e){ if(e.target.closest('#df-scrape')) return; if(e.target.closest('.df-form')) saveBuyBox(); });
@@ -225,6 +235,7 @@
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
+<script src="../../../shared/fl-api.js?v=20260618a"></script>
 <script src="../../../shared/fl-tile-settings.js"></script>
 <script>FLSettings.mount({tileId:'deal-finder'});</script>
 </body>

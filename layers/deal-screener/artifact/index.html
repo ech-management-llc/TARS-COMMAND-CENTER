@@ -244,6 +244,7 @@
   Deal Decider · Capital Rules sourced from <code>MEGA_BRAIN/04_PORTFOLIO_LEVEL_REPORTING/04_CAPITAL_PLANNING/CAPITAL-RULES.md</code> · Built 2026-05-05 by TARS
 </div>
 
+<script src="../../../shared/fl-api.js?v=20260618a"></script>
 <script>
 const FIELDS = ['title','entity','type','units','year-built','asking','purchase','closing','rehab','reserves','down','loan','rents','vacancy','opex','debt','liq-current','liq-out','notes'];
 const STORAGE_KEY = 'ech-deal-screener-v1';
@@ -441,6 +442,7 @@ function compute() {
   if (nextBtn) nextBtn.style.display = (verdictEl.className === 'verdict green') ? 'inline-flex' : 'none';
 
   saveState();
+  syncDecision();
 }
 
 function saveState() {
@@ -625,6 +627,20 @@ FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEvent
 var __takeoffGo=document.getElementById('takeoff-go'); if(__takeoffGo) __takeoffGo.addEventListener('click', runTakeoff);
 compute();
 
+// --- Backend sync: PATCH the decision to /api/deals when signed in (else no-op) ---
+var DEAL_ID=null, _decT=null;
+function syncDecision(){
+  if(!(DEAL_ID && window.flDeals && window.flApi && flApi.authed())) return;
+  if(_decT) clearTimeout(_decT);
+  _decT=setTimeout(function(){
+    var cls=((document.getElementById('verdict')||{}).className)||'';
+    var kls=cls.indexOf('green')>=0?'good':(cls.indexOf('yellow')>=0?'marginal':(cls.indexOf('red')>=0?'skip':null));
+    var headline=((document.getElementById('verdict-headline')||{}).textContent)||'';
+    var reasons=((document.getElementById('verdict-reasons')||{}).textContent)||'';
+    flDeals.update(DEAL_ID, {decision:{headline:headline, reasons:reasons, klass:cls}, verdict:kls, stage:'decider'});
+  }, 1200);
+}
+
 // --- Carry-in from the Deal Analyzer: map its published result (fl_deal_analysis_v1) into the Decider's fields ---
 function applyAnalysis(a){
   if(!a) return;
@@ -646,6 +662,7 @@ function applyAnalysis(a){
 (function analyzerCarry(){
   var a=null; try{ a=JSON.parse(localStorage.getItem('fl_deal_analysis_v1')); }catch(e){}
   if(!a) return;
+  DEAL_ID = a.deal_id || null;
   var bn=document.getElementById('analyzer-carry'), tx=document.getElementById('analyzer-carry-txt');
   if(bn&&tx){
     var parts=[]; if(a.address)parts.push(a.address); if(a.price!=null)parts.push('$'+Math.round(a.price).toLocaleString());

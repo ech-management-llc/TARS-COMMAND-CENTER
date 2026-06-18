@@ -162,7 +162,7 @@ function renderChrome(){
       '<button class="aibtn" id="refresh-btn" type="button">↻ REFRESH</button>'+
       '<button type="button" id="signout-btn" class="vb-signout">sign out</button>'+
     '</div>';
-  $('signout-btn').onclick = () => { Auth.signOut(); location.reload(); };
+  $('signout-btn').onclick = () => { Auth.signOut(); if(window.flAuth) flAuth.signOut(); location.reload(); };
 
   // global TARS button — pinned at top; hidden for the scoped Field role
   const g = STATE.tenant.global_agent || {};
@@ -233,6 +233,7 @@ function deriveName(contact, role){
 }
 function renderLoginGate(){
   const b = (STATE.tenant.branding)||{};
+  const real = !!(window.flAuth && flAuth.configured());
   const scopeOpts = (STATE.registry.layers||[]).filter(l => l.drilldown)
     .map(l => '<option value="'+esc(l.id)+'">'+esc(l.title)+'</option>').join('');
   const el = document.createElement('div');
@@ -242,51 +243,63 @@ function renderLoginGate(){
       '<div class="gate-logo">'+flMark(58)+'</div>'+
       '<h2>'+esc(b.title||STATE.tenant.name||'Foundation Layer')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h2>'+
       '<p class="gate-sub">Your real-estate investing co-pilot.</p>'+
-      '<label>Email or phone</label>'+
-      '<input id="gate-id" placeholder="you@company.com  ·  or  +1 555…" autocomplete="username">'+
-      '<button class="gate-btn primary" type="button" id="gate-send">Send magic link</button>'+
-      '<div id="gate-sent" style="display:none">'+
-        '<div class="gate-note ok" id="gate-sent-msg">✓ Magic link sent (demo — no real email/SMS). Tap continue to sign in.</div>'+
-        '<button class="gate-btn primary" type="button" id="gate-continue">Continue →</button>'+
-      '</div>'+
-      '<button class="gate-link" type="button" id="gate-adv-toggle">Advanced / demo roles</button>'+
+      '<label>Email</label>'+
+      '<input id="gate-email" type="email" placeholder="you@company.com" autocomplete="username">'+
+      '<label>Password</label>'+
+      '<input id="gate-pass" type="password" placeholder="••••••••" autocomplete="current-password">'+
+      '<button class="gate-btn primary" type="button" id="gate-signin">Sign in</button>'+
+      '<div class="gate-note" id="gate-err" style="display:none;color:var(--red)"></div>'+
+      '<button class="gate-link" type="button" id="gate-adv-toggle">Continue without an account (demo) ▾</button>'+
       '<div id="gate-adv" style="display:none">'+
         '<label>Role</label>'+
         '<select id="gate-role"><option value="owner">Owner (full)</option><option value="admin">Admin / Staff</option><option value="viewer">Read-only / Viewer</option><option value="field">Field (one job)</option></select>'+
         '<div id="gate-scope-wrap" style="display:none"><label>Field scope — one layer/job</label><select id="gate-scope">'+scopeOpts+'</select></div>'+
+        '<button class="gate-btn" type="button" id="gate-demo">Enter demo (local, this browser)</button>'+
       '</div>'+
       '<a class="gate-link" href="./onboarding/">New here? Get set up →</a>'+
-      '<div class="gate-note">Light, plug-and-play sign-in. Real verification (Supabase / magic-link) wires at production — this build uses a local demo session.</div>'+
+      '<div class="gate-note">'+(real
+        ? 'Sign in with your Foundation Layer account (Supabase Auth) — your session syncs deals + scoped data to the backend. No account yet? Use demo.'
+        : 'Auth not configured — demo session only (local, this browser).')+'</div>'+
     '</div>';
   document.body.appendChild(el);
 
-  const idInput = el.querySelector('#gate-id');
   const role = el.querySelector('#gate-role');
   el.querySelector('#gate-adv-toggle').onclick = () => { const a=el.querySelector('#gate-adv'); a.style.display = a.style.display==='none'?'block':'none'; };
   role.onchange = () => { el.querySelector('#gate-scope-wrap').style.display = role.value==='field'?'block':'none'; };
-  function doSignIn(){
-    const contact = (idInput.value||'').trim();
+
+  // Demo path — cosmetic local session (no JWT). The no-lockout fallback.
+  el.querySelector('#gate-demo').onclick = () => {
     const r = role.value || 'owner';
-    const sess = {
-      name: deriveName(contact, r), role: r,
+    Auth.signIn({
+      name: deriveName(el.querySelector('#gate-email').value||'', r), role: r,
       tenant: STATE.tenant.tenant_id || 'ech',
-      contact: contact || null,
+      contact: (el.querySelector('#gate-email').value||'').trim() || null,
       scope: r==='field' ? (el.querySelector('#gate-scope').value || null) : null,
-      at: new Date().toISOString()
-    };
-    Auth.signIn(sess);
-    el.remove();
-    startApp();
-  }
-  el.querySelector('#gate-send').onclick = () => {
-    const r = role.value;
-    el.querySelector('#gate-sent-msg').innerHTML = r==='field'
-      ? '✓ Sign-in code sent to your phone/email (demo). Tap continue — you’ll land scoped to one job.'
-      : '✓ Magic link sent (demo — no real email/SMS). Tap continue to sign in.';
-    el.querySelector('#gate-sent').style.display='block';
+      demo: true, at: new Date().toISOString()
+    });
+    el.remove(); startApp();
   };
-  el.querySelector('#gate-continue').onclick = doSignIn;
-  idInput.addEventListener('keydown', e => { if (e.key==='Enter') el.querySelector('#gate-send').click(); });
+
+  // Real path — Supabase email+password -> JWT (stored by flAuth for the API) + a session.
+  async function realSignIn(){
+    const email = (el.querySelector('#gate-email').value||'').trim();
+    const pass = el.querySelector('#gate-pass').value||'';
+    const err = el.querySelector('#gate-err');
+    if(!email || !pass){ err.style.display='block'; err.textContent='Enter your email and password.'; return; }
+    const btn = el.querySelector('#gate-signin'); btn.disabled=true; btn.textContent='Signing in…';
+    const res = await flAuth.signIn(email, pass);
+    btn.disabled=false; btn.textContent='Sign in';
+    if(res && res.error){ err.style.display='block'; err.textContent=res.error; return; }
+    Auth.signIn({ name: email.split('@')[0], role:'owner', tenant: STATE.tenant.tenant_id||'ech',
+      contact: email, supabase: true, at: new Date().toISOString() });
+    el.remove(); startApp();
+  }
+  const signinBtn = el.querySelector('#gate-signin');
+  signinBtn.onclick = real ? realSignIn : () => {
+    const err = el.querySelector('#gate-err'); err.style.display='block';
+    err.textContent = 'Auth not configured — use “Continue without an account (demo)”.';
+  };
+  el.querySelector('#gate-pass').addEventListener('keydown', e => { if (e.key==='Enter') signinBtn.click(); });
 }
 
 function tarsSvg(s){

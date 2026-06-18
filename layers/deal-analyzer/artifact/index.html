@@ -874,6 +874,7 @@
 
 </div>
 
+<script src="../../../shared/fl-api.js?v=20260618a"></script>
 <script>
   // ── globals called from inline handlers ──
   function setMode(mode) {
@@ -889,6 +890,7 @@
   // ── Deal Analyzer engine ──
   (function(){
     var AKEY='fl_analyzer_assumptions_v1', PIPE='fl_deal_pipeline_v1', RENO='fl_reno_estimate_v1';
+    var DEAL_ID=null;  // server deal id carried from the Finder (set when signed in)
     // ECH defaults: 50% down lands on the LTV target by design; costs are East-TX class-B typical.
     var DEF={ price:95000, rehab:0, closingPct:3, market:null, replacement:null,
               rent:null, units:1, beds:'', baths:'', sqft:'',
@@ -1140,9 +1142,18 @@
         opexMonthly:c.opex/12, debtMonthly:c.pi, down:c.down, loan:c.loan, cashIn:c.cashIn,
         cap:c.cap, cfMo:c.cfMo, perDoor:c.perDoor,
         dscr:isFinite(c.dscr)?c.dscr:null, ltv:c.ltv, coc:isFinite(c.coc)?c.coc:null,
-        verdict:v.kind, at:new Date().toISOString()
+        verdict:v.kind, deal_id:DEAL_ID, at:new Date().toISOString()
       };
       try{ localStorage.setItem('fl_deal_analysis_v1', JSON.stringify(rec)); }catch(e){}
+      syncAnalysis(rec);  // debounced PATCH to /api/deals when signed in (else no-op)
+    }
+    var _syncT=null;
+    function syncAnalysis(rec){
+      if(!(DEAL_ID && window.flDeals && window.flApi && flApi.authed())) return;
+      if(_syncT) clearTimeout(_syncT);
+      _syncT=setTimeout(function(){
+        flDeals.update(DEAL_ID, {analysis:rec, verdict:rec.verdict, stage:'analyzer'});
+      }, 1200);
     }
 
     // ── inputs ──
@@ -1177,6 +1188,7 @@
     function applyFinderCarry(){
       var pipe=null; try{ pipe=JSON.parse(localStorage.getItem(PIPE)); }catch(e){}
       if(!pipe) return;
+      DEAL_ID = pipe.deal_id || null;
       if(pipe.price!=null) S.price=Number(pipe.price);
       if(pipe.address) S.address=pipe.address;
       if(pipe.source) S.source=pipe.source;
