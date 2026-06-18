@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE recurring schedule for the ECH reference install. Honest placeholders — NOT live. Single shared source the Recurring tile reads and the Calendar expands into ⏰ day markers. cadence: monthly (day = day-of-month) | quarterly (anchor = next occurrence date, every 3 months) | yearly (month/day). Consistent with STUB_DEADLINES (mortgage drafts ↔ payments, 4E annual report ↔ the Jul 15 hard deadline, HVAC ↔ Maintenance WOs).",
+  "generated_at": "2026-06-11",
+  "recurring": [
+    { "id": "rec-mortgage", "cadence": "monthly", "day": 1, "item": "Mortgage drafts — all entities",
+      "type": "payment", "autopay": true, "hard": true,
+      "acct": { "label": "Altra auto-draft", "url": "https://www.altra.org", "pay": "AUTOPAY" } },
+    { "id": "rec-lawn", "cadence": "monthly", "day": 15, "item": "Lawn service — all properties",
+      "type": "payment", "autopay": true, "hard": false,
+      "acct": { "label": "GreenScape autopay", "url": "https://www.altra.org", "pay": "AUTOPAY" } },
+    { "id": "rec-hvac", "cadence": "quarterly", "anchor": "2026-07-10", "item": "HVAC filter run — field supervisor",
+      "type": "task", "autopay": false, "hard": false, "ties": "maintenance" },
+    { "id": "rec-4e-report", "cadence": "yearly", "month": 7, "day": 15, "item": "4E annual report (TX SOS)",
+      "type": "deadline", "autopay": false, "hard": true,
+      "acct": { "label": "TX SOS Webfile · filing fee", "url": "https://direct.sos.state.tx.us", "pay": "MANUAL" } }
+  ]
+}

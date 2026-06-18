@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE coverage map for the ECH reference install. Honest placeholders — NOT live. Five coverage categories (asset · builders_risk · liability · equipment · vehicles) per the pass-6 directive; a category with zero policies is a detected GAP (amber). Consistent with sibling stubs: State Farm/Allstate carriers, 10 asset policies ≈ rent-roll units, builders risk follows the active 102 Remington reno (WO-1041), renewals land on the Calendar feed. Policy docs file into Document Navigator.",
+  "generated_at": "2026-06-11",
+  "categories": [
+    { "id": "asset", "icon": "🏠", "label": "ASSET / PROPERTY", "headline": "10 policies",
+      "detail": "2 renew ≤30d · State Farm + Allstate", "ties": "property-file", "ties_label": "Property File" },
+    { "id": "builders_risk", "icon": "🏗️", "label": "BUILDERS RISK", "headline": "1 active",
+      "detail": "102 Remington reno · expires at CO", "ties": "build-renovate", "ties_label": "Build & Renovate" },
+    { "id": "liability", "icon": "⚖️", "label": "LIABILITY", "headline": "$2M umbrella",
+      "detail": "all entities · renews 2027-01", "ties": "legal", "ties_label": "Legal" },
+    { "id": "equipment", "icon": "🚜", "label": "EQUIPMENT", "headline": null,
+      "detail": null, "gap": "skid steer uninsured?", "ties": null },
+    { "id": "vehicles", "icon": "🚛", "label": "VEHICLES", "headline": "2 commercial",
+      "detail": "F-250 + trailer · renews 2026-10", "ties": null }
+  ]
+}

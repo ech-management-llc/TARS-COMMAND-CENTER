@@ -21,12 +21,32 @@ html{-webkit-text-size-adjust:100%}
 body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased; padding-bottom:60px}
 .wrap{max-width:760px; margin:0 auto; padding:18px 16px; padding-top:max(18px,env(safe-area-inset-top))}
 
-.verbar{background:linear-gradient(90deg,#15131f,#161618); border:1px solid var(--line); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap}
+.verbar{background:linear-gradient(90deg,#15131f,#161618); border:1px solid var(--line); border-radius:var(--radius); padding:10px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
 .verbar b{color:#c9c2ff; font-weight:600; font-size:13px}
-.srcpill{font-size:10px; font-weight:600; padding:2px 8px; border-radius:20px; letter-spacing:.4px}
+.srcpill{font-size:10px; font-weight:600; padding:2px 8px; border-radius:20px; letter-spacing:.4px; text-decoration:none; display:inline-flex; align-items:center}
+a.srcpill{cursor:pointer} a.srcpill:hover{filter:brightness(1.2)}
 .src-fred{background:#0c2444; color:#7fb2f0} .src-rev{background:#2e2206; color:#f0b65a}
 .src-cen{background:#06302b; color:#5fe0cd} .src-dc{background:#0e2a1f; color:#5fd6a8}
 .src-fl{background:#1a1730; color:#c9c2ff}
+
+/* top-ribbon clusters: brand · who/when · live+refresh+sign-out */
+.vb-brand{display:flex; align-items:center; gap:8px}
+.vb-meta{display:flex; align-items:baseline; gap:7px; color:var(--mut); font-size:12px; flex-wrap:wrap}
+.vb-meta b{color:var(--txt); font-weight:600}
+.vb-status{display:flex; align-items:center; gap:10px}
+.vb-status .live{display:flex; align-items:center; gap:6px; color:var(--green); font-weight:600; font-size:12px}
+.vb-status .live.down{color:var(--red)} .vb-status .live.down .pulse{background:var(--red)}
+.vb-signout{background:none; border:0; color:var(--purple); font-size:11px; cursor:pointer; padding:0; text-decoration:underline}
+
+/* connection chips (per-group source status) — GREEN = connected/live, RED = not connected */
+.srcpill.conn-on{background:var(--greenbg); color:var(--green); border:1px solid var(--greenln)}
+.srcpill.conn-off{background:var(--redbg); color:var(--red); border:1px solid var(--redln)}
+.srcpill .cdot{display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:5px; vertical-align:middle}
+.srcpill.conn-on .cdot{background:var(--green)} .srcpill.conn-off .cdot{background:var(--red)}
+
+/* per-group source chip strip, right-aligned in the group header */
+.grp-srcs{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-left:auto; margin-right:10px}
+.grp-srcs:empty{margin:0}
 
 .head{display:flex; align-items:baseline; justify-content:space-between; margin:6px 2px 16px}
 .head h1{font-size:20px; font-weight:700; letter-spacing:1.5px}
@@ -42,9 +62,6 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 .ai .src-note{font-size:11px;color:var(--dim);margin-top:8px}
 .toggle{background:var(--surf2); border:1px solid var(--purpleln); color:var(--purple); font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; cursor:pointer}
 
-.upd{display:flex; align-items:center; justify-content:space-between; background:var(--surf); border:1px solid var(--line); border-radius:var(--radius-sm); padding:9px 14px; margin-bottom:16px; font-size:12px; color:var(--mut)}
-.upd .live{display:flex; align-items:center; gap:8px; color:var(--green); font-weight:600}
-.upd .live.down{color:var(--red)} .upd .live.down .pulse{background:var(--red)}
 .pulse{width:8px;height:8px;border-radius:50%;background:var(--green); box-shadow:0 0 0 0 rgba(16,185,129,.5); animation:p 2s infinite}
 @keyframes p{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
 .aibtn{background:#16221c; border:1px solid var(--greenln); color:var(--green); font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; cursor:pointer}
@@ -53,11 +70,13 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 .sect{font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--dim); margin:22px 2px 10px}
 
 /* ── collapsible group sections ── */
-.grp{margin-top:18px}
-.grp-head{display:flex; align-items:center; justify-content:space-between; width:100%; background:transparent; border:0; border-bottom:1px solid var(--line); padding:6px 2px 8px; margin-bottom:12px; cursor:pointer; color:inherit; font:inherit}
-.grp-head:hover .grp-label{color:var(--mut)}
-.grp-label{font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--dim)}
-.grp-chev{color:var(--dim); font-size:12px; transition:transform .15s}
+.grp{background:var(--gabg,transparent); border:1px solid var(--line); border-left:3px solid var(--ga,var(--line)); border-radius:12px; padding:6px 15px 15px; margin-top:16px}
+.grp-head{display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); padding:9px 2px 10px; margin-bottom:13px}
+.grp-toggle{display:flex; align-items:center; gap:9px; background:transparent; border:0; padding:0; cursor:pointer; color:inherit; font:inherit}
+.grp-toggle:hover{opacity:.85}
+.grp-ico{font-size:16px; line-height:1}
+.grp-label{font-size:15px; font-weight:800; letter-spacing:.6px; color:var(--ga,var(--txt))}
+.grp-chev{color:var(--ga,var(--dim)); font-size:13px; transition:transform .15s}
 .grp.collapsed .grp-chev{transform:rotate(-90deg)}
 .grp.collapsed .grp-body{display:none}
 .grp-body{display:block}
@@ -75,12 +94,24 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 .tile .big{font-size:19px; font-weight:700; margin:2px 0}
 .tile .big.muted{color:var(--dim)}
 .tile .sub{font-size:12px; color:var(--mut)}
+.tile .mean{font-size:11.5px; color:var(--mut); line-height:1.4; margin-top:3px}
+
+/* market "context, not chores" intro */
+.mkt-intro{font-size:11.5px; color:var(--dim); margin:0 2px 11px; line-height:1.45}
+
+/* calm status pill on market tiles (Version A) */
+.mtag{display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; margin-top:9px; letter-spacing:.2px}
+.mtag .mtdot{width:6px; height:6px; border-radius:50%}
+.mtag.t-good{background:var(--greenbg); color:var(--green); border:1px solid var(--greenln)} .mtag.t-good .mtdot{background:var(--green)}
+.mtag.t-fyi{background:var(--surf2); color:var(--mut); border:1px solid var(--line)} .mtag.t-fyi .mtdot{background:var(--mut)}
+.mtag.t-connect{background:#0c2444; color:#7fb2f0; border:1px solid #16335c} .mtag.t-connect .mtdot{background:#7fb2f0}
 .tile .stamp{font-size:10px; color:var(--dim); margin-top:6px}
 .badge{font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; letter-spacing:.4px}
 .b-green{background:var(--greenbg); color:var(--green); border:1px solid var(--greenln)}
 .b-yellow{background:var(--yellowbg); color:var(--yellow); border:1px solid var(--yellowln)}
 .b-red{background:var(--redbg); color:var(--red); border:1px solid var(--redln)}
 .b-gray{background:var(--surf2); color:var(--dim); border:1px solid var(--line)}
+.b-white{background:var(--surf2); color:var(--txt); border:1px solid var(--line)}  /* no data yet = white/neutral */
 .accent-green{border-left:3px solid var(--green)}
 
 .spark{display:flex; align-items:flex-end; gap:3px; height:30px; margin-top:8px}
@@ -89,8 +120,38 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 .pills{display:flex; gap:6px; flex-wrap:wrap; margin-top:9px}
 .pill{font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--yellowbg); color:var(--yellow); border:1px solid var(--yellowln)}
 
-.pickrow{display:flex; justify-content:flex-end; margin-bottom:10px}
+.pickrow{display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; flex-wrap:wrap}
 .picker{background:var(--surf2); border:1px solid var(--line); color:var(--txt); font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px}
+
+/* "Information Tiles" catalog button in the Market lasso */
+.infotiles{display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:12px; background:var(--surf); border:1px dashed var(--line); border-radius:var(--radius); padding:13px 15px; cursor:pointer; color:inherit; font:inherit; text-align:left}
+.infotiles:hover{background:var(--surf2); border-color:#3a3a40}
+.infotiles .it-l{display:flex; align-items:center; gap:12px}
+.infotiles .it-ico{font-size:18px}
+.infotiles .it-tx{display:flex; flex-direction:column}
+.infotiles .it-tx b{font-size:13.5px}
+.infotiles .it-d{font-size:11.5px; color:var(--mut)}
+.infotiles .it-arrow{color:var(--green); font-size:16px}
+
+/* sub-heading inside a lasso (e.g. "DEALS" within Market & Deals) */
+.subhead{font-size:11px; font-weight:700; letter-spacing:.5px; color:var(--mut); margin:16px 2px 9px}
+
+/* ── Daily Brief items (expand + discuss with TARS) ── */
+.brief-h{font-size:11px; font-weight:700; letter-spacing:.6px; color:var(--mut); margin:4px 2px 8px}
+.brief-h.urg{color:var(--red)}
+.brief-item{background:var(--surf); border:1px solid var(--line); border-radius:10px; margin-bottom:8px; overflow:hidden}
+.brief-item.urg{border-color:var(--redln); background:var(--redbg)}
+.bi-head{display:flex; align-items:center; gap:10px; width:100%; background:transparent; border:0; padding:11px 13px; cursor:pointer; color:inherit; font:inherit; text-align:left}
+.bi-dot{width:8px; height:8px; border-radius:50%; background:var(--green); flex-shrink:0}
+.brief-item.urg .bi-dot{background:var(--red)}
+.bi-t{flex:1; font-size:13.5px; font-weight:600; color:var(--txt)}
+.bi-chev{color:var(--dim); font-size:12px; transition:transform .15s}
+.brief-item.open .bi-chev{transform:rotate(180deg)}
+.bi-body{display:none; padding:0 13px 12px 31px}
+.brief-item.open .bi-body{display:block}
+.bi-body p{font-size:12.5px; color:var(--mut); line-height:1.55; margin-bottom:9px}
+.bi-ask{background:var(--purplebg); border:1px solid var(--purpleln); color:#c9c2ff; font-size:12px; font-weight:700; padding:6px 12px; border-radius:20px; cursor:pointer}
+.bi-ask:hover{background:#211c3d}
 
 .note{background:var(--surf); border:1px solid var(--line); border-radius:var(--radius-sm); padding:11px 14px; font-size:12px; color:var(--mut); margin-top:12px; line-height:1.55}
 .note b{color:var(--teal)}
@@ -103,6 +164,7 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 .art .ds{font-size:11.5px; color:var(--mut); margin-top:2px}
 .art .L{position:absolute; top:10px; right:11px; font-size:9px; font-weight:800; color:var(--dim); letter-spacing:.5px}
 .art .soon{position:absolute; top:10px; right:11px; font-size:9px; font-weight:800; color:var(--orange)}
+.art .stepb{display:inline-block; font-size:9px; font-weight:800; letter-spacing:.6px; text-transform:uppercase; padding:2px 8px; border-radius:999px; background:var(--purplebg); border:1px solid var(--purpleln); color:#c9c2ff; margin-bottom:8px}
 .art.disabled{opacity:.6; cursor:default}
 .art.disabled:hover{transform:none; background:var(--surf)}
 .art.add{border-style:dashed}
@@ -112,8 +174,6 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 .foot{text-align:center; color:var(--dim); font-size:11px; margin-top:26px; line-height:1.7}
 
 /* ── account chip (header) ── */
-.acct{font-size:11px;color:var(--dim);margin-top:3px}
-.acct button{background:none;border:0;color:var(--purple);font-size:11px;cursor:pointer;padding:0;text-decoration:underline}
 
 /* ── login gate ── */
 .gate{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
@@ -126,7 +186,7 @@ body{background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacS
 .gate-card input,.gate-card select{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px 12px;font:inherit;font-size:14px}
 .gate-btn{width:100%;margin-top:14px;padding:11px;border:0;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;background:var(--surf2);color:var(--txt)}
 .gate-btn.primary{background:var(--accent,#10b981);color:#06150f}
-.gate-link{background:none;border:0;color:var(--purple);font-size:12px;margin-top:14px;cursor:pointer}
+.gate-link{display:block;background:none;border:0;color:var(--purple);font-size:12px;margin-top:8px;cursor:pointer;width:fit-content;text-decoration:none}
 .gate-note{font-size:11px;color:var(--dim);margin-top:14px;line-height:1.5}
 .gate-note.ok{color:var(--green)}
 

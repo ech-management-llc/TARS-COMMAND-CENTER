@@ -1,7 +1,7 @@
 {
-  "name": "TARS Command Center",
-  "short_name": "TARS",
-  "description": "Tile-based operations command center — Platform v1",
+  "name": "Foundation Layer — Command Center",
+  "short_name": "FL CC",
+  "description": "Foundation Layer — tile-based real-estate command center",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

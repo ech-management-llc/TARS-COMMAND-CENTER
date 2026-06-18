@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE connection inventory for the ECH reference install. Honest placeholders — NOT live; toggling a chip in the Connections screen flips front-end state (localStorage fl_connections_overlay_v1) until the connector phase wires real OAuth/API links. Single source for the Connections screen AND the Text-TARS allow-list (Rule 27): can_command_tars: true team members may command TARS by SMS; unknown numbers NEVER execute commands — they file to the Inbox as correspondence. Phone numbers and emails are sample (echmanagement.services for staff; .example for vendors). No credentials live here or anywhere in FL CC — passkey/YubiKey model; SYSTEM_KEYS holds the account inventory, not secrets.",
+  "generated_at": "2026-06-16",
+  "tars_line": {
+    "id": "tars-line",
+    "label": "TARS line",
+    "phone": "(903) 555-8277",
+    "desc": "the number you text · Rule 27 front door · commands from allow-listed phones only",
+    "connected": true
+  },
+  "email_accounts": [
+    { "id": "em-manager", "label": "manager@echmanagement.services", "desc": "leasing + ops inbox", "connected": true },
+    { "id": "em-jerry", "label": "jerry.eads@echmanagement.services", "desc": "owner — read-only to employees", "connected": true },
+    { "id": "em-accounting", "label": "accounting@echmanagement.services", "desc": "statements + invoices", "connected": false }
+  ],
+  "team": [
+    { "id": "tm-ashley", "name": "Ashley", "role": "property manager", "phone": "(903) 555-0142", "email": "ashley@echmanagement.services",
+      "desc": "SMS scheduling ✓ · can command TARS by text", "can_command_tars": true, "connected": true },
+    { "id": "tm-jerry", "name": "Jerry", "role": "owner", "phone": "(903) 555-0101", "email": "jerry.eads@echmanagement.services",
+      "desc": "escalations · can command TARS by text", "can_command_tars": true, "connected": true },
+    { "id": "tm-fieldsup", "name": "Field supervisor", "role": "field", "phone": null, "email": null,
+      "desc": "add phone to enable dispatch texts", "can_command_tars": false, "connected": false }
+  ],
+  "applications": [
+    { "id": "app-zillow", "label": "Zillow", "desc": "leads + listing messages", "connected": true },
+    { "id": "app-realtor", "label": "Realtor.com", "desc": "leads + inquiries", "connected": true },
+    { "id": "app-rentredi", "label": "RentRedi", "desc": "tenant messages · applications · payments", "connected": true },
+    { "id": "app-facebook", "label": "Facebook Marketplace", "desc": "listing inquiries", "connected": false },
+    { "id": "app-apartments", "label": "Apartments.com", "desc": "listing inquiries", "connected": false }
+  ],
+  "maintenance_personnel": [
+    { "id": "mp-lonestar", "name": "Lone Star Plumbing", "trade": "plumbing", "phone": "(903) 555-0188", "email": "dispatch@lonestarplumbing.example", "desc": "vendor on file · SMS dispatch", "connected": true },
+    { "id": "mp-coolair", "name": "Cool Air TX", "trade": "HVAC", "phone": "(903) 555-0166", "email": "service@coolairtx.example", "desc": "vendor on file · SMS dispatch", "connected": true },
+    { "id": "mp-henderson", "name": "Henderson Electric", "trade": "electrical", "phone": "(903) 555-0173", "email": "dispatch@hendersonelectric.example", "desc": "vendor on file · SMS dispatch · matches WO-1044", "connected": true },
+    { "id": "mp-fieldsup", "name": "Field supervisor", "trade": "general", "phone": null, "email": null, "desc": "add phone to enable dispatch texts", "connected": false }
+  ],
+  "tools": {
+    "_note": "Per-employee/role connected + suggested tools (platform standard, pass #6). Suggested shows when nothing is connected, with an honest connect affordance — real hookups land at the connector phase.",
+    "architect-cad": { "employee": "Mason", "role": "Architect & CAD", "connected": ["AutoCAD LT"], "suggested": ["SketchUp", "Revit LT"] },
+    "takeoff": { "employee": "Tovah", "role": "Takeoff planner", "connected": [], "suggested": ["PlanSwift", "Bluebeam", "STACK"] },
+    "stager": { "employee": "Sloane (stager)", "role": "Stager & designer", "connected": [], "suggested": ["Canva", "Planner 5D", "Houzz Pro"] }
+  }
+}

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connections — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+/* ── connections screen (pass #5, per the Jerry-approved concept) ── */
+.conngrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.conn h4{font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--mut);margin-bottom:8px}
+.chip2{display:flex;align-items:center;gap:8px;background:var(--surf2);border:1px solid var(--line);border-radius:9px;padding:7px 10px;margin-bottom:6px;font-size:12px;cursor:pointer}
+.chip2 .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex-shrink:0}
+.chip2.on{border-color:var(--greenln)} .chip2.on .dot{background:var(--green)}
+.chip2 .lbl{flex:1} .chip2 .sub2{font-size:10px;color:var(--dim)}
+.chip2 .st2{font-size:9px;font-weight:800;color:var(--dim)}
+.chip2.on .st2{color:var(--green)}
+.cmdb{font-size:9px;font-weight:800;border-radius:4px;padding:1px 6px;background:var(--purplebg);color:#c9c2ff;border:1px solid var(--purpleln);white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🔌 Connections</div>
+
+  <div class="preview-banner">
+    <b>What Bell, Nadia &amp; the TARS number are allowed to touch.</b> Toggles are front-end state until the connector phase wires real account links (OAuth / API keys held server-side — <b>no credentials ever live in this dashboard</b>; passkey/YubiKey model for account portals).
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Linc</b> and say "connect the accounting inbox" or "give the field supervisor a phone" — the employee walks the hookup.</div>
+  </div>
+
+  <div class="card" data-view-section="grid">
+    <div class="conngrid" id="conngrid"></div>
+    <div class="small dim" style="margin-top:10px">Selections here scope BOTH tiles: what lands in the <button class="xref" type="button" onclick="flOpen('inbox')" title="Open Inbox">Inbox</button>, which accounts feed payment due-dates to the <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar">Calendar</button>, and who can text-command TARS (Rule 27 — allow-listed phones only; unknown numbers route to the Inbox as correspondence, never as commands). External sends respect the Inbox's Draft / Auto dispatch gate.</div>
+  </div>
+</div>
+
+<script>
+  // toggle state overlays the stub via localStorage fl_connections_overlay_v1 {id:bool};
+  // the backend replaces the overlay with real connection state, same merge contract
+  var OVKEY = 'fl_connections_overlay_v1';
+  var DATA = null;
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function loadOv(){ try{ return JSON.parse(localStorage.getItem(OVKEY))||{}; }catch(e){ return {}; } }
+  function isOn(item){ var ov=loadOv(); return Object.prototype.hasOwnProperty.call(ov,item.id) ? !!ov[item.id] : !!item.connected; }
+
+  function chip(item, extraSub){
+    var sub = esc(item.desc||'');
+    if(extraSub) sub = extraSub + (sub?' · '+sub:'');
+    return '<div class="chip2'+(isOn(item)?' on':'')+'" onclick="tog(\''+esc(item.id)+'\')" data-cid="'+esc(item.id)+'">'+
+      '<span class="dot"></span>'+
+      '<span class="lbl">'+esc(item.label||item.name)+
+        (item.can_command_tars?' <span class="cmdb" title="Allow-listed for Text-TARS commands (Rule 27)">CAN COMMAND TARS</span>':'')+
+        '<div class="sub2">'+sub+'</div></span>'+
+      '<span class="st2">'+(isOn(item)?'CONNECTED':'OFF')+'</span></div>';
+  }
+
+  function render(){
+    var d = DATA;
+    var team = [chip({id:d.tars_line.id, label:'📟 '+d.tars_line.label+' — '+d.tars_line.phone, desc:d.tars_line.desc, connected:d.tars_line.connected})]
+      .concat(d.team.map(function(t){ return chip({id:t.id, label:t.name+' — '+t.role, desc:t.desc, connected:t.connected, can_command_tars:t.can_command_tars}, t.phone?esc(t.phone):''); }));
+    var personnel = (d.maintenance_personnel||[]).map(function(p){ return chip({id:p.id, label:p.name+' — '+p.trade, desc:p.desc, connected:p.connected}, p.phone?esc(p.phone):''); });
+    // platform standard: per-employee connected + suggested tools (Build & Renovate consumes it first)
+    var tools = '';
+    if(d.tools){
+      tools = Object.keys(d.tools).filter(function(k){ return k!=='_note'; }).map(function(k){
+        var t = d.tools[k];
+        var conn = (t.connected||[]).map(function(x){ return '<div class="small" style="color:var(--green)">● '+esc(x)+' — connected</div>'; }).join('');
+        var sugg = (!t.connected||!t.connected.length) && (t.suggested||[]).length
+          ? '<div class="small muted">○ suggested: '+t.suggested.map(esc).join(' · ')+' <button class="xref" type="button" onclick="suggestNote()" title="Connect a tool">connect</button></div>'
+          : (t.suggested&&t.suggested.length ? '<div class="small dim">also: '+t.suggested.map(esc).join(' · ')+'</div>' : '');
+        return '<div style="margin-bottom:8px"><b class="small">'+esc(t.employee)+' · '+esc(t.role)+'</b>'+conn+sugg+'</div>';
+      }).join('');
+      tools = '<div class="conn"><h4>🧰 EMPLOYEE TOOLS — connected / suggested</h4>'+tools+
+        '<div class="small dim">Suggestions show until a tool is connected (market-based). Real hookups land at the connector phase.</div></div>';
+    }
+    document.getElementById('conngrid').innerHTML =
+      '<div class="conn"><h4>📧 EMAIL ACCOUNTS</h4>'+d.email_accounts.map(function(x){return chip(x);}).join('')+'</div>'+
+      '<div class="conn"><h4>👥 TEAM MEMBERS &amp; PHONES</h4>'+team.join('')+'</div>'+
+      '<div class="conn"><h4>🔌 APPLICATIONS</h4>'+d.applications.map(function(x){return chip(x);}).join('')+'</div>'+
+      '<div class="conn"><h4>🔧 MAINTENANCE PERSONNEL — SMS dispatch</h4>'+personnel.join('')+'</div>'+
+      tools;
+    applyViewCfg(viewOps);
+  }
+  function suggestNote(){ /* honest stub — picking a tool moves it to connected at the connector phase */ }
+
+  function tog(id){
+    var el = document.querySelector('[data-cid="'+id+'"]'); if(!el) return;
+    var ov = loadOv();
+    var on = !el.classList.contains('on');
+    ov[id] = on;
+    try{ localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){}
+    el.classList.toggle('on', on);
+    el.querySelector('.st2').textContent = on ? 'CONNECTED' : 'OFF';
+  }
+
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  var viewOps=[];
+  function applyViewCfg(ops){
+    viewOps=ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ DATA=d; render();
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
+    .catch(function(){ document.getElementById('conngrid').innerHTML='<div class="muted small">Awaiting connection record — shared source not reachable.</div>'; });
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'connections'});</script>
+</body>
+</html>

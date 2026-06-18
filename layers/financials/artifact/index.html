@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Financial Dashboard — TARS Command Center</title>
+<title>Financial Dashboard — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 <style>
   .livewire{background:var(--yellowbg);border:1px solid var(--yellowln);color:var(--yellow);font-size:13px;font-weight:600;border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:14px;line-height:1.5}
@@ -12,6 +12,12 @@
   .hm{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
   .hm .t{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:14px;text-align:center}
   .hm .v{font-size:20px;font-weight:800}.hm .k{font-size:11px;color:var(--mut);margin-top:3px}
+  #entities tr.entrow{cursor:pointer}
+  #entities tr.entrow td{transition:background .1s}
+  #entities tr.entrow:hover td{background:var(--surf2)}
+  #entities tr.entrow.sel td{background:var(--greenbg)}
+  #entities tr.entrow.sel td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+  #entities .ck{display:inline-block;width:15px;color:var(--green);font-weight:800}
   @media(max-width:560px){ .hm{grid-template-columns:1fr 1fr} }
 </style>
 </head>
@@ -20,13 +26,18 @@
   <div class="art-head">📊 Financial Dashboard</div>
   <div id="statusbar" class="livewire">Loading Foundation Layer live wire…</div>
 
-  <div class="section-label">CAPITAL RULES</div>
-  <div class="ruleg" id="rules"></div>
+  <div class="section-label">CAPITAL RULES <span id="rulescope" class="pill" style="margin-left:6px"></span></div>
+  <div id="ruleswrap"><div class="ruleg" id="rules"></div></div>
+  <div class="wire-note" id="scopenote" style="margin-bottom:14px"></div>
 
-  <div class="section-label">HEADLINE METRICS</div>
+  <div class="section-label">HEADLINE METRICS <span id="hmscope" class="muted small" style="font-weight:500;margin-left:4px"></span></div>
   <div class="hm" id="headline"></div>
 
-  <div class="section-label">BY ENTITY</div>
+  <div class="section-label">BY ENTITY — tap a company to scope <button class="xref" type="button" onclick="flOpen('entities')" title="Open Entities — companies behind these sections">Entities</button></div>
+  <div class="filt" style="margin-bottom:10px">
+    <button class="btn" id="allbtn" onclick="selectAll()">★ All (consolidated)</button>
+    <span class="muted small" style="align-self:center">tap rows to include / exclude · selected = green</span>
+  </div>
   <div class="card flush"><table id="entities"><tbody><tr><td class="muted">loading…</td></tr></tbody></table></div>
 
   <div class="card">
@@ -37,7 +48,7 @@
       <button class="btn" onclick="report('Balance Sheet')">Balance Sheet</button>
       <button class="btn primary" onclick="emailReport()">📧 Email this report</button>
     </div>
-    <div class="wire-note" id="reportnote">Weekly P&amp;L · Cash Flow · Balance Sheet generate from the Foundation Layer ledger. Pre-production (Plaid sandbox), so rows read $0 honestly until real income flows.</div>
+    <div class="wire-note" id="reportnote">Weekly P&amp;L · Cash Flow · Balance Sheet generate from the Foundation Layer ledger. Pre-production (Plaid sandbox), so rows read $0 honestly until real income flows. Reports follow the entity scope selected above.</div>
   </div>
 
   <div class="card">
@@ -49,9 +60,17 @@
   <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
 </div>
 
+<script src="../../../shared/fl-scope-select.js"></script>
 <script>
   var FL = "https://api.foundationlayerhq.com/api/dashboard/latest";
+  var PROFILES_URL = "../../../data/STUB_CAPITAL_PROFILES.json";
   var LS = "tcc_fin_artifact_lastgood";
+  var SEL_LS = "tcc_fin_entity_sel";
+  var DATA = null, PROFILES = null, SEL = null, scope = null; // SEL mirrors the shared FLScope selection (full array = all)
+  var FLS_OVR = null;            // owner's tunable thresholds from the Financials tile setbar (param LTV is %, converted to a fraction in profileFor)
+
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function money(n){ if(n==null||isNaN(n)) return '—'; n=Number(n); var a=Math.abs(n); if(a>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+(n/1e3).toFixed(1)+'K'; return '$'+n.toLocaleString('en-US'); }
   function ts(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d.getTime())) return iso; return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}); }
@@ -59,39 +78,134 @@
   function fmtLtv(v){ return v==null?'—':Math.round(v*100)+'%'; }
   function fmtDscr(v){ return v==null?'—':Number(v).toFixed(2)+'×'; }
 
-  function render(d, source){
-    var hm = d.headline_metrics||{};
-    var hasIncome = Number(hm.total_revenue_ytd)>0;
-    var bar = document.getElementById('statusbar');
-    if (hasIncome){ bar.className='livewire livegreen'; bar.innerHTML='🟢 LIVE — Foundation Layer ledger data · week of '+esc(d.week_of||''); }
-    else { bar.className='livewire'; bar.innerHTML='🔌 LIVE WIRE — real dollar figures pending (ledger engine not finished). Rules + structure are live; revenue / NOI read $0 honestly.'; }
+  function allCodes(){ return ((DATA&&DATA.entities)||[]).map(entCode); }
+  // entity selection + persistence are managed by the shared FLScope component (created on data load).
+  function entCode(e){ return e.code||e.id||e.name; }
+  function ownerOf(code){ var o=PROFILES&&PROFILES.overrides&&PROFILES.overrides[code]; return (o&&o.owner)||(PROFILES&&PROFILES.default_owner)||'ECH Management (self-managed)'; }
+  function isOverride(code){ return !!(PROFILES&&PROFILES.overrides&&PROFILES.overrides[code]); }
+  function isAll(){ var a=allCodes(); return a.length>0 && SEL && SEL.length===a.length; }
 
-    // capital rules
-    var cr = d.capital_rules||{};
-    var order = [['ltv','LTV',fmtLtv],['dscr','DSCR',fmtDscr],['liquidity','LIQUIDITY',money],['per_door','PER-DOOR',money]];
-    document.getElementById('rules').innerHTML = order.map(function(o){
-      var r = cr[o[0]]; if(!r) return '';
-      var st = r.status||'UNKNOWN';
-      var cls = ruleColor(st);
-      var sub = st==='UNKNOWN' ? 'pending (sandbox)' : ('thresh '+o[2](r.threshold)+(r.headroom!=null?' · head '+o[2](r.headroom):''));
-      return '<div class="rule '+cls+'"><div class="rn">'+o[1]+'</div><div class="rv">'+(st==='UNKNOWN'?'—':o[2](r.value))+'</div><div class="rt">'+esc(sub)+'</div></div>';
+  function scopeEntities(){ var all=(DATA&&DATA.entities)||[]; if(!SEL) return all; return all.filter(function(e){ return SEL.indexOf(entCode(e))>=0; }); }
+
+  function selectAll(){ if(scope) scope.selectAll(); }            // delegate to FLScope
+  function toggleEntity(code){ if(scope) scope.toggle(code); }    // delegate to FLScope
+
+  function ownersInScope(){ var ents=scopeEntities(); var set=[]; ents.forEach(function(e){ var o=ownerOf(entCode(e)); if(set.indexOf(o)<0) set.push(o); }); return set; }
+  function ownerHasOverride(owner){ var ov=(PROFILES&&PROFILES.overrides)||{}; return Object.keys(ov).some(function(k){ return ov[k].owner===owner && ov[k].profile; }); }
+  function profileFor(owner){
+    var fb=(PROFILES&&PROFILES.default_thresholds_fallback)||{};
+    var cr=(DATA&&DATA.capital_rules)||{};
+    var base={ ltv_max:(cr.ltv&&cr.ltv.threshold!=null?cr.ltv.threshold:fb.ltv_max), dscr_min:(cr.dscr&&cr.dscr.threshold!=null?cr.dscr.threshold:fb.dscr_min), liquidity_floor:(cr.liquidity&&cr.liquidity.threshold!=null?cr.liquidity.threshold:fb.liquidity_floor), per_door_floor:(cr.per_door&&cr.per_door.threshold!=null?cr.per_door.threshold:fb.per_door_floor) };
+    var ov=(PROFILES&&PROFILES.overrides)||{};
+    var key=Object.keys(ov).filter(function(k){ return ov[k].owner===owner && ov[k].profile; })[0];
+    if(key){ var p=ov[key].profile; for(var f in p){ base[f]=p[f]; } }
+    if(FLS_OVR){                                          // owner's knob = highest-priority override (Financials setbar)
+      if(FLS_OVR.ltv_max!=null)          base.ltv_max=FLS_OVR.ltv_max/100;   // param is % (65) -> profile uses a fraction (0.65)
+      if(FLS_OVR.dscr_min!=null)         base.dscr_min=FLS_OVR.dscr_min;
+      if(FLS_OVR.liquidity_floor!=null)  base.liquidity_floor=FLS_OVR.liquidity_floor;
+      if(FLS_OVR.per_door_floor!=null)   base.per_door_floor=FLS_OVR.per_door_floor;
+    }
+    return base;
+  }
+
+  // Capital Rules evaluate at the OWNER level across that owner's entities (covenants are portfolio-level per owner).
+  function renderRules(){
+    var pill=document.getElementById('rulescope');
+    var owners=ownersInScope();
+    var cr=(DATA&&DATA.capital_rules)||{};
+    var order=[['ltv','LTV',fmtLtv],['dscr','DSCR',fmtDscr],['liquidity','LIQUIDITY',money],['per_door','PER-DOOR',money]];
+    var defaultOwner=(PROFILES&&PROFILES.default_owner)||'ECH Management (self-managed)';
+    document.getElementById('rules').className='ruleg';
+
+    if(owners.length<=1 && (!owners.length || !ownerHasOverride(owners[0]))){
+      var ow=owners[0]||defaultOwner;
+      var prof=FLS_OVR?profileFor(ow):null;                 // knob-adjusted threshold targets for the single owner
+      pill.textContent=ow+' · consolidated'; pill.className='pill rg';
+      document.getElementById('rules').innerHTML=order.map(function(o){
+        var r=cr[o[0]]; if(!r) return '';
+        var st=r.status||'UNKNOWN'; var cls=ruleColor(st);
+        var profKey={ltv:'ltv_max',dscr:'dscr_min',liquidity:'liquidity_floor',per_door:'per_door_floor'}[o[0]];
+        var thr=(prof&&prof[profKey]!=null)?prof[profKey]:r.threshold;   // knob target if set, else API threshold (status + value stay from the API)
+        var sub=st==='UNKNOWN'?(FLS_OVR&&thr!=null?('thresh '+o[2](thr)+' · pending (sandbox)'):'pending (sandbox)'):('thresh '+o[2](thr)+(r.headroom!=null?' · head '+o[2](r.headroom):''));
+        var click=o[0]==='per_door'?' onclick="flOpen(\'property-file\')" style="cursor:pointer" title="Open Property File — per-door numbers"':'';
+        return '<div class="rule '+cls+'"'+click+'><div class="rn">'+o[1]+'</div><div class="rv">'+(st==='UNKNOWN'?'—':o[2](r.value))+'</div><div class="rt">'+esc(sub)+(o[0]==='per_door'?' ↗':'')+'</div></div>';
+      }).join('');
+      return;
+    }
+    pill.textContent=owners.length+' owners'; pill.className='pill ry';
+    document.getElementById('rules').className='';
+    document.getElementById('rules').innerHTML=owners.map(function(ow){
+      var prof=profileFor(ow);
+      var cards=[['LTV','ltv_max',function(v){return v==null?'—':Math.round(v*100)+'%';}],['DSCR','dscr_min',fmtDscr],['LIQUIDITY','liquidity_floor',money],['PER-DOOR','per_door_floor',money]]
+        .map(function(c){ return '<div class="rule"><div class="rn">'+c[0]+'</div><div class="rv">—</div><div class="rt">thresh '+c[2](prof[c[1]])+' · pending</div></div>'; }).join('');
+      return '<div style="margin-bottom:10px"><div class="small muted" style="margin-bottom:6px;font-weight:700">'+esc(ow)+'</div><div class="ruleg">'+cards+'</div></div>';
     }).join('');
+  }
 
-    // headline
-    document.getElementById('headline').innerHTML = [['Revenue YTD','total_revenue_ytd'],['NOI YTD','total_noi_ytd'],['Cash','cash_position'],['Debt','total_debt']]
-      .map(function(m){ return '<div class="t"><div class="v">'+money(hm[m[1]])+'</div><div class="k">'+m[0]+'</div></div>'; }).join('');
+  function sum(ents,field){ return ents.reduce(function(a,e){ var v=Number(e[field]); return a+(isNaN(v)?0:v); },0); }
 
-    // entities
-    var ents = d.entities||[];
-    document.getElementById('entities').innerHTML =
-      '<thead><tr><th>ENTITY</th><th>CASH</th><th>NOI YTD</th><th>STATUS</th></tr></thead><tbody>'+
-      ents.map(function(e){
-        var sandbox = !(Number(e.cash)>0);
-        return '<tr><td>'+esc(e.name||e.code)+'</td><td>'+(Number(e.cash)>0?money(e.cash):'—')+'</td>'+
-          '<td class="muted">'+money(e.noi_ytd)+'</td><td><span class="tag '+(sandbox?'b-gray':'b-green')+'">'+(sandbox?'sandbox':'live')+'</span></td></tr>';
-      }).join('')+'</tbody>';
+  function renderHeadline(){
+    var hm=(DATA&&DATA.headline_metrics)||{};
+    var lab=document.getElementById('hmscope');
+    var cards, total=allCodes().length, n=SEL?SEL.length:total;
+    if(isAll() || !SEL){
+      lab.textContent='all entities (consolidated)';
+      cards=[['Revenue YTD',hm.total_revenue_ytd],['NOI YTD',hm.total_noi_ytd],['Cash',hm.cash_position],['Debt',hm.total_debt]];
+    } else if(n===0){
+      lab.textContent='none selected — tap a company below';
+      cards=[['Revenue YTD',0],['NOI YTD',0],['Cash',0],['Debt',0]];
+    } else {
+      var ents=scopeEntities();
+      lab.textContent='selected: '+n+' of '+total;
+      cards=[['Revenue YTD',sum(ents,'revenue_ytd')],['NOI YTD',sum(ents,'noi_ytd')],['Cash',sum(ents,'cash')],['Debt',sum(ents,'debt')]];
+    }
+    document.getElementById('headline').innerHTML=cards.map(function(m){ return '<div class="t"><div class="v">'+money(m[1])+'</div><div class="k">'+m[0]+'</div></div>'; }).join('');
+  }
 
-    document.getElementById('stamp').textContent = 'Source: '+source+' · generated '+ts(d.generated_at);
+  function renderEntities(){
+    var all=(DATA&&DATA.entities)||[];
+    document.getElementById('allbtn').className='btn'+(isAll()||!SEL?' on':'');
+    var rows=all.map(function(e){
+      var c=entCode(e); var on=!SEL||SEL.indexOf(c)>=0;
+      var sandbox=!(Number(e.cash)>0);
+      var ruleTag=isOverride(c)?'<span class="pill ry">custom rules</span>':'<span class="pill">ECH default</span>';
+      return '<tr class="entrow'+(on?' sel':'')+'" onclick="toggleEntity(\''+esc(c)+'\')" title="tap to include / exclude">'+
+        '<td><span class="ck">'+(on?'✓':'')+'</span>'+esc(e.name||c)+'<div class="small muted">'+esc(ownerOf(c))+' · '+ruleTag+'</div></td>'+
+        '<td>'+(Number(e.cash)>0?money(e.cash):'—')+'</td>'+
+        '<td class="muted">'+money(e.noi_ytd)+'</td>'+
+        '<td class="muted">'+money(e.debt)+'</td>'+
+        '<td><span class="tag '+(sandbox?'b-gray':'b-green')+'">'+(sandbox?'sandbox':'live')+'</span></td></tr>';
+    }).join('');
+    document.getElementById('entities').innerHTML='<thead><tr><th>ENTITY · OWNER / RULES</th><th>CASH</th><th>NOI YTD</th><th>DEBT</th><th>STATUS</th></tr></thead><tbody>'+rows+'</tbody>';
+  }
+
+  function renderScopeNote(){
+    var note=document.getElementById('scopenote');
+    var total=allCodes().length, n=SEL?SEL.length:total;
+    if(isAll()||!SEL){ note.innerHTML='Showing <b>all entities, consolidated</b>. Tap a company below to scope the metrics + reports; tap more for a combo. Capital Rules are measured per <b>owner</b> at the consolidated level.'; return; }
+    if(n===0){ note.innerHTML='<b>No entities selected.</b> Tap a company below, or ★ All (consolidated).'; return; }
+    var ents=scopeEntities(); var selCash=sum(ents,'cash');
+    var cr=(DATA&&DATA.capital_rules)||{}; var consolCash=(cr.liquidity&&cr.liquidity.value)||0;
+    note.innerHTML='Scoped to <b>'+n+' of '+total+'</b>. Headline metrics + reports reflect this selection. <b>Capital Rules stay owner-level</b> ('+esc(ownersInScope().join(', '))+'): these entities hold '+money(selCash)+' of the '+money(consolCash)+' owner liquidity. A different owner’s rule set applies automatically when an entity is managed for a third party (data/STUB_CAPITAL_PROFILES.json).';
+  }
+
+  function renderAll(){ renderRules(); renderHeadline(); renderEntities(); renderScopeNote(); }
+
+  function render(d, source){
+    DATA=d;
+    var hm=d.headline_metrics||{};
+    var hasIncome=Number(hm.total_revenue_ytd)>0;
+    var bar=document.getElementById('statusbar');
+    if(hasIncome){ bar.className='livewire livegreen'; bar.innerHTML='🟢 LIVE — Foundation Layer ledger data · week of '+esc(d.week_of||''); }
+    else { bar.className='livewire'; bar.innerHTML='🔌 LIVE WIRE — real dollar figures pending (ledger engine not finished). Rules + structure are live; revenue / NOI read $0 honestly.'; }
+    if(!scope){
+      scope=FLScope.create({
+        items:(DATA.entities||[]).map(function(e){ return {id:entCode(e), label:(e.name||entCode(e))}; }),
+        unit:'entity', persistKey:SEL_LS,
+        onChange:function(ids){ SEL=ids.slice(); renderAll(); }   // mirror selection, re-render rows
+      });
+    } else { renderAll(); }
+    document.getElementById('stamp').textContent='Source: '+source+' · generated '+ts(d.generated_at);
     try{ localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}
   }
 
@@ -100,13 +214,20 @@
     var bar=document.getElementById('statusbar'); bar.className='livewire apidown';
     bar.innerHTML='⚠ API unreachable — the Foundation Layer dashboard is not responding'+last+'. No figures shown (never faked).';
     document.getElementById('rules').innerHTML='<div class="muted small">— unavailable —</div>';
+    document.getElementById('headline').innerHTML='';
     document.getElementById('entities').innerHTML='<tbody><tr><td class="muted">— unavailable —</td></tr></tbody>';
+    document.getElementById('scopenote').textContent='';
   }
 
-  function report(name){ document.getElementById('reportnote').innerHTML='<b>'+name+'</b> is pre-production: the ledger reads $0 until real income flows at Plaid production. The weekly pack generates from the Foundation Layer ledger.'; }
+  function report(name){ var n=SEL?SEL.length:allCodes().length; var sc=(isAll()||!SEL)?' (all entities, consolidated)':(n===0?' (no entities selected)':(' for the '+n+' selected entit'+(n>1?'ies':'y'))); document.getElementById('reportnote').innerHTML='<b>'+name+'</b>'+sc+' is pre-production: the ledger reads $0 until real income flows at Plaid production. The weekly pack generates from the Foundation Layer ledger.'; }
   function emailReport(){ document.getElementById('reportnote').innerHTML='Live build: opens the email flow (recipient · scope · note) and sends the report via the Foundation Layer report pipeline. No external send is wired in this public preview.'; }
 
-  fetch(FL,{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){ render(d,'foundation-layer:api'); }).catch(fail);
+  Promise.all([
+    fetch(FL,{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+    fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
+  ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api'); }).catch(fail);
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
 </body>
 </html>

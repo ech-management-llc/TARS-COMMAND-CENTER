@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vendors &amp; Payables — TARS Command Center</title>
+<title>Vendors &amp; Payables — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 </head>
 <body>
@@ -24,12 +24,12 @@
   <div class="card flush">
     <table>
       <tr><th>VENDOR</th><th>LINKED ACCOUNT</th><th>DUE</th><th>AMOUNT</th><th>STATUS</th></tr>
-      <tr><td>Lone Star Plumbing</td><td>ECH MGMT · Altra ··4471</td><td>Jun 4</td><td>$1,200</td><td><span class="tag b-red">overdue</span></td></tr>
+      <tr><td>Lone Star Plumbing <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance — WO-1038 created this bill">WO-1038</button></td><td>ECH MGMT · Altra ··4471</td><td>Jun 4</td><td>$1,200</td><td><span class="tag b-red">overdue</span></td></tr>
       <tr><td>TXU Energy</td><td>ECH Mabank · Altra ··2210</td><td>Jun 11</td><td>$640</td><td><span class="tag b-yellow">due</span></td></tr>
       <tr><td>City of Athens (water)</td><td>ECH Athens · Altra ··3056</td><td>Jun 12</td><td>$310</td><td><span class="tag b-yellow">due</span></td></tr>
       <tr><td>GreenScape Lawn</td><td>ECH MGMT · Altra ··4471</td><td>Jun 13</td><td>$450</td><td><span class="tag b-yellow">due</span></td></tr>
       <tr><td>State Farm (insurance)</td><td>4E Dev · Altra ··1180</td><td>Jun 20</td><td>$1,720</td><td><span class="tag b-gray">scheduled</span></td></tr>
-      <tr><td>Home Depot (materials)</td><td>ECH MGMT · Altra ··4471</td><td>Jun 25</td><td>$980</td><td><span class="tag b-gray">scheduled</span></td></tr>
+      <tr><td>Home Depot (materials) <button class="xref" type="button" onclick="flOpen('build-renovate')" title="Open Build &amp; Renovate — reno project created this bill">Build &amp; Renovate</button></td><td>ECH MGMT · Altra ··4471</td><td>Jun 25</td><td>$980</td><td><span class="tag b-gray">scheduled</span></td></tr>
       <tr><td>Bug-Out Pest</td><td>ECH Malakoff · Altra ··5093</td><td>Jun 28</td><td>$180</td><td><span class="tag b-gray">scheduled</span></td></tr>
       <tr><td>Hayes CPA</td><td>ECH MGMT · Altra ··4471</td><td>Jul 1</td><td>$1,500</td><td><span class="tag b-gray">scheduled</span></td></tr>
     </table>
@@ -37,11 +37,38 @@
 
   <div class="card">
     <div class="section-label">ACCOUNTS CONTRACT</div>
-    <div class="small muted">Every payable references an account by its Plaid account id; the entity shown is resolved through the account-to-entity map (4E / ECH Mabank / ECH Athens / ECH Malakoff / ECH MGMT). This is the same single accounts model the Financial Dashboard, Capital Rules, Rent Roll, and Lender Packet all read — no tile invents its own.</div>
+    <div class="small muted">Every payable references an account by its Plaid account id; the entity shown is resolved through the account-to-entity map (4E / ECH Mabank / ECH Athens / ECH Malakoff / ECH MGMT). This is the same single accounts model the <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financial Dashboard — liabilities side">Financial Dashboard</button>, Capital Rules, Rent Roll, and Lender Packet all read — no tile invents its own.</div>
     <div class="wire-note">Account numbers shown are masked sample placeholders. Real linkage + real dollars go live at Plaid production (currently sandbox → honest $0).</div>
   </div>
 
-  <div class="wire-note" style="text-align:center">Invoices auto-intake from vendor-tagged emails in the Inbox layer and attach to an account + due date. Sample data.</div>
+  <div class="wire-note" style="text-align:center">Invoices auto-intake from vendor-tagged emails in the Inbox layer and attach to an account + due date. Invoices file in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button>. Sample data.</div>
 </div>
+
+<script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  // Tap-to-contact for any payee we actually have contact data for (single-source from STUB_CONNECTIONS — vendors
+  // not in the roster, e.g. utilities, get no link rather than a fabricated one).
+  (function(){
+    function telD(p){ var x=String(p==null?'':p).replace(/[^0-9]/g,''); if(!x) return ''; if(x.length===10) x='1'+x; return '+'+x; }
+    fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      if(!d) return;
+      var map={}; (d.maintenance_personnel||[]).concat(d.team||[]).forEach(function(m){ if(m.name) map[m.name.toLowerCase()]={phone:m.phone,email:m.email}; });
+      document.querySelectorAll('table tr').forEach(function(tr){
+        var td=tr.querySelector('td'); if(!td) return;
+        var name=(td.textContent||'').trim().toLowerCase();
+        Object.keys(map).forEach(function(k){
+          if(name.indexOf(k)!==0) return;
+          var c=map[k], frag='', t=telD(c.phone);
+          if(t) frag+=' <a href="sms:'+t+'" title="Text '+k+'" style="text-decoration:none">💬</a>';
+          if(c.email) frag+=' <a href="mailto:'+c.email+'" title="Email '+k+'" style="text-decoration:none">✉️</a>';
+          if(frag) td.insertAdjacentHTML('beforeend', frag);
+        });
+      });
+    }).catch(function(){});
+  })();
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'vendors-payables'});</script>
 </body>
 </html>

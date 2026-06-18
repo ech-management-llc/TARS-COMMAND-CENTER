@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Build &amp; Renovate — TARS Command Center</title>
+<title>Build &amp; Renovate — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 <style>
   .team{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
@@ -24,13 +24,8 @@
     <b>AI outputs here are ESTIMATES and design assists</b> — renderings, floor plans, and budgets are starting points for human + contractor verification, <b>not firm bids</b>. Nothing commits money until you approve it. Sample data; model + connectors not wired yet.
   </div>
 
-  <div class="section-label">THE BUILD TEAM</div>
-  <div class="team">
-    <div class="agentcard"><div class="av">A</div><div class="nm">Avery</div><div class="ro">Architect</div></div>
-    <div class="agentcard"><div class="av">C</div><div class="nm">Cad</div><div class="ro">CAD Engineer</div></div>
-    <div class="agentcard"><div class="av">T</div><div class="nm">Tovah</div><div class="ro">Takeoff Planner</div></div>
-    <div class="agentcard"><div class="av">S</div><div class="nm">Sloane</div><div class="ro">Stager / Designer</div></div>
-  </div>
+  <div class="section-label">THE BUILD TEAM — each role: connected tool, or a suggestion until one's wired</div>
+  <div class="roleg" id="role-tools"><div class="small dim">loading role tools…</div></div>
 
   <div class="card">
     <div class="fgrid">
@@ -60,7 +55,7 @@
       <div class="ph">BEFORE</div>
       <div class="ph" style="border-color:var(--greenln)">AFTER (rendering)</div>
     </div>
-    <div class="wire-note">Renderings + the floor plan save to the property record and are reused on the Website listing.</div>
+    <div class="wire-note">Renderings + the floor plan save to the property record and are reused on the Website listing. Plans, budgets + receipts file in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button>.</div>
   </div>
 
   <div class="card">
@@ -77,10 +72,22 @@
       </table>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <button class="btn primary" onclick="note('sent')">→ Send $35,000 budget to Deal Analyzer</button>
-      <button class="btn" onclick="note('seed')">Seed line items into Vendors &amp; Payables</button>
+      <button class="btn primary" onclick="sendEstimate('est-415-skiles-gut',35000,'415 Skiles St · Mabank, TX','Gut kitchen + bath, floors, paint, curb appeal');note('sent');flOpen('deal-analyzer')">→ Send $35,000 budget to Deal Analyzer</button>
+      <button class="btn" onclick="note('seed');flOpen('vendors-payables')">Seed line items into Vendors &amp; Payables</button>
     </div>
     <div class="wire-note" id="budgetnote">Line items seed Vendors &amp; Payables; actuals reconcile against the estimate (variance) as receipts come in from the field.</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">MATERIAL COSTS — LIVE SCRAPE (one ingestion layer)</div>
+    <div id="materials"><div class="small dim">loading material prices…</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+      <button class="btn primary" id="send-est" onclick="sendEstimate('est-wo-1041-materials',3100,'102 Remington · Mabank, TX','WO-1041 make-ready materials (cheapest-source mix)');flOpen('deal-analyzer')">Send $3,100 estimate → Deal Analyzer</button>
+      <button class="xref" type="button" onclick="flOpen('reserves-capex')" title="Open Reserves &amp; CapEx — funding the work">Reserves &amp; CapEx</button>
+      <button class="xref" type="button" onclick="flOpen('sell-exit')" title="Open Sell / Exit — ARV input">Sell / Exit</button>
+      <span class="small" id="estnote" style="color:var(--green);font-weight:700;display:none">✓ estimate on the shared record — Deal Analyzer, Reserves &amp; Sell/Exit all read it</span>
+    </div>
+    <div class="wire-note">⚠️ Retailer scrapes are ToS-aware per source — official price APIs/feeds preferred where they exist; caching + rate limits live in the one ingestion layer, never per-tile. The estimate is an AI/scrape-assisted ESTIMATE — verify before committing money.</div>
   </div>
 
   <div class="card" style="border-color:var(--purpleln)">
@@ -96,10 +103,58 @@
     </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Accounts contract: every cost links to the paying account (entity → account). Sample data; Plaid sandbox → $0 honest.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Accounts contract: every cost links to the paying account (entity → account). Permits gate the work — see <button class="xref" type="button" onclick="flOpen('compliance')" title="Open Compliance, Inspections &amp; Permits — WO-1041 reno permit REQUIRED">Compliance, Inspections &amp; Permits</button>. Sample data; Plaid sandbox → $0 honest.</div>
 </div>
 
+<script src="../../../shared/ingest.js"></script>
 <script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  // the FIRST real data carry in the funnel: estimates write to the shared reno-estimate record
+  // (fl_reno_estimate_v1 overlay over data/STUB_RENO_ESTIMATES.json) — Deal Analyzer reads it as
+  // its reno-budget input; Reserves & CapEx and Sell/Exit read the same record. Backend swaps storage.
+  function sendEstimate(id, total, property, label){
+    try{
+      var ov = JSON.parse(localStorage.getItem('fl_reno_estimate_v1'))||{estimates:[]};
+      ov.estimates = ov.estimates.filter(function(e){ return e.id!==id; });
+      ov.estimates.push({id:id, total:total, property:property, label:label, source:'build-renovate', date:new Date().toISOString().slice(0,10), active:true});
+      ov.estimates.forEach(function(e){ e.active = e.id===id; }); // last sent = the analyzer's active input
+      localStorage.setItem('fl_reno_estimate_v1', JSON.stringify(ov));
+      var n = document.getElementById('estnote'); if(n) n.style.display='inline';
+    }catch(e){}
+  }
+
+  // per-role tools — the Connections platform standard, consumed here first
+  fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){
+      var t = d.tools||{}, icons = {'architect-cad':'📐','takeoff':'📏','stager':'🛋️'};
+      document.getElementById('role-tools').innerHTML = Object.keys(t).filter(function(k){ return k!=='_note'; }).map(function(k){
+        var r = t[k];
+        var conn = (r.connected||[]).map(function(x){ return '<div class="toolrow on"><span class="tdot"></span>'+esc2(x)+' <span class="pill rg">CONNECTED</span></div>'; }).join('');
+        var sugg = (r.suggested&&r.suggested.length)
+          ? '<div class="toolrow"><span class="tdot"></span>Suggested: '+r.suggested.map(esc2).join(' · ')+' <button class="xref" type="button" onclick="flOpen(\'connections\')" title="Open Connections — pick one, it moves to connected">connect</button></div>' : '';
+        return '<div class="role"><h5>'+(icons[k]||'🧰')+' '+esc2(r.employee)+' — '+esc2(r.role)+'</h5>'+conn+sugg+'</div>';
+      }).join('');
+    })
+    .catch(function(){ document.getElementById('role-tools').innerHTML='<div class="small dim">Tool record not reachable — roles render when Connections is back.</div>'; });
+
+  // material price compare — through the ONE ingestion layer, stamped
+  FLIngest.request('materials').then(function(res){
+    var cols = [['lowes',"LOWE'S"],['ace','ACE'],['local','MABANK LBR (local)']];
+    var html = '<table><tr><th>ITEM (WO-1041 make-ready)</th>'+cols.map(function(c){ return '<th>'+c[1]+'</th>'; }).join('')+'</tr>'+
+      res.rows.map(function(r){
+        var vals = cols.map(function(c){ return r.prices[c[0]]; });
+        var min = Math.min.apply(null, vals.filter(function(v){ return v!=null; }));
+        return '<tr><td>'+esc2(r.item)+'</td>'+cols.map(function(c){
+          var v = r.prices[c[0]];
+          if(v==null) return '<td class="muted">—</td>';
+          return '<td>'+(v===min?'<b style="color:var(--green)">$'+v.toLocaleString()+'</b>':'$'+v.toLocaleString())+'</td>';
+        }).join('')+'</tr>';
+      }).join('')+'</table>'+FLIngest.stamp(res);
+    document.getElementById('materials').innerHTML = html;
+  }).catch(function(){ document.getElementById('materials').innerHTML='<div class="small dim">Material price source not reachable.</div>'; });
   function note(k){
     var el=document.getElementById(k==='approve'||k==='edit'?'fieldnote':'budgetnote');
     var msg={
@@ -111,5 +166,7 @@
     if(el) el.innerHTML = msg;
   }
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'build-renovate'});</script>
 </body>
 </html>

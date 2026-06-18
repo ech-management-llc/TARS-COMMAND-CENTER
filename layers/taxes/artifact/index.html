@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taxes — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🏛️ Taxes</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample data.</b> The live source isn't wired yet, so the figures below are illustrative — honest sample state until the connector phase lands.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Dale</b> and say "remove the write-offs section" — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="card" data-view-section="disclaimer" style="background:var(--yellowbg);border-color:var(--yellowln);color:var(--yellow);font-size:12.5px">⚠️ Organizes &amp; estimates — NOT tax advice. Confirm with your CPA before filing.</div>
+
+  <div class="ruleg" data-view-section="tax-due">
+    <div class="rule ry"><div class="rn">PROPERTY TAX DUE</div><div class="rv" style="color:var(--yellow)">$8,420</div><div class="rt">9 properties</div></div>
+    <div class="rule" style="background:var(--redbg);border:1px solid var(--redln)"><div class="rn">DUE ≤30D</div><div class="rv" style="color:var(--red)">$1,930</div><div class="rt">410 Scott</div></div>
+    <div class="rule rg"><div class="rn">WRITE-OFFS YTD</div><div class="rv">$41.3K</div><div class="rt">deductible</div></div>
+    <div class="rule rg"><div class="rn">EST. SAVINGS</div><div class="rv">~$9.9K</div><div class="rt">at 24%</div></div>
+  </div>
+
+  <div class="card" data-view-section="tax-due">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">REAL ESTATE TAX DUE — per property <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar">Calendar</button> <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator — returns + county statements file here">Document Navigator</button></div>
+    <table><tr><th>PROPERTY</th><th>COUNTY</th><th>DUE</th><th>AMOUNT</th></tr>
+      <tr><td>410 Scott</td><td>Henderson</td><td>Jul 5</td><td>$1,930</td></tr>
+      <tr><td>500 Reynolds</td><td>Henderson</td><td>Oct 1</td><td>$1,640</td></tr>
+      <tr><td>1301 E Royall</td><td>Henderson</td><td>Oct 1</td><td>$1,510</td></tr>
+      <tr><td>103 Mary Beth</td><td>Henderson</td><td>Oct 1</td><td>$1,720</td></tr>
+    </table>
+  </div>
+
+  <div class="card" data-view-section="write-offs">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">WRITE-OFFS — pulled automatically</div>
+    <table><tr><th>SOURCE</th><th>CATEGORY</th><th>YTD</th></tr>
+      <tr><td>Maintenance (receipts)</td><td>Repairs</td><td>$12,400</td></tr>
+      <tr><td>Build &amp; Renovate</td><td>Capital improvements*</td><td>$14,800</td></tr>
+      <tr><td>Vendors &amp; Payables</td><td>Operating expenses</td><td>$7,300</td></tr>
+      <tr><td>Field payroll</td><td>Labor</td><td>$4,800</td></tr>
+      <tr><td>Closing costs</td><td>Acquisition</td><td>$2,000</td></tr>
+    </table>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Pulled from Maintenance + Vendors &amp; Payables + closing. <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance">Maintenance</button> <button class="xref" type="button" onclick="flOpen('vendors-payables')" title="Open Vendors &amp; Payables">Vendors &amp; Payables</button> *Capital improvements depreciate vs. expense — your CPA confirms treatment. Sample data.</div>
+  </div>
+
+</div>
+
+<script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  function applyViewCfg(ops){
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    (ops||[]).forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){
+          el.style.display = (op.type==='remove')?'none':'';
+        });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'taxes'});</script>
+</body>
+</html>

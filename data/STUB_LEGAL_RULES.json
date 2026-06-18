@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE jurisdiction-rule rows served through the single ingestion layer. Plain-English summaries of REAL Texas statutes (TX Prop. Code citations are real; summaries are honest paraphrases, informational, NOT legal advice — confirm with counsel). Municipal ordinance rows are sample placeholders until the per-jurisdiction scrape wires. Rows keyed by state/county/municipality so the shared jurisdiction picker filters them.",
+  "generated_at": "2026-06-11",
+  "sources": ["statutes.capitol.texas.gov", "municipal code pages"],
+  "rows": [
+    { "state": "Texas", "county": null, "municipality": null,
+      "rule": "TX Prop. Code §24.005", "summary": "Notice to vacate: 3 days before eviction filing unless the lease says otherwise", "src": "statutes.capitol.texas.gov" },
+    { "state": "Texas", "county": null, "municipality": null,
+      "rule": "TX Prop. Code §92.056", "summary": "Repair duty: tenant gives notice + landlord gets reasonable time before tenant remedies kick in", "src": "statutes.capitol.texas.gov" },
+    { "state": "Texas", "county": null, "municipality": null,
+      "rule": "TX Prop. Code §92.103", "summary": "Security deposit: return within 30 days of move-out, itemizing any deductions", "src": "statutes.capitol.texas.gov" },
+    { "state": "Texas", "county": "Henderson County", "municipality": "Athens (city)",
+      "rule": "Athens ordinances (sample row)", "summary": "Rental registration not required; STR permits required in city limits — sample until the city-code scrape wires", "src": "athenstx.gov (sample)" },
+    { "state": "Texas", "county": "Henderson County", "municipality": "Mabank",
+      "rule": "Mabank ordinances (sample row)", "summary": "No rental registration; building permits through City Hall — sample until the city-code scrape wires", "src": "mabank gov site (sample)" }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE entity/company data for the ECH reference install. Honest placeholders — NOT live. Entity names, roles, and primary bank reflect the real ECH stack; door counts mirror data/STUB_PROPERTIES.json. EIN, formation dates, registered agent, and filing dates are sample values until the legal/records source is wired (Secretary of State + records vault). A change here changes everywhere this is read.",
+  "generated_at": "2026-06-09",
+  "primary_bank": "Altra",
+  "entities": [
+    {
+      "id": "ech-mgmt",
+      "name": "ECH Management Services LLC",
+      "role": "Management company — runs operations for the whole stack",
+      "role_tag": "Manager",
+      "type": "LLC",
+      "state": "TX",
+      "formed": "2023-02-14",
+      "registered_agent": "Jerry Eads (sample)",
+      "ein": "**-*******",
+      "bank": "Altra",
+      "doors": 0,
+      "annual_report": { "status": "current", "next_due": "2027-05-15" }
+    },
+    {
+      "id": "ech-holdings",
+      "name": "ECH Holdings LLC",
+      "role": "Holding company — parent over the operating entities",
+      "role_tag": "Holdco",
+      "type": "LLC",
+      "state": "TX",
+      "formed": "2023-02-14",
+      "registered_agent": "Jerry Eads (sample)",
+      "ein": "**-*******",
+      "bank": "Altra",
+      "doors": 0,
+      "annual_report": { "status": "current", "next_due": "2027-05-15" }
+    },
+    {
+      "id": "4e-dev",
+      "name": "4E Developments LLC",
+      "role": "Development / new construction",
+      "role_tag": "DevCo",
+      "type": "LLC",
+      "state": "TX",
+      "formed": "2023-06-01",
+      "registered_agent": "Jerry Eads (sample)",
+      "ein": "**-*******",
+      "bank": "Altra",
+      "doors": 0,
+      "annual_report": { "status": "due-soon", "next_due": "2026-07-15" }
+    },
+    {
+      "id": "ech-mabank",
+      "name": "ECH Mabank LLC",
+      "role": "Operating company — owns the Mabank properties",
+      "role_tag": "PropCo",
+      "type": "LLC",
+      "state": "TX",
+      "formed": "2023-03-20",
+      "registered_agent": "Jerry Eads (sample)",
+      "ein": "**-*******",
+      "bank": "Altra",
+      "doors": 2,
+      "annual_report": { "status": "current", "next_due": "2027-05-15" }
+    },
+    {
+      "id": "ech-athens",
+      "name": "ECH Athens LLC",
+      "role": "Operating company — owns the Athens properties",
+      "role_tag": "PropCo",
+      "type": "LLC",
+      "state": "TX",
+      "formed": "2023-03-20",
+      "registered_agent": "Jerry Eads (sample)",
+      "ein": "**-*******",
+      "bank": "Altra",
+      "doors": 1,
+      "annual_report": { "status": "current", "next_due": "2027-05-15" }
+    },
+    {
+      "id": "ech-malakoff",
+      "name": "ECH Malakoff LLC",
+      "role": "Operating company — owns the Malakoff properties",
+      "role_tag": "PropCo",
+      "type": "LLC",
+      "state": "TX",
+      "formed": "2023-03-20",
+      "registered_agent": "Jerry Eads (sample)",
+      "ein": "**-*******",
+      "bank": "Altra",
+      "doors": 1,
+      "annual_report": { "status": "current", "next_due": "2027-05-15" }
+    }
+  ]
+}

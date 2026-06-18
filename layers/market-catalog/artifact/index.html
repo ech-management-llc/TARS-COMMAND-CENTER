@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Information Tiles — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .intro{font-size:13px;line-height:1.6;color:#d8e0dc}
+  .catgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .ctile{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px;display:flex;flex-direction:column;gap:4px}
+  .ctile .tn{font-size:13.5px;font-weight:700}
+  .ctile .td{font-size:11.5px;color:var(--mut);line-height:1.45;flex:1}
+  .ctile .trow{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:8px}
+  .src{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px}
+  .src.rev{background:#2e2206;color:#f0b65a}.src.cen{background:#06302b;color:#5fe0cd}
+  .src.fred{background:#0c2444;color:#7fb2f0}.src.dc{background:#0e2a1f;color:#5fd6a8}
+  .add{background:var(--surf2);border:1px solid var(--green);color:var(--green);font-size:11px;font-weight:700;padding:5px 11px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .add.added{background:var(--greenbg);cursor:default}
+  .add.locked{border-color:var(--line);color:var(--dim);cursor:default}
+  .seclbl{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--mut);margin:16px 0 8px}
+  @media(max-width:560px){ .catgrid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">➕ Information Tiles</div>
+  <div class="card"><div class="intro">Add more market indicators to your <b>Market</b> section. Each tile reads from a live source and color-codes itself the same way the rest do. Green = ready to add now (the source already feeds your Command Center). Locked = turns on once that source is connected (tap the source chip on the Market header to connect).</div></div>
+
+  <div class="seclbl">READY NOW — from sources you already have</div>
+  <div class="catgrid" id="cat-live"></div>
+
+  <div class="seclbl">CONNECT FIRST — turns on when the source is wired</div>
+  <div class="catgrid" id="cat-locked"></div>
+
+  <div class="wire-note">Adding a tile here drops it into your Market lasso — same look, same county picker, same explain-this. The add/entitlement wiring lands with the next build; nothing here fabricates a number.</div>
+</div>
+
+<script>
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  // "Ready now" mirror the Reventure secondary fields we already scrape + census.
+  var LIVE = [
+    {n:'Home Value YoY', d:'Year-over-year change in county home values — momentum of your equity.', s:'REV', sc:'rev'},
+    {n:'Overvalued %', d:'How far local prices sit above their fair-value model — overheating risk.', s:'REV', sc:'rev'},
+    {n:'Price Cuts %', d:'Share of listings cutting price — buyer leverage and softening demand.', s:'REV', sc:'rev'},
+    {n:'Value-to-Income', d:'Home price ÷ local income — affordability and how stretched buyers are.', s:'REV', sc:'rev'},
+    {n:'Population', d:'County population — the demand base under your rentals.', s:'REV', sc:'rev'},
+    {n:'Rental Vacancy', d:'Census ACS rental-specific vacancy — your true competition.', s:'CEN', sc:'cen'}
+  ];
+  var LOCKED = [
+    {n:'10Y Treasury', d:'Benchmark risk-free rate; mortgages track it.', s:'FRED', sc:'fred'},
+    {n:'30Y Mortgage', d:'Borrowing cost that sets buyer affordability.', s:'FRED', sc:'fred'},
+    {n:'Median Days on Market', d:'How fast homes sell locally — demand speed.', s:'FRED', sc:'fred'},
+    {n:'Active Inventory', d:'Homes for sale — supply pressure on price.', s:'FRED', sc:'fred'},
+    {n:'Portfolio Benchmark', d:'Your DealCheck portfolio vs the local market.', s:'DEALCHECK', sc:'dc'}
+  ];
+  function tile(t, locked){
+    var btn = locked
+      ? '<button class="add locked" disabled>🔒 connect '+esc(t.s)+'</button>'
+      : '<button class="add" onclick="this.classList.add(\'added\');this.textContent=\'✓ Added\'">+ Add</button>';
+    return '<div class="ctile"><div class="tn">'+esc(t.n)+'</div><div class="td">'+esc(t.d)+'</div>'+
+      '<div class="trow"><span class="src '+t.sc+'">'+esc(t.s)+'</span>'+btn+'</div></div>';
+  }
+  document.getElementById('cat-live').innerHTML = LIVE.map(function(t){return tile(t,false);}).join('');
+  document.getElementById('cat-locked').innerHTML = LOCKED.map(function(t){return tile(t,true);}).join('');
+</script>
+</body>
+</html>

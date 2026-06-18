@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Get set up — Foundation Layer Command Center</title>
+<style>
+  :root{
+    --bg:#0a0a0b;--surf:#161618;--surf2:#1d1d20;--line:#2a2a2e;--txt:#f4f4f5;--mut:#9a9aa2;--dim:#6b6b73;
+    --green:#10b981;--greenbg:#0e2a22;--greenln:#1c4d3e;--purple:#8b7ff0;--purplebg:#1a1730;--purpleln:#322c63;
+    --yellow:#eab308;--radius:14px;--radius-sm:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:620px;margin:0 auto;padding:22px 16px 60px}
+  .demorib{background:var(--purplebg);border:1px solid var(--purpleln);color:#c9c2ff;font-size:12px;text-align:center;padding:7px 12px;border-radius:var(--radius-sm);margin-bottom:18px}
+  .prog{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .prog .seg{flex:1;height:4px;border-radius:3px;background:var(--surf2)}
+  .prog .seg.on{background:var(--purple)}
+  .steplbl{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--dim);margin-bottom:18px}
+  .tarsrow{display:flex;align-items:center;gap:13px;margin-bottom:18px}
+  .tarsav{width:46px;height:46px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .bubble{background:var(--purplebg);border:1px solid var(--purpleln);border-radius:14px;padding:12px 15px;font-size:14.5px;color:#e0ddf5}
+  h2{font-size:20px;font-weight:700;margin:0 0 4px}
+  .sub{color:var(--mut);font-size:13.5px;margin-bottom:18px}
+  label{display:block;font-size:12px;font-weight:700;color:var(--mut);margin:14px 0 5px;letter-spacing:.3px}
+  input,select{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:11px 13px;font:inherit;font-size:15px}
+  input:focus,select:focus{outline:none;border-color:var(--purple)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .seg{display:flex;gap:8px;margin-top:2px}
+  .segbtn{flex:1;background:var(--surf2);border:1px solid var(--line);color:var(--mut);font:inherit;font-size:14px;font-weight:700;padding:11px;border-radius:9px;cursor:pointer}
+  .segbtn.on{background:#10211b;border-color:var(--greenln);color:var(--green)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .grplbl{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--dim);margin:0 0 8px}
+  .grplbl.start{color:var(--green)}
+  .lcard{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;cursor:pointer;position:relative;transition:.12s}
+  .lcard:hover{background:var(--surf2)}
+  .lcard.on{border-color:var(--green);background:#10211b}
+  .lcard .ic{font-size:18px}
+  .lcard .nm{font-size:13.5px;font-weight:700;margin-top:4px}
+  .lcard .ds{font-size:11px;color:var(--mut);margin-top:1px}
+  .lcard .chk{position:absolute;top:9px;right:10px;width:18px;height:18px;border-radius:5px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+  .lcard.on .chk{background:var(--green);border-color:var(--green);color:#06150f}
+  .baseline{background:#10211b;border:1px solid var(--greenln);border-radius:var(--radius-sm);padding:12px 14px;margin:6px 0 4px;font-size:13px;color:#cdeede}
+  .baseline b{color:var(--green)}
+  .emprow{display:flex;align-items:center;justify-content:space-between;background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:8px}
+  .emprow .l{font-size:13.5px}.emprow .l b{font-weight:700}
+  .emprow .price{font-size:12px;color:var(--mut);margin-left:6px}
+  .toggle{width:44px;height:25px;border-radius:20px;background:var(--surf2);border:1px solid var(--line);position:relative;cursor:pointer;flex-shrink:0}
+  .toggle .knob{position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;background:var(--dim);transition:.15s}
+  .toggle.on{background:var(--greenbg);border-color:var(--greenln)}
+  .toggle.on .knob{left:21px;background:var(--green)}
+  .conn{display:flex;align-items:center;justify-content:space-between;background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:9px}
+  .conn .l{display:flex;align-items:center;gap:11px}.conn .ic{font-size:20px}
+  .conn .nm{font-size:14px;font-weight:700}.conn .ds{font-size:11.5px;color:var(--mut)}
+  .cbtn{background:var(--surf2);border:1px solid var(--purpleln);color:#c9c2ff;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer}
+  .cbtn.done{background:var(--greenbg);border-color:var(--greenln);color:var(--green)}
+  .totalbar{display:flex;align-items:center;justify-content:space-between;background:var(--purplebg);border:1px solid var(--purpleln);border-radius:var(--radius-sm);padding:12px 15px;margin-top:16px}
+  .totalbar .t{font-size:12px;color:#c9c2ff;font-weight:700;letter-spacing:.5px}
+  .totalbar .v{font-size:20px;font-weight:800}
+  .nav{display:flex;gap:10px;margin-top:24px}
+  .btn{flex:1;border:none;border-radius:10px;padding:13px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+  .btn.prim{background:var(--purple);color:#0a0a0b}
+  .btn.ghost{background:var(--surf2);border:1px solid var(--line);color:var(--txt);flex:0 0 auto;padding:13px 18px}
+  .rev{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:8px}
+  .rev .line{display:flex;justify-content:space-between;font-size:13.5px;padding:6px 0;border-bottom:1px solid var(--line)}
+  .rev .line:last-child{border-bottom:0}
+  .rev .k{color:var(--mut)}
+  .hero h1{font-size:25px;font-weight:800;line-height:1.25;margin:6px 0 14px}
+  .hero p{font-size:15px;color:#d4d4d8;margin:0 0 13px;line-height:1.65}
+  .hero .lingo{color:var(--mut);font-style:italic}
+  .hero .founder{background:var(--surf);border:1px solid var(--line);border-left:3px solid var(--green);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:13px 15px;font-size:14px;color:#d4d4d8;margin:4px 0 20px;line-height:1.6}
+  .hidden{display:none}
+  .pricenote{font-size:11px;color:var(--dim);text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="demorib">SETUP — real flow, stubbed: nothing is charged or connected for real yet. Finishing lands you in your command center.</div>
+
+  <!-- STEP 0 — WELCOME -->
+  <section id="s0" class="hero">
+    <div class="tarsrow">
+      <span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Welcome. Before we set anything up — let's talk for a second.</div>
+    </div>
+    <h1>Buying your first investment property is scary. It doesn't have to be.</h1>
+    <p>There's so much to learn — and a whole language to go with it. <span class="lingo">Cap rate, ARV, DSCR, escrow, draws, NOI, per-door…</span> it can feel like a wall of jargon, and it's easy to freeze up before you ever make an offer.</p>
+    <p><b>This is your copilot.</b> It's here to take the anxiety out of your first deal: it explains everything in plain English, runs the numbers for you, watches your back on the contracts, and stands beside you at every step — so you're never guessing alone.</p>
+    <div class="founder">And it wasn't built by some guru in a tower. It was built by someone who <b>started from scratch — knew absolutely nothing</b> — and learned it the hard way, one deal at a time, until it became second nature. Now they do this professionally. Everything that once confused them is built right into this, so you get to skip the painful part and start with confidence.</div>
+    <button class="btn prim" onclick="start()">I'm ready — let's begin →</button>
+  </section>
+
+  <div id="chrome" class="hidden">
+    <div class="prog" id="prog"></div>
+    <div class="steplbl" id="steplbl">STEP 1 OF 6</div>
+  </div>
+
+  <!-- STEP 1 — NAME -->
+  <section id="s1" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Soooo… first things first — how about you give me a name? And what should I call you?</div></div>
+    <label>Give me a name</label>
+    <input id="tarsName" value="TARS" oninput="sync()">
+    <label>And what should I call you?</label>
+    <input id="ownerName" placeholder="your first name" oninput="sync()">
+    <p class="sub" style="margin-top:10px">No pressure — a lot of folks just keep "TARS," but I'm yours. Call me whatever feels right.</p>
+    <div class="nav"><button class="btn prim" onclick="go(2)">Let's go →</button></div>
+  </section>
+
+  <!-- STEP 2 — WHERE YOU'RE AT (real estate only) -->
+  <section id="s2" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble" id="b2">Alright — tell me a bit about where you're at. No wrong answers here.</div></div>
+    <label>Do you already have a business set up?</label>
+    <div class="seg">
+      <button class="segbtn" onclick="setBiz(true,this)">Yes, it's established</button>
+      <button class="segbtn on" onclick="setBiz(false,this)">Not yet</button>
+    </div>
+    <div id="bizFields" class="hidden">
+      <label>Business name</label><input id="bizName" placeholder="e.g. ECH Property Management">
+      <label>Business type</label>
+      <select id="bizEntity"><option>LLC</option><option>S-Corp</option><option>Partnership</option><option>Sole proprietor</option><option>Not sure yet</option></select>
+      <div class="grid2">
+        <div><label>Locations / markets</label><input id="bizLoc" value="1" type="number" min="1"></div>
+        <div><label>Team size</label><input id="bizTeam" value="just me"></div>
+      </div>
+    </div>
+
+    <label style="margin-top:20px">Do you already own real estate?</label>
+    <div class="seg">
+      <button class="segbtn" onclick="setRe(true,this)">Yes, I own some</button>
+      <button class="segbtn on" onclick="setRe(false,this)">Just getting started</button>
+    </div>
+    <div id="propField" class="hidden">
+      <label>How many properties?</label><input id="propCount" value="1" type="number" min="1">
+    </div>
+    <p class="sub" id="reNote" style="margin-top:10px">Just starting is exactly who this is built for — we'll take it one step at a time.</p>
+
+    <div class="nav"><button class="btn ghost" onclick="go(1)">Back</button><button class="btn prim" onclick="go(3)">Next →</button></div>
+  </section>
+
+  <!-- STEP 3 — TILES -->
+  <section id="s3" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble" id="b3">Okay — for your first deal, start simple. I've pre-picked the four that take you from <i>find it → know if it's good → plan the fix → get the money</i>. Everything else is for once you actually own it and are up and running — add those any time. Don't overthink it.</div></div>
+    <div class="baseline">🎓 <b>Learn &amp; Coach is always on</b> — your plain-English copilot rides along on every tile (the “💡 Explain this” button). It's part of Foundation, not an add-on.</div>
+    <div id="layerCards"></div>
+    <div class="nav"><button class="btn ghost" onclick="go(2)">Back</button><button class="btn prim" onclick="go(4)">Next →</button></div>
+  </section>
+
+  <!-- STEP 4 — EMPLOYEES -->
+  <section id="s4" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Quick thing — none of this is required. Every tile already comes with me on call. Adding a dedicated <b>AI employee</b> to an area just takes more off your plate: it works faster, stays precise, and keeps mistakes to a minimum. Add the ones that'd help, skip the rest — totally your call, and you can always add them later.</div></div>
+    <div id="empList"></div>
+    <div class="totalbar"><span class="t">ESTIMATED MONTHLY</span><span class="v" id="total1">$0/mo</span></div>
+    <div class="pricenote">Pricing is placeholder (Foundation $15 · layer $15 · employee $15) — final pricing TBD. Nothing is charged in this build.</div>
+    <div class="nav"><button class="btn ghost" onclick="go(3)">Back</button><button class="btn prim" onclick="go(5)">Next →</button></div>
+  </section>
+
+  <!-- STEP 5 — CONNECT -->
+  <section id="s5" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Almost there. Hook up whatever you're comfortable with so I can actually do the work — and skip anything you're not ready for. I'll keep everything in "draft for your approval" until you trust me.</div></div>
+    <div class="conn"><div class="l"><span class="ic">🏦</span><div><div class="nm">Bank accounts</div><div class="ds">balances, transactions (Plaid)</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
+    <div class="conn"><div class="l"><span class="ic">✉️</span><div><div class="nm">Email</div><div class="ds">Gmail / Outlook → unified inbox</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
+    <div class="conn"><div class="l"><span class="ic">🗓️</span><div><div class="nm">Calendar</div><div class="ds">Google / Microsoft</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
+    <div class="conn"><div class="l"><span class="ic">📁</span><div><div class="nm">Files & folders</div><div class="ds">your knowledge folder (local / cloud / drive)</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
+    <div class="conn"><div class="l"><span class="ic">📲</span><div><div class="nm">Text messaging</div><div class="ds">SMS for reminders + dispatch</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
+    <div class="conn"><div class="l"><span class="ic">💳</span><div><div class="nm">Payments</div><div class="ds">Stripe / your processor</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
+    <p class="sub" style="margin-top:10px">All connections are stubbed in this build — nothing actually links yet. Real auth + connectors arrive in the next phases.</p>
+    <div class="nav"><button class="btn ghost" onclick="go(4)">Back</button><button class="btn prim" onclick="go(6)">Review →</button></div>
+  </section>
+
+  <!-- STEP 6 — REVIEW -->
+  <section id="s6" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble" id="b6">Here's your command center. Looks right? I'll build it and take you in.</div></div>
+    <div class="rev" id="review"></div>
+    <div class="totalbar"><span class="t">YOUR PLAN</span><span class="v" id="total2">$0/mo</span></div>
+    <div class="nav"><button class="btn ghost" onclick="go(5)">Back</button><button class="btn prim" onclick="launch()">🚀 Build my command center</button></div>
+  </section>
+</div>
+
+<script>
+const FOUNDATION=15, LAYER=15, EMPLOYEE=15;
+const state={layers:{},employees:{},conns:0,hasBiz:false,hasRe:false};
+
+// Real-estate-only library. [icon, name, desc, recommended(1/0)]. Learn & Coach is
+// baseline (always-on) and intentionally NOT in this list.
+const LIBS=[
+  ['💰','Financials','the money basics',1],
+  ['🔍','Deal Analyzer','is this a good buy?',1],
+  ['🏗️','Build & Renovate','rehab plan + budget',1],
+  ['🏦','Lender Packet','get the financing',1],
+  ['🏡','Property File','one page per property',0],
+  ['🏠','Rent Roll','once you own + rent it',0],
+  ['🛠️','Maintenance','after tenants move in',0],
+  ['🧾','Vendors & Payables','as the bills come in',0],
+  ['✉️','Inbox','all comms in one place',0],
+  ['📁','Documents','leases · files',0],
+  ['🌐','Website & IT','list + market units',0],
+  ['⚖️','Legal','contracts · closing · law',0],
+  ['🏛️','Taxes','tax due · write-offs',0],
+  ['🛡️','Insurance','policies · coverage',0],
+  ['📝','Tenant Screening','apps · credit · approve',0],
+  ['✍️','Sign','e-signature · leases',0],
+  ['🔭','Deal Finder','source deals to the Analyzer',0],
+  ['💸','Sell / Exit','sell · refi · 1031',0],
+  ['🔧','Reserves & CapEx','plan big-ticket costs',0],
+  ['✅','Compliance','licenses · inspections',0],
+  ['🎯','Goals & Growth','am I winning?',0],
+  ['📅','Calendar','every deadline, synced',0]
+];
+
+function renderLayers(){
+  const host=document.getElementById('layerCards');
+  state.layers={}; host.innerHTML='';
+  const rec=LIBS.filter(L=>L[3]), later=LIBS.filter(L=>!L[3]);
+  const card=(L)=>{const[ic,nm,ds,r]=L; if(r)state.layers[nm]=true;
+    return '<div class="lcard'+(r?' on':'')+'" data-nm="'+nm+'"><span class="chk">✓</span><div class="ic">'+ic+'</div><div class="nm">'+nm+'</div><div class="ds">'+ds+'</div></div>';};
+  let h='';
+  if(rec.length) h+='<div class="grplbl start">✦ RECOMMENDED TO START</div><div class="cards">'+rec.map(card).join('')+'</div>';
+  if(later.length) h+='<div class="grplbl" style="margin-top:18px">ADD WHEN YOU\'RE READY</div><div class="cards">'+later.map(card).join('')+'</div>';
+  host.innerHTML=h;
+  host.querySelectorAll('.lcard').forEach(d=>{const nm=d.dataset.nm; d.onclick=()=>{const on=!state.layers[nm];state.layers[nm]=on;d.classList.toggle('on',on);};});
+}
+function selectedLayers(){return Object.keys(state.layers).filter(k=>state.layers[k]);}
+function renderEmployees(){
+  const host=document.getElementById('empList'); host.innerHTML='';
+  selectedLayers().forEach(nm=>{
+    const on=!!state.employees[nm];
+    const row=document.createElement('div'); row.className='emprow';
+    row.innerHTML='<div class="l"><b>'+nm+'</b> employee<span class="price">+$'+EMPLOYEE+'/mo</span></div>';
+    const tg=document.createElement('div'); tg.className='toggle'+(on?' on':''); tg.innerHTML='<div class="knob"></div>';
+    tg.onclick=()=>{state.employees[nm]=!state.employees[nm];tg.classList.toggle('on',state.employees[nm]);total();};
+    row.appendChild(tg); host.appendChild(row);
+  });
+  total();
+}
+function monthly(){const L=selectedLayers().length, E=Object.values(state.employees).filter(Boolean).length; return FOUNDATION+L*LAYER+E*EMPLOYEE;}
+function total(){const v='$'+monthly()+'/mo';document.getElementById('total1').textContent=v;document.getElementById('total2').textContent=v;}
+function conn(btn){btn.classList.toggle('done');btn.textContent=btn.classList.contains('done')?'✓ Connected':'Connect';state.conns=document.querySelectorAll('.cbtn.done').length;}
+function sync(){
+  const o=document.getElementById('ownerName').value||'there';
+  const b2=document.getElementById('b2'); if(b2) b2.innerHTML='Got it, '+o+'. Tell me a bit about where you\'re at — no wrong answers, this just helps me set things up right for you.';
+}
+function go(n){for(let i=1;i<=6;i++)document.getElementById('s'+i).classList.toggle('hidden',i!==n);
+  document.getElementById('steplbl').textContent='STEP '+n+' OF 6';
+  const p=document.getElementById('prog');p.innerHTML='';for(let i=1;i<=6;i++){const s=document.createElement('div');s.className='seg'+(i<=n?' on':'');p.appendChild(s);}
+  if(n===3 && !Object.keys(state.layers).length) renderLayers();
+  if(n===4)renderEmployees();
+  if(n===6)review();
+  window.scrollTo(0,0);
+}
+function val(id){const e=document.getElementById(id);return e?e.value:'';}
+function line(k,v){return '<div class="line"><span class="k">'+k+'</span><span style="max-width:62%;text-align:right">'+v+'</span></div>';}
+function setBiz(yes,btn){state.hasBiz=yes;btn.parentNode.querySelectorAll('.segbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');document.getElementById('bizFields').classList.toggle('hidden',!yes);}
+function setRe(yes,btn){state.hasRe=yes;btn.parentNode.querySelectorAll('.segbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');document.getElementById('propField').classList.toggle('hidden',!yes);document.getElementById('reNote').textContent=yes?'Perfect — I\'ll tune things around the doors you already have.':'Just starting is exactly who this is built for — we\'ll take it one step at a time.';}
+function review(){
+  const o=val('ownerName')||'—', tn=val('tarsName')||'TARS';
+  const Ls=selectedLayers(), Es=Object.keys(state.employees).filter(k=>state.employees[k]);
+  document.getElementById('b6').innerHTML='That\'s it, '+o+' — here\'s your command center. Look good? Say the word and I\'ll put it together and take you in.';
+  let h='';
+  h+=line('Owner',o);
+  h+=line('Assistant',tn);
+  h+=line('Business', state.hasBiz?((val('bizName')||'(unnamed)')+' · '+val('bizEntity')):'Just getting started — no business yet');
+  if(state.hasBiz) h+=line('Company', val('bizLoc')+' location(s) · team: '+val('bizTeam'));
+  h+=line('Real estate', state.hasRe?(val('propCount')+' propert'+(val('propCount')=='1'?'y':'ies')+' owned'):'Starting fresh — first deal ahead');
+  h+=line('Tiles ('+Ls.length+')', Ls.join(', ')||'—');
+  h+=line('Always on','Learn & Coach copilot');
+  h+=line('AI employees ('+Es.length+')', Es.join(', ')||'none');
+  h+=line('Connected', state.conns+' account(s)');
+  document.getElementById('review').innerHTML=h; total();
+}
+function launch(){
+  const tn=val('tarsName')||'TARS', o=val('ownerName')||'Owner';
+  // Persist the onboarding profile + a local demo session, then drop the user into
+  // the app. This is the Phase-2 auth seam: today it writes a client-side session
+  // (same shape app.js reads); real Supabase magic-link verification slots in here.
+  const profile={
+    owner:o, assistant:tn,
+    hasBiz:state.hasBiz, bizName:val('bizName'), bizEntity:val('bizEntity'),
+    hasRe:state.hasRe, propCount:val('propCount'),
+    tiles:selectedLayers(), employees:Object.keys(state.employees).filter(k=>state.employees[k]),
+    connections:state.conns, at:new Date().toISOString()
+  };
+  try{
+    localStorage.setItem('tcc_onboarding', JSON.stringify(profile));
+    localStorage.setItem('tcc_session', JSON.stringify({ name:o, role:'owner', tenant:'ech', contact:null, scope:null, at:profile.at }));
+  }catch(e){}
+  // Into the command center (one level up from /onboarding/).
+  window.location.href = '../';
+}
+function start(){document.getElementById('s0').classList.add('hidden');document.getElementById('chrome').classList.remove('hidden');go(1);}
+renderLayers();
+</script>
+</body>
+</html>

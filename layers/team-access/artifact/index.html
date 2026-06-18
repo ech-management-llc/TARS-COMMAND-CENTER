@@ -3,53 +3,159 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Team &amp; Access — TARS Command Center</title>
+<title>Team &amp; Access — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .ta-sec{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px}
+  .ta-sec-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .ta-sec-h .nm{font-weight:700;font-size:13px}
+  .ta-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:4px 11px;margin:3px 4px 0 0;font-size:12px;cursor:pointer;background:var(--surf2);color:var(--mut);user-select:none}
+  .ta-chip[data-on="1"]{background:var(--greenbg,#0d1f16);border-color:var(--green,#33d29a);color:var(--green,#33d29a);font-weight:700}
+  .ta-chip[data-locked="1"]{cursor:default;border-style:dashed;opacity:.85}
+  .ta-lasso{font-size:11px;font-weight:700;border:1px solid var(--purpleln,#5b4b8a);background:var(--purplebg,#1c1830);color:var(--purple,#b9a7ff);border-radius:999px;padding:3px 10px;cursor:pointer}
+  .ta-req{color:var(--red,#ff6b6b)}
+  .ta-prev{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;margin-top:8px;font-size:12px;line-height:1.7}
+</style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">👥 Team &amp; Access</div>
 
-  <div class="preview-banner">
-    <b>PREVIEW — roles model.</b> Real sign-in (Foundation Layer Supabase auth if available, else a lightweight magic-link layer) + per-user roles + per-tenant isolation. <b>Login does not gate the app yet</b> — that's held pending the rest of the spec and your go-ahead, so nothing locks during the build.
+  <div class="preview-banner" style="border-color:var(--yellowln,#caa53a)">
+    <b>⚠ FRONT-END SCOPING ONLY — this does NOT secure the app.</b> Granting here hides un-granted tiles in the UI; a determined user can unhide them. <b>Real access control is server-side</b> (Supabase row-level security + API authorization in Foundation Layer), and lands at the <b>auth phase</b>. Until then, do not treat anything here as locked. Grants persist to this browser (sample overlay) — no real accounts, emails, or texts are sent.
   </div>
 
-  <div class="card flush">
-    <table>
-      <tr><th>USER</th><th>ROLE</th><th>SCOPE</th><th>EXTERNAL SENDS</th></tr>
-      <tr><td>Jerry</td><td><span class="tag b-green">Owner</span></td><td>all layers</td><td>full</td></tr>
-      <tr><td>Ashley</td><td><span class="tag b-yellow">Admin / Staff</span></td><td>most layers</td><td>gated (approval)</td></tr>
-      <tr><td>Construction Supervisor</td><td><span class="tag" style="background:#11203a;color:#6fa8f0">Field</span></td><td>Build &amp; Renovate · one job</td><td>none</td></tr>
-      <tr><td>Accountant (sample)</td><td><span class="tag b-gray">Read-only</span></td><td>Financial (view)</td><td>none</td></tr>
-      <tr><td>Tenant</td><td><span class="tag b-gray">reserved</span></td><td>their unit only</td><td>none</td></tr>
-    </table>
-  </div>
-
+  <!-- ADD / CONFIGURE MEMBER ------------------------------------------------ -->
   <div class="card">
-    <div class="section-label">ROLES</div>
-    <div class="small muted" style="line-height:1.7">
-      <b>Owner</b> — full control. ·
-      <b>Admin / Staff</b> (e.g. Ashley) — most layers; external sends gated to draft-for-approval. ·
-      <b>Read-only / Viewer</b> — see, can't change. ·
-      <b>Tenant</b> (reserved) — their unit only. ·
-      <b>Field</b> (e.g. Construction Supervisor) — signs in by phone or email (magic-link / SMS), scoped to ONE layer/job.
-    </div>
-    <div class="wire-note">Role + entitlement together decide what renders. Per-tenant isolation: a tenant only ever sees their own org's layers + data.</div>
-  </div>
-
-  <div class="card">
-    <div class="section-label">INVITE</div>
+    <div class="section-label">ADD TEAM MEMBER</div>
     <div class="fgrid">
-      <div><label>Name</label><input placeholder="e.g. Marcus (site lead)"></div>
-      <div><label>Email or phone</label><input placeholder="email for staff · phone for field magic-link"></div>
-      <div><label>Role</label><select><option>Owner</option><option>Admin / Staff</option><option>Read-only / Viewer</option><option selected>Field (one job)</option></select></div>
-      <div><label>Scope (if field)</label><select><option>Build &amp; Renovate — 415 Skiles</option><option>Build &amp; Renovate — 102 Remington</option></select></div>
+      <div><label>Name <span class="ta-req">*</span></label><input id="m-name" placeholder="e.g. Marcus (site lead)"></div>
+      <div><label>Role</label><select id="m-role"><option value="member" selected>Member (scoped)</option><option value="admin">Admin / Staff</option><option value="viewer">Read-only / Viewer</option></select></div>
+      <div><label>Cell phone <span class="ta-req">*</span></label><input id="m-phone" placeholder="(903) 555-0000 · SMS magic-link + dispatch"></div>
+      <div><label>Email <span class="ta-req">*</span></label><input id="m-email" placeholder="name@company.com · email magic-link + reports"></div>
     </div>
-    <button class="btn primary" style="margin-top:10px" onclick="document.getElementById('invnote').innerHTML='<b style=\'color:var(--green)\'>Draft invite prepared.</b> Live build: sends a magic-link (email) or SMS code; the field user lands scoped only to their job.'">Send invite</button>
-    <div class="wire-note" id="invnote">Field users get a phone/email magic-link and land scoped to a single job — they never see the rest of the command center.</div>
+    <label style="display:inline-flex;align-items:center;gap:7px;margin-top:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="m-tars"> Can command TARS by text (Rule 27 allow-list — needs a phone)</label>
+
+    <div class="section-label" style="margin-top:14px">GRANT ACCESS <span class="small muted" style="font-weight:400">— deny-by-default · click a section lasso to grant all its tiles, or toggle individual tiles · Inbox + Calendar are always on</span></div>
+    <div id="ta-board"><div class="small muted">Loading the Foundation Layer board…</div></div>
+
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" id="m-add">Add team member</button>
+      <button class="btn sm" id="m-clear">Clear grants</button>
+      <span class="small muted" id="m-note"></span>
+    </div>
+    <div class="ta-prev" id="m-preview"></div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">App-level auth structure (roles + entitlement + isolation). Hard login-gating held pending spec. Sample data — no real emails/phones.</div>
+  <!-- TEAM LIST -------------------------------------------------------------- -->
+  <div class="card flush">
+    <div class="section-label" style="padding:10px 12px 0">TEAM</div>
+    <table>
+      <thead><tr><th>NAME</th><th>ROLE</th><th>CONTACTS</th><th>ACCESS</th><th>TARS</th><th></th></tr></thead>
+      <tbody id="ta-team"></tbody>
+    </table>
+    <div class="small dim" style="padding:8px 12px">Existing rows come from the shared connections record; new members save to this browser's team overlay (<code>fl_team_overlay_v1</code>) until the backend team table lands. Phone + email drive SMS dispatch (Rule 27), report email, and magic-link sign-in.</div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Roles + grants decide what the UI renders; <b>server-side authorization decides what's actually allowed</b> (auth phase). Per-tenant isolation + read-only-per-grant land with it.</div>
 </div>
+
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function telD(p){ var d=String(p==null?'':p).replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }
+  // Consolidation section leads (matches consolidate.py). Layers carry section_lead; baseline is always granted.
+  var SECTIONS=[['tars','Overview & Brief · TARS'],['portfolio','Portfolio · Reed'],['financials','Financials · Margo'],['market-deals','Market & Deals · Scout'],['operations','Build, Renovate & Maintenance · Jordan'],['legal','Legal · Dean'],['it','Website, IT & Marketing · Iris'],['admin','Admin · Quinn']];
+  var BASELINE=['inbox','calendar'];
+  var LAYERS=[], BYSEC={}, OVERLAY=load(), CUR={sections:{}, tiles:{}};
+
+  function load(){ try{ return JSON.parse(localStorage.getItem('fl_team_overlay_v1')||'null')||{members:[]}; }catch(e){ return {members:[]}; } }
+  function save(){ try{ localStorage.setItem('fl_team_overlay_v1', JSON.stringify(OVERLAY)); }catch(e){} }
+
+  fetch('../../../config/layers.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+    LAYERS=(d&&d.layers)||[];
+    BYSEC={};
+    LAYERS.forEach(function(l){ if(l.enabled===false) return; var s=l.section_lead||'tars'; (BYSEC[s]=BYSEC[s]||[]).push(l); });
+    renderBoard(); renderTeam(); renderPreview();
+  }).catch(function(){ document.getElementById('ta-board').innerHTML='<div class="muted small">Board unavailable — config/layers.json not reachable.</div>'; });
+
+  function tileGranted(l){
+    if(BASELINE.indexOf(l.id)>=0) return true;
+    if(CUR.sections[l.section_lead||'tars']) return true;
+    return !!CUR.tiles[l.id];
+  }
+  function renderBoard(){
+    var host=document.getElementById('ta-board'); var html='';
+    SECTIONS.forEach(function(sec){
+      var sid=sec[0], list=BYSEC[sid]||[]; if(!list.length) return;
+      var on=!!CUR.sections[sid];
+      html+='<div class="ta-sec"><div class="ta-sec-h"><button type="button" class="ta-lasso" data-lasso="'+esc(sid)+'">'+(on?'✓ granted':'grant section')+'</button><span class="nm">'+esc(sec[1])+'</span></div>';
+      html+=list.map(function(l){
+        var base=BASELINE.indexOf(l.id)>=0;
+        var granted=tileGranted(l);
+        return '<span class="ta-chip" data-tile="'+esc(l.id)+'" data-on="'+(granted?1:0)+'"'+(base?' data-locked="1" title="baseline — always on"':'')+'>'+esc((l.icon?l.icon+' ':'')+(l.title||l.id))+(base?' 🔒':'')+'</span>';
+      }).join('');
+      html+='</div>';
+    });
+    host.innerHTML=html;
+    host.querySelectorAll('[data-lasso]').forEach(function(b){ b.addEventListener('click', function(){ var s=b.getAttribute('data-lasso'); if(CUR.sections[s]){ delete CUR.sections[s]; (BYSEC[s]||[]).forEach(function(l){ delete CUR.tiles[l.id]; }); } else { CUR.sections[s]=true; } renderBoard(); renderPreview(); }); });
+    host.querySelectorAll('[data-tile]').forEach(function(c){ if(c.getAttribute('data-locked')==='1') return; c.addEventListener('click', function(){ var id=c.getAttribute('data-tile'); if(CUR.tiles[id]) delete CUR.tiles[id]; else CUR.tiles[id]=true; renderBoard(); renderPreview(); }); });
+  }
+
+  function grantedTiles(access){
+    var ids={}; BASELINE.forEach(function(b){ ids[b]=1; });
+    LAYERS.forEach(function(l){ if(l.enabled===false) return; if((access.sections||[]).indexOf(l.section_lead||'tars')>=0) ids[l.id]=1; });
+    (access.tiles||[]).forEach(function(t){ ids[t]=1; });
+    return Object.keys(ids);
+  }
+  function curAccess(){ return { sections:Object.keys(CUR.sections), tiles:Object.keys(CUR.tiles) }; }
+  function titleOf(id){ var l=LAYERS.filter(function(x){return x.id===id;})[0]; return l?(l.title||id):id; }
+
+  function renderPreview(){
+    var a=curAccess(); var ids=grantedTiles(a);
+    document.getElementById('m-preview').innerHTML='<b>Preview — this member would see '+ids.length+' tile'+(ids.length===1?'':'s')+'</b> (UI scoping only): '+
+      ids.map(function(id){ return '<span class="tag '+(BASELINE.indexOf(id)>=0?'b-gray':'b-green')+'">'+esc(titleOf(id))+(BASELINE.indexOf(id)>=0?' · baseline':'')+'</span>'; }).join(' ')+
+      '<div class="small muted" style="margin-top:6px">TARS, its answers, and the daily brief scope to these sections + baseline. Everything else is hidden in the UI (not blocked server-side yet).</div>';
+  }
+
+  function members(){
+    var ex=[]; // existing shared connections (read-only context)
+    var seed=window.__TEAM_SEED||[];
+    return seed.concat(OVERLAY.members||[]);
+  }
+  function renderTeam(){
+    fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      window.__TEAM_SEED=((d&&d.team)||[]).map(function(t){ return {id:t.id, name:t.name, role:t.role, phone:t.phone, email:t.email||null, can_command_tars:!!t.can_command_tars, access:null, status:'active', seed:true}; });
+      paintTeam();
+    }).catch(paintTeam);
+  }
+  function paintTeam(){
+    var rows=members().map(function(m){
+      var acc = m.access ? (((m.access.sections||[]).length)+' sec · '+((m.access.tiles||[]).length)+' tile') : (m.seed?'(shared record)':'—');
+      var td=telD(m.phone);
+      var phoneCell=m.phone?('<a href="tel:'+td+'" style="color:var(--fg);text-decoration:none">'+esc(m.phone)+'</a> <a href="sms:'+td+'" title="text" style="text-decoration:none">💬</a>'):'<span class="ta-req">no phone</span>';
+      var emailCell=m.email?('<a href="mailto:'+esc(m.email)+'" class="small muted" style="text-decoration:none">'+esc(m.email)+'</a>'):'<span class="small muted"><span class="ta-req">no email</span></span>';
+      var contacts=phoneCell+'<br>'+emailCell;
+      return '<tr><td>'+esc(m.name)+(m.status==='invited'?' <span class="tag b-yellow">invited</span>':'')+'</td><td>'+esc(m.role||'—')+'</td><td>'+contacts+'</td><td>'+esc(acc)+'</td><td>'+(m.can_command_tars?'<span class="tag b-green">text ✓</span>':'<span class="tag b-gray">no</span>')+'</td>'+
+        '<td>'+(m.access?'<button class="btn sm" data-prev="'+esc(m.id)+'">preview</button>':'')+'</td></tr>';
+    }).join('');
+    document.getElementById('ta-team').innerHTML=rows||'<tr><td colspan="6" class="muted small">No members yet.</td></tr>';
+    document.querySelectorAll('#ta-team [data-prev]').forEach(function(b){ b.addEventListener('click', function(){ var m=(OVERLAY.members||[]).filter(function(x){return x.id===b.getAttribute('data-prev');})[0]; if(m&&m.access){ CUR={sections:{},tiles:{}}; (m.access.sections||[]).forEach(function(s){CUR.sections[s]=true;}); (m.access.tiles||[]).forEach(function(t){CUR.tiles[t]=true;}); renderBoard(); renderPreview(); document.getElementById('m-name').value=m.name; document.getElementById('m-phone').value=m.phone||''; document.getElementById('m-email').value=m.email||''; } }); });
+  }
+
+  document.getElementById('m-clear').addEventListener('click', function(){ CUR={sections:{},tiles:{}}; renderBoard(); renderPreview(); });
+  document.getElementById('m-add').addEventListener('click', function(){
+    var name=document.getElementById('m-name').value.trim(), phone=document.getElementById('m-phone').value.trim(), email=document.getElementById('m-email').value.trim();
+    var note=document.getElementById('m-note');
+    if(!name||!phone||!email){ note.innerHTML='<span class="ta-req">Name, phone, and email are all required.</span>'; return; }
+    var m={ id:'tm-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+(OVERLAY.members.length+1), name:name, role:document.getElementById('m-role').value, phone:phone, email:email, can_command_tars:document.getElementById('m-tars').checked, access:curAccess(), status:'invited' };
+    OVERLAY.members.push(m); save();
+    note.innerHTML='<b style="color:var(--green)">Added '+esc(name)+' (draft).</b> Saved to the team overlay. Live build: sends a magic-link / SMS code; server-side authz enforces these grants.';
+    document.getElementById('m-name').value=''; document.getElementById('m-phone').value=''; document.getElementById('m-email').value=''; document.getElementById('m-tars').checked=false;
+    CUR={sections:{},tiles:{}}; renderBoard(); renderPreview(); paintTeam();
+  });
+
+  FLSettings.mount({tileId:'team-access'});
+</script>
 </body>
 </html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legal — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">⚖️ Legal</div>
+
+  <div class="preview-banner"><b>PREVIEW — sample data.</b> The live source isn't wired yet, so the figures below are illustrative — honest sample state until the connector phase lands.<div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Sloane</b> and say "remove the law lookup section" — the employee reshapes this view and it sticks.</div></div>
+
+  <div class="card" data-view-section="disclaimer" style="background:var(--yellowbg);border-color:var(--yellowln);color:var(--yellow);font-size:12.5px">⚠️ Assists, explains &amp; organizes — NOT legal advice. Confirm anything important with a licensed attorney.</div>
+
+  <div class="ruleg">
+    <div class="rule rg"><div class="rn">CONTRACTS</div><div class="rv">6</div><div class="rt">on file</div></div>
+    <div class="rule ry"><div class="rn">CLOSING</div><div class="rv" style="color:var(--yellow)">1</div><div class="rt">415 Skiles</div></div>
+    <div class="rule rg"><div class="rn">LEASES</div><div class="rv">9</div><div class="rt">active</div></div>
+    <div class="rule rg" onclick="flOpen('compliance')" style="cursor:pointer" title="Open Compliance"><div class="rn">COMPLIANCE</div><div class="rv">OK</div><div class="rt">TX · fair housing ↗</div></div>
+  </div>
+
+  <div class="card" data-view-section="closing">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">CLOSING — 415 SKILES (contract → close) <button class="xref" type="button" onclick="flOpen('sign')" title="Open Sign — send for signature">Sign</button></div>
+    <table><tr><th>STEP</th><th>DEADLINE</th><th>STATUS</th></tr>
+      <tr><td>Earnest money deposited</td><td>done</td><td><span class="tag b-green">done</span></td></tr>
+      <tr><td>Option / inspection ends</td><td>Jun 12</td><td><span class="tag b-yellow">5 days</span></td></tr>
+      <tr><td>Financing contingency</td><td>Jun 24</td><td><span class="tag b-gray">pending</span></td></tr>
+      <tr><td>Closing day</td><td>Jul 1</td><td><span class="tag b-gray">scheduled</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card" data-view-section="law-lookup">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">STATE &amp; LOCAL LAW LOOK-UP</div>
+    <input placeholder="e.g. security deposit return in Texas…" style="width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:9px 11px;font:inherit;font-size:13px">
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px"><button class="fbtn" onclick="alert('TX: a landlord must return the security deposit within 30 days of move-out, itemizing any deductions. Plain-English summary — verify with counsel.')">Security deposit (TX)</button><button class="fbtn" onclick="alert('TX eviction: written notice to vacate (usually 3 days) → file in JP court → hearing → writ of possession. Timeline varies by county. Summary — confirm with an attorney.')">Eviction (TX)</button></div>
+  </div>
+
+  <div class="card" data-view-section="jurisdiction-rules">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">JURISDICTION-AWARE RULES — Sloane pulls from the official sources for THIS location</div>
+    <div class="jbar" id="jur"></div>
+    <button class="fbtn on" type="button" onclick="pullRules()">Pull applicable rules</button>
+    <div id="rules-out" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" data-view-section="caselaw">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">RELEVANT CASES — precedent lookup (open case-law sources)</div>
+    <div id="cases-out"><button class="fbtn" type="button" onclick="pullCases()">Pull relevant cases</button></div>
+  </div>
+
+  <div class="card" data-view-section="review-queue">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">FILES FOR LEGAL REVIEW — Sloane's review inbox</div>
+    <div id="legal-drop"></div>
+    <div class="small dim" style="margin-top:6px">Dropped/added files queue for Sloane's review and file into <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button> (Legal Review folder). Names + metadata only — no file content stored front-end.</div>
+  </div>
+
+  <div class="warn">⚠️ Informational, not legal advice — assists decisions, doesn't replace counsel. Every pulled rule/holding carries its source + pull date; Sloane flags anything stale. Case rows are clearly-labeled samples until the open case-law sources wire.</div>
+
+  <div style="font-size:11px;color:var(--dim);margin-top:10px">Docs live in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button>; this layer explains, tracks deadlines, and looks up law. Sample data.</div>
+</div>
+
+<script src="../../../shared/jurisdiction.js"></script>
+<script src="../../../shared/ingest.js"></script>
+<script src="../../../shared/docdrop.js"></script>
+<script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  var JUR = null, pulled = false;
+  FLJur.mount(document.getElementById('jur'), function(sel){ JUR = sel; if(pulled) pullRules(); });
+
+  // rules for THIS jurisdiction, through the one ingestion layer (state rows + matching local rows)
+  function pullRules(){
+    pulled = true;
+    var j = JUR || FLJur.current() || {};
+    FLIngest.request('legal-rules', {filter:function(r){
+      if(r.state!==j.state) return false;
+      if(r.municipality && r.municipality!==j.municipality) return false;
+      if(r.county && r.county!==j.county) return false;
+      return true;
+    }}).then(function(res){
+      document.getElementById('rules-out').innerHTML =
+        '<table><tr><th>RULE</th><th>WHAT IT SAYS (plain English)</th><th>SOURCE</th></tr>'+
+        (res.rows.length?res.rows.map(function(r){
+          return '<tr><td style="white-space:nowrap">'+esc2(r.rule)+'</td><td>'+esc2(r.summary)+'</td><td><span class="stamp">'+esc2(r.src)+' · pulled '+esc2(res.fetched_at)+'</span></td></tr>';
+        }).join(''):'<tr><td colspan="3" class="muted">No rules on file for this jurisdiction yet — the per-jurisdiction scrape wires at the connector phase.</td></tr>')+
+        '</table>'+FLIngest.stamp(res);
+    }).catch(function(){ document.getElementById('rules-out').innerHTML='<div class="small dim">Rule source not reachable.</div>'; });
+  }
+
+  function pullCases(){
+    var j = JUR || FLJur.current() || {};
+    FLIngest.request('caselaw', {filter:function(r){ return r.state===j.state; }}).then(function(res){
+      document.getElementById('cases-out').innerHTML =
+        '<table><tr><th>CASE</th><th>HOLDING</th><th></th></tr>'+
+        res.rows.map(function(r){
+          return '<tr><td>'+esc2(r.case)+'</td><td>'+esc2(r.holding)+'</td><td><span class="pill '+(r.posture==='for'?'rg':'rr')+'">'+(r.posture==='for'?'FOR landlord':'AGAINST')+'</span></td></tr>';
+        }).join('')+'</table>'+FLIngest.stamp(res);
+    }).catch(function(){ document.getElementById('cases-out').innerHTML='<div class="small dim">Case-law source not reachable.</div>'; });
+  }
+
+  // Sloane's review inbox — the shared doc-drop component, filing into the Legal Review folder
+  FLDocDrop.mount(document.getElementById('legal-drop'), {
+    folder:'legal-review', source_tile:'legal',
+    label:'Drop files for legal review', sub:'or search the vault and add — becomes Sloane’s review queue'
+  });
+
+  function applyViewCfg(ops){
+    ops = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    ops.forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){
+          el.style.display = (op.type==='remove')?'none':'';
+        });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'legal'});</script>
+</body>
+</html>

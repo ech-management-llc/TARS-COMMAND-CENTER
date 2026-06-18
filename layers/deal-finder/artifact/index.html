@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deal Finder — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .df-form{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .df-form .full{grid-column:1 / -1}
+  .df-lab{display:block;font-size:11px;font-weight:700;color:var(--mut,#9aa3b2);letter-spacing:.3px;margin-bottom:3px}
+  .df-in,.df-sel{width:100%;box-sizing:border-box;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:7px;padding:8px 10px;font-size:13px}
+  .df-in:focus,.df-sel:focus{outline:none;border-color:var(--accent,#8b7ff0)}
+  .df-row2{display:flex;gap:8px}
+  .df-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .df-btn{cursor:pointer;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;border:1px solid var(--line,#2a2d3a)}
+  .df-btn.primary{background:var(--accent,#8b7ff0);border-color:var(--accent,#8b7ff0);color:#10121a}
+  .df-btn.ghost{background:var(--surf2,#1a1d27);color:var(--fg,#e8e8ea)}
+  .df-hide{display:none}
+  .df-srcgrid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .df-src{font-size:11px;font-weight:700;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);border-radius:999px;padding:3px 9px;color:var(--mut,#9aa3b2)}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🔭 Deal Finder</div>
+
+  <div class="preview-banner">
+    <b>The start of every deal.</b> Set your buy box below, then either let <b>Scout</b> (your Market &amp; Deals employee) scrape listings for it, or enter a property by hand and skip straight to the numbers. Whatever you pick flows into the <b>Analyzer</b>, then the <b>Decider</b>.
+    <div class="wire-note" style="margin-top:8px">Live listing scrape is the backend/employee lane (see below) — no fabricated listings until it's wired. The buy box + a manual property carry over to the Analyzer today.</div>
+  </div>
+
+  <!-- BUY BOX / FILTERS -->
+  <div class="card" data-view-section="buybox">
+    <div class="section-label">YOUR BUY BOX — what, where, how much</div>
+    <div class="df-form">
+      <div>
+        <label class="df-lab" for="df-target">Target buy price (what you'll pay)</label>
+        <input class="df-in" id="df-target" inputmode="numeric" placeholder="e.g. 140000">
+      </div>
+      <div>
+        <label class="df-lab" for="df-type">Property type</label>
+        <select class="df-sel" id="df-type">
+          <option value="any">Any</option>
+          <option value="sfr">Single-family</option>
+          <option value="multi">Multi-family / units</option>
+          <option value="land">Land / lot</option>
+          <option value="mixed">Mixed / commercial</option>
+        </select>
+      </div>
+      <div class="full">
+        <label class="df-lab" for="df-where">Where (counties / cities / ZIP — like a Zillow search area)</label>
+        <input class="df-in" id="df-where" placeholder="e.g. Mabank, Athens, Malakoff · Henderson / Kaufman Co.">
+      </div>
+      <div>
+        <label class="df-lab">Price range</label>
+        <div class="df-row2">
+          <input class="df-in" id="df-min" inputmode="numeric" placeholder="min $">
+          <input class="df-in" id="df-max" inputmode="numeric" placeholder="max $">
+        </div>
+      </div>
+      <div>
+        <label class="df-lab">Beds / baths (min)</label>
+        <div class="df-row2">
+          <input class="df-in" id="df-beds" inputmode="numeric" placeholder="beds">
+          <input class="df-in" id="df-baths" inputmode="numeric" placeholder="baths">
+        </div>
+      </div>
+      <div>
+        <label class="df-lab" for="df-cap">Min cap rate %</label>
+        <input class="df-in" id="df-cap" inputmode="decimal" placeholder="e.g. 8">
+      </div>
+      <div>
+        <label class="df-lab" for="df-kw">Keywords</label>
+        <input class="df-in" id="df-kw" placeholder="fixer, FSBO, owner-finance, motivated…">
+      </div>
+      <label class="full" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut,#9aa3b2)">
+        <input type="checkbox" id="df-fsbo" checked> Include For-Sale-By-Owner &amp; social/marketplace listings (not just agent/MLS)
+      </label>
+    </div>
+
+    <div class="df-actions">
+      <button class="df-btn primary" id="df-find" type="button">🔎 Find listings — Scout scrapes</button>
+      <button class="df-btn ghost" id="df-manual-toggle" type="button">✍️ Enter a property manually →</button>
+    </div>
+    <div id="df-saved" style="font-size:11px;color:var(--dim);margin-top:8px"></div>
+  </div>
+
+  <!-- SCRAPE RESULT (honest stub) -->
+  <div class="card df-hide" id="df-scrape" data-view-section="scrape">
+    <div class="section-label">SCOUT — LISTING SCRAPE</div>
+    <div id="df-scrape-msg" style="font-size:13px;line-height:1.5"></div>
+    <div class="df-srcgrid" id="df-srcs"></div>
+    <div class="wire-note" style="margin-top:10px">This is the employee feature (activated by purchase). The live scrape runs server-side across the sources above, including FSBO &amp; marketplace posts, and returns real matches — <b>nothing is fabricated here until that lane is wired</b>.</div>
+  </div>
+
+  <!-- MANUAL ENTRY -->
+  <div class="card df-hide" id="df-manualcard" data-view-section="manual">
+    <div class="section-label">ENTER A PROPERTY — skip the search, go to the numbers</div>
+    <div class="df-form">
+      <div class="full">
+        <label class="df-lab" for="dm-addr">Address</label>
+        <input class="df-in" id="dm-addr" placeholder="118 Pierce, Mabank, TX">
+      </div>
+      <div>
+        <label class="df-lab" for="dm-price">Asking / your price</label>
+        <input class="df-in" id="dm-price" inputmode="numeric" placeholder="e.g. 132000">
+      </div>
+      <div>
+        <label class="df-lab" for="dm-src">Source</label>
+        <input class="df-in" id="dm-src" placeholder="FSBO / MLS / wholesaler / referral">
+      </div>
+    </div>
+    <div class="df-actions">
+      <button class="df-btn primary" id="dm-go" type="button">Send to Deal Analyzer →</button>
+    </div>
+  </div>
+
+  <!-- SAMPLE CANDIDATES -->
+  <div class="card" data-view-section="candidates">
+    <div class="row-sb" style="margin-bottom:8px"><div class="section-label" style="margin:0">SAMPLE CANDIDATES</div><span class="pill ry">illustrative — not live</span></div>
+    <table>
+      <tr><th>PROPERTY</th><th>PRICE</th><th>EST. CAP</th><th>SOURCE</th><th></th></tr>
+      <tr><td>118 Pierce, Mabank</td><td>$132,000</td><td>11.2%</td><td>Off-market</td><td><button class="xref df-analyze" type="button" data-addr="118 Pierce, Mabank, TX" data-price="132000" data-src="Off-market">Analyze</button></td></tr>
+      <tr><td>904 Tolleson, Athens</td><td>$119,500</td><td>9.8%</td><td>MLS</td><td><button class="xref df-analyze" type="button" data-addr="904 Tolleson, Athens, TX" data-price="119500" data-src="MLS">Analyze</button></td></tr>
+      <tr><td>22 Oak Hollow, Mabank</td><td>$145,000</td><td>8.6%</td><td>Wholesaler</td><td><button class="xref df-analyze" type="button" data-addr="22 Oak Hollow, Mabank, TX" data-price="145000" data-src="Wholesaler">Analyze</button></td></tr>
+      <tr><td>610 Larkin, Athens</td><td>$98,000</td><td>8.1%</td><td>County / tax</td><td><button class="xref df-analyze" type="button" data-addr="610 Larkin, Athens, TX" data-price="98000" data-src="County / tax">Analyze</button></td></tr>
+    </table>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Sample rows. <b>Analyze</b> carries that property (and your buy box) into the Deal Analyzer. Live matches replace these when Scout's scrape is wired.</div>
+  </div>
+
+  <!-- DEAL PATH -->
+  <div class="card" data-view-section="next-steps">
+    <div class="section-label">YOUR DEAL PATH</div>
+    <div class="row-sb" style="justify-content:flex-start;gap:8px">
+      <span class="pill ry">1 · Deal Finder — you are here</span>
+      <button class="xref df-step" type="button" data-step="deal-analyzer">2 · Deal Analyzer ↗</button>
+      <button class="xref df-step" type="button" data-step="deal-screener">3 · Deal Decider ↗</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var BUYBOX_KEY='fl_buybox_v1', PIPE_KEY='fl_deal_pipeline_v1';
+  var SOURCES=['MLS / IDX','Zillow','Realtor.com','Redfin','Facebook Marketplace','Craigslist','FSBO sites','Wholesaler lists','County / tax records','Auction sites'];
+
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function $(id){ return document.getElementById(id); }
+  function num(v){ v=String(v==null?'':v).replace(/[^0-9.]/g,''); return v===''?null:Number(v); }
+
+  function readBuyBox(){
+    return { target:num($('df-target').value), type:$('df-type').value, where:$('df-where').value.trim(),
+      min:num($('df-min').value), max:num($('df-max').value), beds:num($('df-beds').value),
+      baths:num($('df-baths').value), cap:num($('df-cap').value), kw:$('df-kw').value.trim(),
+      fsbo:$('df-fsbo').checked };
+  }
+  function saveBuyBox(){
+    var b=readBuyBox();
+    try{ localStorage.setItem(BUYBOX_KEY, JSON.stringify(b)); }catch(e){}
+    var bits=[]; if(b.target) bits.push('≤ $'+b.target.toLocaleString()); if(b.where) bits.push(b.where);
+    if(b.beds) bits.push(b.beds+'+ bd'); if(b.cap) bits.push('≥ '+b.cap+'% cap');
+    $('df-saved').textContent = bits.length ? 'Saved buy box: '+bits.join(' · ') : '';
+  }
+  function loadBuyBox(){
+    var b=null; try{ b=JSON.parse(localStorage.getItem(BUYBOX_KEY)||'null'); }catch(e){}
+    if(!b) return;
+    if(b.target!=null)$('df-target').value=b.target; if(b.type)$('df-type').value=b.type;
+    if(b.where)$('df-where').value=b.where; if(b.min!=null)$('df-min').value=b.min;
+    if(b.max!=null)$('df-max').value=b.max; if(b.beds!=null)$('df-beds').value=b.beds;
+    if(b.baths!=null)$('df-baths').value=b.baths; if(b.cap!=null)$('df-cap').value=b.cap;
+    if(b.kw)$('df-kw').value=b.kw; if(b.fsbo===false)$('df-fsbo').checked=false;
+    saveBuyBox();
+  }
+  // hand a property + the buy box to the Analyzer
+  function sendToAnalyzer(addr, price, src){
+    var pipe={ address:addr||'', price:(price!=null?Number(price):null), source:src||'manual',
+      buybox:readBuyBox(), at:new Date().toISOString() };
+    try{ localStorage.setItem(PIPE_KEY, JSON.stringify(pipe)); }catch(e){}
+    flOpen('deal-analyzer');
+  }
+
+  document.addEventListener('input', function(e){ if(e.target.closest('#df-scrape')) return; if(e.target.closest('.df-form')) saveBuyBox(); });
+
+  $('df-find').addEventListener('click', function(){
+    saveBuyBox();
+    var b=readBuyBox();
+    var srcs = SOURCES.filter(function(s){ return b.fsbo || !/FSBO|Marketplace|Craigslist/.test(s); });
+    var where=b.where||'your target area', price=b.target?('around $'+b.target.toLocaleString()):'your price range';
+    $('df-scrape-msg').innerHTML = '<b>Scout will scan for:</b> '+
+      (b.type==='any'?'any property type':b.type)+' in <b>'+where+'</b>, '+price+
+      (b.cap?(', ≥ '+b.cap+'% cap'):'')+(b.kw?(', matching "'+b.kw+'"'):'')+'.<br>'+
+      'It pulls from every source below'+(b.fsbo?', including FSBO &amp; social/marketplace posts':' (agent/MLS only — FSBO toggle off)')+', de-dupes, and returns real matches with links + retrieval dates.';
+    $('df-srcs').innerHTML = srcs.map(function(s){ return '<span class="df-src">'+s+'</span>'; }).join('');
+    $('df-scrape').classList.remove('df-hide');
+    $('df-scrape').scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+
+  $('df-manual-toggle').addEventListener('click', function(){
+    var c=$('df-manualcard'); c.classList.toggle('df-hide');
+    if(!c.classList.contains('df-hide')) c.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  $('dm-go').addEventListener('click', function(){
+    var addr=$('dm-addr').value.trim(), price=num($('dm-price').value);
+    if(!addr && price==null){ $('dm-addr').focus(); return; }
+    sendToAnalyzer(addr, price, $('dm-src').value.trim()||'manual');
+  });
+  document.querySelectorAll('.df-analyze').forEach(function(b){
+    b.addEventListener('click', function(){ sendToAnalyzer(b.getAttribute('data-addr'), b.getAttribute('data-price'), b.getAttribute('data-src')); });
+  });
+  document.querySelectorAll('.df-step').forEach(function(b){
+    b.addEventListener('click', function(){ flOpen(b.getAttribute('data-step')); });
+  });
+
+  loadBuyBox();
+
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  var viewOps=[];
+  function applyViewCfg(ops){
+    viewOps=ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ if(el.id!=='df-scrape'&&el.id!=='df-manualcard') el.style.display=''; });
+    viewOps.forEach(function(op){
+      document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; });
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'deal-finder'});</script>
+</body>
+</html>

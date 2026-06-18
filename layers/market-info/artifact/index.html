@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Indicator — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .mi-val{font-size:30px;font-weight:800;margin:2px 0}
+  .mi-sub{font-size:12px;color:var(--mut)}
+  .mi-why h4{font-size:12px;color:var(--green);margin:0 0 5px;letter-spacing:.4px}
+  .mi-why p{font-size:13.5px;line-height:1.6;color:#d8e0dc;margin-bottom:10px}
+  .chartcard{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+  .chartcard .ct{font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--mut);margin-bottom:10px}
+  .bars{display:flex;flex-direction:column;gap:8px}
+  .barrow{display:grid;grid-template-columns:130px 1fr 56px;align-items:center;gap:10px;font-size:12px}
+  .barrow .bn{color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bartrack{background:var(--surf2);border-radius:6px;height:16px;overflow:hidden}
+  .barfill{height:100%;border-radius:6px;background:var(--green)}
+  .barrow.me .bn{color:var(--txt);font-weight:700}
+  .barrow.me .barfill{background:var(--teal)}
+  .barval{text-align:right;font-weight:700}
+  .illus{color:var(--yellow);font-size:11px;margin-top:8px}
+  .spark{width:100%;height:88px}
+  .disc{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.5}
+  .connect-btn{display:inline-block;margin-top:12px;background:#0c2444;border:1px solid #16335c;color:#7fb2f0;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:20px;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head" id="mi-head">📊 Market Indicator</div>
+  <div class="card">
+    <div class="row-sb">
+      <div><div class="mi-val" id="mi-val">—</div><div class="mi-sub" id="mi-sub"></div></div>
+      <span class="tag" id="mi-srcpill"></span>
+    </div>
+  </div>
+
+  <div class="chartcard">
+    <div class="ct" id="mi-charttitle">TREND</div>
+    <div id="mi-chart"></div>
+  </div>
+
+  <div class="card mi-why">
+    <h4>WHAT IT IS</h4>
+    <p id="mi-what"></p>
+    <h4>WHY IT MATTERS TO YOU AS AN INVESTOR</h4>
+    <p id="mi-why"></p>
+  </div>
+
+  <div class="wire-note" id="mi-disc"></div>
+</div>
+
+<script>
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function qp(k){ return new URLSearchParams(location.search).get(k); }
+
+  // Metric registry — plain-English, investor-first. `chart` decides how we draw.
+  var METRICS = {
+    treasury_10y: {
+      title:'📈 10-Year Treasury', src:'FRED', srccls:'b-gray',
+      what:'The interest rate the U.S. government pays to borrow money for 10 years. It’s the baseline “risk-free” rate that almost everything else in finance is priced off of.',
+      why:'Mortgage rates track the 10-Year closely — when it climbs, your borrowing gets more expensive and buyers can afford less house. It’s also the floor your deal has to beat: if a property’s cap rate is barely above the 10-Year, you’re taking on landlord risk for almost no extra reward.',
+      chart:'fred'
+    },
+    mortgage_30y: {
+      title:'🏦 30-Year Mortgage Rate', src:'FRED', srccls:'b-gray',
+      what:'The going interest rate on a 30-year fixed home loan — the most common way people finance a house.',
+      why:'It sets your monthly payment and what buyers (including your future exit buyer) can afford. Higher rates cool prices and demand — slower to sell, but better odds of buying right. Lower rates lift prices and open the door to refinancing into cheaper debt.',
+      chart:'fred'
+    },
+    cap_rate: {
+      title:'％ Cap Rate (market)', src:'REV', srccls:'b-green',
+      what:'The county’s blended capitalization rate — annual net operating income ÷ price. A quick read on what local rentals yield before any loan.',
+      why:'It’s the market’s price tag on income. Buying at a cap rate above the local average means you’re paying less per dollar of income (a relative deal); selling below it earns a premium. When market caps rise, values fall — and vice versa.',
+      chart:'rev', field:'cap_rate', unit:'%', better:'high'
+    },
+    vacancy_all: {
+      title:'🏚️ Total Vacancy', src:'REV', srccls:'b-green',
+      what:'The share of ALL housing sitting empty — including seasonal and vacation homes (a big factor in lake markets like Cedar Creek).',
+      why:'Lenders watch it, and a high number can signal soft demand. But in lake country a lot of “vacant” is vacation stock, not your rental competition — so read it alongside Rental Vacancy and the gap before you worry.',
+      chart:'rev', field:'vacancy_rate', unit:'%', better:'low'
+    },
+    rental_vacancy: {
+      title:'🔑 Rental Vacancy', src:'CEN', srccls:'b-green',
+      what:'The share of RENTAL homes sitting empty (U.S. Census ACS). This is the vacancy number that actually reflects the homes you compete with.',
+      why:'Low rental vacancy means pricing power and fast lease-ups — you can hold or raise rent. High means longer vacancies and pressure to cut. This is the number to underwrite your deals against, not total vacancy.',
+      chart:'cen', field:'rental_vacancy_rate_pct', unit:'%', better:'low'
+    },
+    census_rev_gap: {
+      title:'📐 Census vs Reventure Gap', src:'CEN', srccls:'b-green',
+      what:'The difference between total vacancy (Reventure) and rental vacancy (Census) — essentially the seasonal / vacation housing that isn’t in the rental pool.',
+      why:'It’s why a scary “total vacancy” headline isn’t your reality. The gap is empty lake houses, not empty rentals — so you can discount the total-vacancy fear and price to the rental number.',
+      chart:'gap'
+    }
+  };
+
+  function pct(v){ return (v==null||isNaN(v))?'—':(Math.round(v*100)/100)+'%'; }
+
+  function barChart(rows, unit, meKey){
+    if(!rows.length) return '<div class="muted small">No county data in the snapshot yet.</div>';
+    var max = Math.max.apply(null, rows.map(function(r){return r.v;}));
+    return '<div class="bars">'+rows.map(function(r){
+      var w = max>0 ? Math.max(4, Math.round(r.v/max*100)) : 0;
+      return '<div class="barrow'+(r.key===meKey?' me':'')+'"><div class="bn">'+esc(r.label)+'</div>'+
+        '<div class="bartrack"><div class="barfill" style="width:'+w+'%"></div></div>'+
+        '<div class="barval">'+(Math.round(r.v*100)/100)+(unit||'')+'</div></div>';
+    }).join('')+'</div>';
+  }
+
+  function illustrativeSpark(){
+    // Clearly-labelled SAMPLE shape — no fake numbers attached.
+    var pts=[18,22,30,46,58,52,60,72,66,78];
+    var w=560,h=80,step=w/(pts.length-1);
+    var d=pts.map(function(p,i){ return (i?'L':'M')+(i*step).toFixed(0)+','+(h-(p/100*h)).toFixed(0); }).join(' ');
+    return '<svg class="spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none">'+
+      '<path d="'+d+'" fill="none" stroke="#eab308" stroke-width="3"/></svg>'+
+      '<div class="illus">⚠ Illustrative shape only — the live multi-year series renders here once FRED is connected.</div>';
+  }
+
+  function load(){
+    var key = qp('m') || 'cap_rate';
+    var m = METRICS[key] || METRICS.cap_rate;
+    document.getElementById('mi-head').textContent = m.title;
+    document.getElementById('mi-charttitle').textContent = (m.chart==='fred'?'TREND (5-YR)':'BY COUNTY');
+    document.getElementById('mi-srcpill').className = 'tag '+m.srccls;
+    document.getElementById('mi-srcpill').textContent = m.src;
+    document.getElementById('mi-what').textContent = m.what;
+    document.getElementById('mi-why').textContent = m.why;
+    document.getElementById('mi-disc').textContent = 'Source: '+m.src+'. Plain-English explainer is evergreen; figures read from the live snapshot when connected. Nothing here is fabricated.';
+
+    var county = qp('c'); // optional current county key from the home
+    if(m.chart==='fred'){
+      document.getElementById('mi-val').textContent = '—';
+      document.getElementById('mi-sub').textContent = 'Not connected yet';
+      document.getElementById('mi-chart').innerHTML = illustrativeSpark() +
+        '<a class="connect-btn" href="https://fredaccount.stlouisfed.org/apikeys" target="_blank" rel="noopener">🔌 Connect FRED — free, ~2 min ↗</a>';
+      return;
+    }
+    // data-backed charts
+    var file = (m.chart==='cen') ? '../../../data/CENSUS_VACANCY_LATEST.json' : '../../../data/REVENTURE_LATEST.json';
+    fetch(file,{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+      var cs = d.counties||{}; var rows=[];
+      Object.keys(cs).forEach(function(k){
+        var c=cs[k], v=null;
+        if(m.chart==='cen') v = c.rental_vacancy_rate_pct;
+        else if(m.field==='cap_rate') v = c.cap_rate && c.cap_rate.value;
+        else if(m.field==='vacancy_rate') v = c.vacancy_rate && c.vacancy_rate.value;
+        if(v!=null && !isNaN(v)) rows.push({key:k, label:(c.label||k).split('(')[0].trim(), v:Number(v)});
+      });
+      if(m.chart==='gap'){ // build gap = total(rev) - rental(cen) per county present in both
+        return fetch('../../../data/REVENTURE_LATEST.json',{cache:'no-store'}).then(function(r2){return r2.json();}).then(function(rev){
+          var rows2=[]; var rc=rev.counties||{};
+          Object.keys(cs).forEach(function(k){
+            var rental=cs[k].rental_vacancy_rate_pct, total=rc[k]&&rc[k].vacancy_rate&&rc[k].vacancy_rate.value;
+            if(rental!=null&&total!=null) rows2.push({key:k,label:(cs[k].label||k).split(',')[0].trim(),v:Math.round((rental-total)*10)/10});
+          });
+          drawValueAndBars({rows:rows2, unit:'pp', county:county, valLabel:'seasonal gap'});
+        });
+      }
+      rows.sort(function(a,b){return b.v-a.v;});
+      drawValueAndBars({rows:rows, unit:(m.unit||''), county:county, valLabel:m.src+' · by county'});
+    }).catch(function(){
+      document.getElementById('mi-chart').innerHTML = '<div class="muted small">Snapshot unavailable right now.</div>';
+    });
+
+    function drawValueAndBars(o){
+      var rows=o.rows;
+      var me = o.county && rows.filter(function(r){return r.key===o.county;})[0];
+      document.getElementById('mi-val').textContent = me ? ((Math.round(me.v*100)/100)+(o.unit||'')) : (rows[0]?((Math.round(rows[0].v*100)/100)+(o.unit||'')):'—');
+      document.getElementById('mi-sub').textContent = me ? me.label : o.valLabel;
+      document.getElementById('mi-chart').innerHTML = barChart(rows, o.unit, o.county);
+    }
+  }
+  load();
+</script>
+</body>
+</html>

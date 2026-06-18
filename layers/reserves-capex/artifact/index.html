@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reserves &amp; CapEx — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🔧 Reserves &amp; CapEx</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample data.</b> The live source isn't wired yet, so the forecast below is illustrative — honest sample state until the connector phase lands.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Brooks</b> and say "remove the forecast section" — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="ruleg">
+    <div class="rule rg"><div class="rn">RESERVE BAL</div><div class="rv">$22K</div><div class="rt">set aside</div></div>
+    <div class="rule ry"><div class="rn">RECOMMENDED</div><div class="rv" style="color:var(--yellow)">$31K</div><div class="rt">target</div></div>
+    <div class="rule" style="background:var(--redbg);border:1px solid var(--redln)"><div class="rn">SHORTFALL</div><div class="rv" style="color:var(--red)">$9K</div><div class="rt">underfunded</div></div>
+    <div class="rule rg"><div class="rn">SET ASIDE</div><div class="rv">$375</div><div class="rt">/mo suggested</div></div>
+  </div>
+
+  <div class="card" data-view-section="forecast">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">BIG-TICKET FORECAST — so nothing blindsides you <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar — forecasted big-ticket dates">Calendar</button></div>
+    <table><tr><th>PROPERTY</th><th>COMPONENT</th><th>LIFE LEFT</th><th>EST. COST</th></tr>
+      <tr><td>410 Scott</td><td>Roof</td><td>~2 yrs</td><td>$9,500</td></tr>
+      <tr><td>1301 E Royall</td><td>HVAC</td><td>~1 yr</td><td>$6,200</td></tr>
+      <tr><td>415 Skiles</td><td>Water heater</td><td>~3 yrs</td><td>$1,400</td></tr>
+      <tr><td>500 Reynolds</td><td>Exterior paint</td><td>~2 yrs</td><td>$4,000</td></tr>
+    </table>
+    <div id="reno-feed" class="small" style="margin-top:8px;display:none;color:var(--green)"></div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Forecasts big replacements from component ages in the <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">Property File</button> and work-order history in <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance — big repairs inform this forecast">Maintenance</button>, and recommends a monthly set-aside <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financial Dashboard — set-aside vs balance">Financials</button> so capital costs never wreck cash flow. Sample data.</div>
+  </div>
+
+</div>
+
+<script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+
+  // reno estimates from Build & Renovate land here as funding needs (shared estimate record)
+  (function(){
+    function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    function show(list){
+      if(!list||!list.length) return;
+      var el = document.getElementById('reno-feed');
+      el.innerHTML = '💰 Reno estimates to fund (from Build &amp; Renovate): '+list.map(function(e){
+        return '$'+Number(e.total).toLocaleString()+' — '+esc2(String(e.property).split(' · ')[0]);
+      }).join(' · ')+' <button class="xref" type="button" onclick="flOpen(\'build-renovate\')" title="Open Build &amp; Renovate">Build &amp; Renovate</button>';
+      el.style.display='block';
+    }
+    var ov=null; try{ ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){}
+    if(ov&&(ov.estimates||[]).length){ show(ov.estimates); return; }
+    fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ show(d.estimates); }).catch(function(){});
+  })();
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  function applyViewCfg(ops){
+    ops = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    ops.forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){
+          el.style.display = (op.type==='remove')?'none':'';
+        });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'reserves-capex'});</script>
+</body>
+</html>

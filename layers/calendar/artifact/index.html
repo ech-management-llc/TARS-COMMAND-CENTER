@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendar & Deadlines — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+/* ── rolling horizontal calendar (pass #5, per the Jerry-approved concept) ── */
+.calwrap{position:relative}
+.calscroll{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg);scroll-snap-type:x proximity;scroll-behavior:smooth}
+.mon{flex:0 0 372px;scroll-snap-align:start}
+.mon h3{font-size:13px;font-weight:800;letter-spacing:.5px;margin:2px 2px 8px;color:var(--txt);padding:4px 2px}
+.calnav{position:absolute;top:50%;transform:translateY(-50%);z-index:4;width:30px;height:30px;border-radius:50%;background:var(--surf2);border:1px solid var(--blue);color:var(--blue);font-weight:800;cursor:pointer;font-size:14px;line-height:1}
+.calnav:hover{background:rgba(59,130,246,.15)}
+.calnav.l{left:-6px}.calnav.r{right:-6px}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.dow span{font-size:9px;font-weight:800;color:var(--dim);text-align:center;letter-spacing:.5px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.day{min-height:52px;background:var(--surf);border:1px solid var(--line);border-radius:8px;padding:4px 5px;font-size:11px;cursor:pointer;position:relative}
+.day:hover{border-color:var(--blue)}
+.day.blank{background:transparent;border:none;cursor:default}
+.day .dn{font-weight:800;font-size:11px;color:var(--mut)}
+.day.today .dn{color:var(--blue)} .day.today{box-shadow:0 0 0 1px var(--blue)}
+.day.sel{box-shadow:0 0 0 2px var(--blue)}
+.day.hard{background:var(--redbg);border-color:var(--redln)} .day.hard .dn{color:var(--red)}
+.day.soft{background:var(--yellowbg);border-color:var(--yellowln)} .day.soft .dn{color:var(--yellow)}
+.day .marks{display:flex;gap:2px;flex-wrap:wrap;margin-top:2px}
+.day .mk{width:6px;height:6px;border-radius:50%}
+.mk.p{background:var(--red)} .mk.d{background:var(--yellow)} .mk.a{background:var(--green)} .mk.m{background:var(--purple)}
+.day .cnt{position:absolute;top:3px;right:5px;font-size:9px;font-weight:800;color:var(--dim)}
+.day .alarm{position:absolute;bottom:2px;right:4px;font-size:11px;line-height:1;cursor:pointer}
+.legendrow{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-bottom:8px}
+.legendrow i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+/* day expansion */
+.dayx{grid-column:1/-1;background:var(--surf2);border:1px solid var(--blue);border-radius:10px;padding:12px;margin:2px 0 6px}
+.dayx h4{font-size:12.5px;margin-bottom:8px}
+.ent{display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--surf);border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:12px}
+.ent.hard{border-color:var(--redln)}
+.ent .t{flex:1}
+.ent .src{font-size:10px;color:var(--dim)}
+.tagb{font-size:9px;font-weight:800;border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap}
+.tagb.hard{background:var(--redbg);color:var(--red);border:1px solid var(--redln)}
+.tagb.soft{background:var(--surf2);color:var(--mut);border:1px solid var(--line)}
+.tagb.typ{background:var(--purplebg);color:#c9c2ff;border:1px solid var(--purpleln);cursor:default}
+/* secured account link on payments — opens the account's own portal; FL CC stores NO passwords (passkey/YubiKey model) */
+.acctlink{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:var(--blue);background:rgba(59,130,246,.06);border:1px solid #2a4a78;border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap;margin-top:3px}
+.acctlink:hover{background:rgba(59,130,246,.15)}
+.payb{font-size:9px;font-weight:800;border-radius:4px;padding:1px 6px;white-space:nowrap;margin-left:4px}
+.payb.auto{background:var(--greenbg);color:var(--green);border:1px solid var(--greenln)}
+.payb.man{background:var(--yellowbg);color:var(--yellow);border:1px solid var(--yellowln)}
+.del{color:var(--dim);cursor:pointer;font-weight:800;padding:0 4px}
+.del:hover{color:var(--red)}
+.addrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.addrow input,.addrow select{background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font:inherit;font-size:12px}
+.addrow input[type=text]{flex:1;min-width:160px}
+.hardchk{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--mut)}
+.hardchk input{accent-color:var(--red)}
+.addbtn{background:var(--green);border:1px solid var(--green);color:#06150f;font-size:12px;font-weight:700;padding:7px 13px;border-radius:18px;cursor:pointer}
+/* bell feed */
+.feed{font-size:11.5px;color:var(--mut);line-height:1.8}
+.feed b{color:var(--txt)}
+.feed .who{color:var(--purple);font-weight:700}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">📅 Calendar &amp; Deadlines</div>
+
+  <div class="preview-banner">
+    <b>Rolling calendar — click any day to read &amp; edit.</b> Entries flow in from the linked tiles (Vendors, Taxes, Legal, Sign, Entities, Maintenance, Inbox, Rent Roll, Insurance) and from texting TARS (Rule 27). Edits here stay on this device until the backend lands (honest sample + local overlay — never faked).
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Bell</b> and say "hard deadline on the 24th: financing contingency" — Bell adds it. Team members can text the TARS line to add items from the field.</div>
+  </div>
+
+  <div class="card" data-view-section="calendar">
+    <div class="legendrow">
+      <span><i style="background:var(--redbg);border:1px solid var(--redln)"></i><b style="color:var(--red)">RED day</b> = hard deadline (payments are automatically hard)</span>
+      <span><i style="background:var(--yellowbg);border:1px solid var(--yellowln)"></i> soft deadline</span>
+      <span><i style="background:var(--green);border-radius:50%"></i> appointment / tour</span>
+      <span><i style="background:var(--purple);border-radius:50%"></i> goal milestone</span>
+      <span>⏰ recurring lands that day — click it → Recurring</span>
+      <span><i style="border:1px solid var(--blue);background:transparent"></i> today</span>
+      <span>🔐 payments carry a <b>secured account link</b> + AUTOPAY/MANUAL — opens the account's own portal, signed in by passkey/hardware key; no passwords stored here, ever</span>
+    </div>
+    <div class="calwrap">
+      <button class="calnav l" onclick="calScroll(-1)" title="Previous month">‹</button>
+      <div class="calscroll" id="cal"></div>
+      <button class="calnav r" onclick="calScroll(1)" title="Next month">›</button>
+    </div>
+    <div class="small dim" style="margin-top:8px">Rolling view — scroll right (or use the arrows) into future months; more months load as you go. Click any day to expand it. Toggle HARD/soft on an entry and the day changes color. Add entries with the form in the expanded day.</div>
+  </div>
+
+  <div class="card" data-view-section="feed">
+    <div class="section-label">🔔 BELL'S FEED — how entries get here without you typing them</div>
+    <div class="feed" id="bellfeed">
+      <div><span class="who">Bell</span> auto-added <b>TXU electric $640</b> (payment · HARD) — from <b>Vendors &amp; Payables</b> via linked account</div>
+      <div><span class="who">Bell</span> auto-added <b>410 Scott property tax $1,930</b> (payment · HARD) — from <b>Taxes</b></div>
+      <div><span class="who">Bell</span> auto-added <b>4E Developments annual report</b> (HARD) — from <b>Entities</b></div>
+      <div><span class="who">Bell</span> added <b>Cabinet delivery · 102 Remington</b> — Jerry texted the TARS line from the field (Rule 27)</div>
+      <div><span class="who">Nadia</span> booked <b>Tour: K. Alvarez · 102 Remington</b> — from a <b>Zillow</b> lead in the Inbox</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── shared-source merge contract (backend replaces the overlay, not the logic) ──
+  // base = data/STUB_DEADLINES.json (schema v2). overlay = localStorage fl_deadlines_overlay_v1:
+  //   { added:[entry…], removed:["date|item"…], hard:{"date|item":bool} }
+  // merged feed = (base − removed, hard flags overridden) + (added − removed).
+  // The Inbox tile writes bookings into the same overlay — that is the cross-tile feed.
+  var OVKEY = 'fl_deadlines_overlay_v1';
+  var BASE = [], MONTHS = [], selDay = null, REC = [];
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  var FROM_LAYER = { 'Vendors':'vendors-payables', 'Legal':'legal', 'Sign':'sign', 'Inbox':'inbox', 'Taxes':'taxes',
+                     'Rent Roll':'rent-roll', 'Insurance':'insurance', 'Compliance':'compliance', 'Maintenance':'maintenance',
+                     'Entities':'entities', 'Goals & Growth':'goals-growth' };
+  function fromChips(from){
+    return String(from||'').split(' / ').map(function(t){
+      var id = FROM_LAYER[t];
+      return id ? '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(t)+'">'+esc(t)+'</button>' : esc(t);
+    }).join(' ');
+  }
+
+  function loadOverlay(){ try{ return JSON.parse(localStorage.getItem(OVKEY)) || {added:[],removed:[],hard:{}}; }catch(e){ return {added:[],removed:[],hard:{}}; } }
+  function saveOverlay(ov){ try{ localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){} }
+  function keyOf(e){ return e.date+'|'+e.item; }
+  function merged(){
+    var ov = loadOverlay();
+    var rm = {}; (ov.removed||[]).forEach(function(k){ rm[k]=1; });
+    var out = [];
+    BASE.concat(ov.added||[]).forEach(function(e){
+      if(rm[keyOf(e)]) return;
+      var c = JSON.parse(JSON.stringify(e));
+      if(ov.hard && Object.prototype.hasOwnProperty.call(ov.hard, keyOf(e))) c.hard = ov.hard[keyOf(e)];
+      out.push(c);
+    });
+    return out;
+  }
+
+  function dstr(y,m,d){ return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+  function entriesFor(ds){ return merged().filter(function(e){ return e.date===ds; }); }
+
+  // expand the shared recurring schedule (STUB_RECURRING) into ⏰ day markers for the visible months
+  function recurSet(){
+    var set = {};
+    MONTHS.forEach(function(mm){
+      var y=mm[0], m=mm[1], dim=new Date(y,m+1,0).getDate();
+      REC.forEach(function(r){
+        if(r.cadence==='monthly' && r.day<=dim) set[dstr(y,m,r.day)]=1;
+        else if(r.cadence==='yearly' && r.month===m+1 && r.day<=dim) set[dstr(y,m,r.day)]=1;
+        else if(r.cadence==='quarterly' && r.anchor){
+          var a=new Date(r.anchor+'T00:00:00');
+          for(var k=0;k<40;k++){ var o=new Date(a.getFullYear(), a.getMonth()+3*k, a.getDate());
+            if(o.getFullYear()===y && o.getMonth()===m){ set[dstr(y,m,o.getDate())]=1; break; }
+            if(o.getFullYear()>y || (o.getFullYear()===y && o.getMonth()>m)) break; }
+        }
+      });
+    });
+    return set;
+  }
+  // ⏰ click → open the Recurring tile focused on that day (focus handed via localStorage)
+  function openRecurring(ds){ try{ localStorage.setItem('fl_recurring_focus', ds); }catch(e){} flOpen('recurring'); }
+
+  function initMonths(){
+    var t = new Date();
+    MONTHS = [];
+    for(var i=0;i<4;i++){ var d = new Date(t.getFullYear(), t.getMonth()+i, 1); MONTHS.push([d.getFullYear(), d.getMonth()]); }
+  }
+  function extendMonths(n){
+    var last = MONTHS[MONTHS.length-1];
+    for(var i=1;i<=n;i++){ var d = new Date(last[0], last[1]+i, 1); MONTHS.push([d.getFullYear(), d.getMonth()]); }
+  }
+
+  function renderCal(){
+    var el = document.getElementById('cal');
+    var keepX = el.scrollLeft; // re-render must not snap the strip back
+    var tn = new Date();
+    var todayDs = dstr(tn.getFullYear(), tn.getMonth(), tn.getDate()); // LOCAL date — toISOString would ring tomorrow after 7 PM CDT
+    var recurs = recurSet();
+    var html='';
+    MONTHS.forEach(function(mm){
+      var y=mm[0], m=mm[1];
+      var name=new Date(y,m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+      html+='<div class="mon"><h3>'+name.toUpperCase()+'</h3>';
+      html+='<div class="dow"><span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span></div>';
+      var first=new Date(y,m,1).getDay(), dim=new Date(y,m+1,0).getDate();
+      var cells=[], d=1;
+      for(var i=0;i<first;i++) cells.push(null);
+      while(d<=dim){ cells.push(d); d++; }
+      while(cells.length%7!==0) cells.push(null);
+      for(var w=0;w<cells.length/7;w++){
+        html+='<div class="week">';
+        var weekHasSel=false;
+        for(var c=0;c<7;c++){
+          var dd=cells[w*7+c];
+          if(dd===null){ html+='<div class="day blank"></div>'; continue; }
+          var ds=dstr(y,m,dd), ents=entriesFor(ds);
+          // color law: any HARD item -> red day; soft non-appointments -> amber (milestones stay purple-dot only); appointments -> green dot
+          var hard=ents.some(function(e){return e.hard;});
+          var soft=!hard&&ents.some(function(e){return e.type!=='appointment'&&e.type!=='milestone';});
+          var cls='day'+(hard?' hard':'')+(soft?' soft':'')+(ds===todayDs?' today':'')+(ds===selDay?' sel':'');
+          if(ds===selDay) weekHasSel=true;
+          var marks=ents.slice(0,4).map(function(e){ return '<span class="mk '+(e.type==='payment'?'p':(e.type==='appointment'?'a':(e.type==='milestone'?'m':'d')))+'"></span>'; }).join('');
+          var alarm=recurs[ds]?'<span class="alarm" onclick="event.stopPropagation();openRecurring(\''+ds+'\')" title="Recurring lands this day — open Recurring">⏰</span>':'';
+          html+='<div class="'+cls+'" onclick="selectDay(\''+ds+'\')"><div class="dn">'+dd+'</div>'+(ents.length?'<span class="cnt">'+ents.length+'</span>':'')+'<div class="marks">'+marks+'</div>'+alarm+'</div>';
+        }
+        html+='</div>';
+        if(weekHasSel) html+=dayPanel(selDay);
+      }
+      html+='</div>';
+    });
+    el.innerHTML=html;
+    el.scrollLeft = keepX;
+    applyViewCfg(viewOps);
+  }
+
+  function dayPanel(ds){
+    var ents=entriesFor(ds);
+    var nice=new Date(ds+'T00:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    var h='<div class="dayx" onclick="event.stopPropagation()"><h4>'+nice+' — '+(ents.length||'no')+' item'+(ents.length===1?'':'s')+'</h4>';
+    ents.forEach(function(e){
+      var k=keyOf(e);
+      var acct='';
+      if(e.acct){
+        acct='<br><span class="acctlink" onclick="acctOpen(\''+esc(e.acct.url||'')+'\')" title="Opens the account&#39;s own portal — passkey/hardware-key sign-in; FL CC stores no passwords">🔐 '+esc(e.acct.label)+' ↗</span>'+
+          '<span class="payb '+(e.acct.pay==='AUTOPAY'?'auto':'man')+'">'+(e.acct.pay==='AUTOPAY'?'AUTOPAY ✓':'MANUAL — needs action')+'</span>';
+      }
+      var asg = e.assigned ? ' · '+esc(e.assigned) : '';
+      h+='<div class="ent'+(e.hard?' hard':'')+'">'+
+        '<span class="tagb typ">'+(e.type==='payment'?'💵 PAYMENT':(e.type==='appointment'?'📅 APPT':(e.type==='milestone'?'🎯 MILESTONE':'⏰ DEADLINE')))+'</span>'+
+        '<span class="t"><b>'+(e.time?esc(e.time)+' · ':'')+esc(e.item)+'</b>'+asg+'<br><span class="src">from '+fromChips(e.from)+'</span>'+acct+'</span>'+
+        '<span class="tagb '+(e.hard?'hard':'soft')+'" onclick="togHard(\''+esc(k)+'\','+(e.hard?'false':'true')+')" title="'+(e.type==='payment'?'Payments are hard by policy — click to override':'Toggle hard/soft')+'">'+(e.hard?'HARD ⬤':'soft ○')+'</span>'+
+        '<span class="del" onclick="delEnt(\''+esc(k)+'\')" title="Remove">✕</span></div>';
+    });
+    h+='<div class="addrow">'+
+       '<input type="text" id="nt" placeholder="Add: title (e.g. Meet appraiser · 410 Scott)">'+
+       '<input type="text" id="ntm" placeholder="time (opt)" style="width:90px">'+
+       '<select id="nty"><option value="appointment">Appointment</option><option value="deadline">Deadline</option><option value="payment">Payment</option></select>'+
+       '<label class="hardchk"><input type="checkbox" id="nh"> hard</label>'+
+       '<button class="addbtn" onclick="addEnt(\''+ds+'\')">+ Add</button></div>';
+    h+='<div class="small dim" style="margin-top:7px">Payments are HARD automatically. Edits stay on this device (local overlay) until the backend lands. "Ask Bell" or a text to the TARS line adds entries the same way.</div>';
+    h+='</div>';
+    return h;
+  }
+
+  function selectDay(ds){ selDay=(selDay===ds?null:ds); renderCal(); }
+  function togHard(k,val){ var ov=loadOverlay(); ov.hard=ov.hard||{}; ov.hard[k]=(val==='true'||val===true); saveOverlay(ov); renderCal(); }
+  function delEnt(k){
+    var ov=loadOverlay();
+    ov.added=(ov.added||[]).filter(function(e){ return keyOf(e)!==k; });
+    if(BASE.some(function(e){ return keyOf(e)===k; })){ ov.removed=ov.removed||[]; if(ov.removed.indexOf(k)<0) ov.removed.push(k); }
+    if(ov.hard) delete ov.hard[k];
+    saveOverlay(ov); renderCal();
+  }
+  function addEnt(ds){
+    var t=document.getElementById('nt').value.trim(); if(!t) return;
+    var typ=document.getElementById('nty').value;
+    var ov=loadOverlay();
+    ov.added=ov.added||[];
+    ov.added.push({date:ds, time:document.getElementById('ntm').value.trim(), item:t, type:typ,
+      hard:document.getElementById('nh').checked||typ==='payment', from:'Jerry (manual)', state:'upcoming'});
+    saveOverlay(ov);
+    feed('<span class="who">Bell</span> added <b>'+esc(t)+'</b> — entered in the day editor');
+    renderCal();
+  }
+  function feed(html){ var f=document.getElementById('bellfeed'); var d=document.createElement('div'); d.innerHTML=html; f.appendChild(d); }
+  function calScroll(dir){
+    var el=document.getElementById('cal');
+    if(dir>0 && el.scrollLeft+el.clientWidth > el.scrollWidth-420){ extendMonths(2); renderCal(); }
+    el.scrollBy({left:dir*386,behavior:'smooth'});
+  }
+  function acctOpen(url){ if(url){ try{ window.open(url,'_blank','noopener'); }catch(e){} } }
+
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  var viewOps = [];
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){
+          el.style.display = (op.type==='remove')?'none':'';
+        });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+
+  // lazy-extend when the user scrolls near the right edge (capped at 24 months — rolling, not infinite)
+  document.getElementById('cal').addEventListener('scroll', function(){
+    var el=this;
+    if(el.scrollLeft>0 && MONTHS.length<24 && el.scrollLeft+el.clientWidth > el.scrollWidth-200){ extendMonths(2); renderCal(); }
+  });
+
+  initMonths();
+  Promise.all([
+    fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+    fetch('../../../data/STUB_RECURRING.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).catch(function(){ return {recurring:[]}; }) // recurring is additive — its absence never blanks the calendar
+  ]).then(function(res){ BASE = res[0].deadlines||[]; REC = res[1].recurring||[]; renderCal();
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
+    .catch(function(){ document.getElementById('cal').innerHTML='<div class="muted small" style="padding:8px">Awaiting deadline record — shared source not reachable.</div>'; });
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'calendar'});</script>
+</body>
+</html>

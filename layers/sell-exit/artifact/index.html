@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sell / Exit — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">💸 Sell / Exit</div>
+
+  <div class="preview-banner">
+    <b>PREVIEW — sample data.</b> The live source isn't wired yet, so equity/values below are illustrative — honest sample state until the connector phase lands.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Morgan</b> and say "remove the 1031 section" — the employee reshapes this view and it sticks.</div>
+  </div>
+
+  <div class="ruleg">
+    <div class="rule rg"><div class="rn">TOTAL EQUITY</div><div class="rv">$410K</div><div class="rt">across portfolio</div></div>
+    <div class="rule ry"><div class="rn">BEST TO SELL</div><div class="rv" style="color:var(--yellow)">103 MB</div><div class="rt">below floor</div></div>
+    <div class="rule rg"><div class="rn">REFI VS SELL</div><div class="rv">2</div><div class="rt">to review</div></div>
+    <div class="rule rg"><div class="rn">1031 CLOCK</div><div class="rv">—</div><div class="rt">none active</div></div>
+  </div>
+
+  <div class="card" data-view-section="recommendations">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">SELL · REFI · HOLD — recommendation per property <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">Property File</button></div>
+    <table><tr><th>PROPERTY</th><th>EQUITY</th><th>REC</th></tr>
+      <tr><td>103 Mary Beth</td><td>$48,000</td><td><span class="tag b-yellow">consider sell</span></td></tr>
+      <tr><td>12451 St Hwy 198</td><td>$31,000</td><td><span class="tag b-yellow">sell / 1031</span></td></tr>
+      <tr><td>415 Skiles</td><td>$55,000</td><td><span class="tag b-green">hold</span></td></tr>
+      <tr><td>410 Scott</td><td>$62,000</td><td><span class="tag b-green">refi &amp; hold</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card" data-view-section="1031" style="background:var(--surf2)">
+    <div style="font-size:12px;font-weight:700;margin-bottom:6px">1031 exchange — defer the tax</div>
+    <div style="font-size:12.5px;color:var(--mut);line-height:1.6">If you sell an investment property and roll the gain into another within the clock — <b>45 days</b> to name the replacement, <b>180 days</b> to close — you defer the capital-gains tax. I run the clock on the <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar — 1031 45/180-day windows">Calendar</button> and coordinate with the Taxes layer and your CPA.</div>
+  </div>
+
+  <div id="arv-feed" class="small" style="margin-top:10px;display:none;color:var(--green)"></div>
+  <div style="font-size:11px;color:var(--dim);margin-top:10px">Equity + values pull from Financial <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financials">Financials</button> and Lender; tax impact ties to Taxes. Recommendations are estimates — confirm with your team. Sample data.</div>
+</div>
+
+<script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+
+  // reno estimates from Build & Renovate inform ARV here (shared estimate record)
+  (function(){
+    function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    function show(list){
+      if(!list||!list.length) return;
+      var el = document.getElementById('arv-feed');
+      el.innerHTML = '🏗️ ARV inputs on file (reno estimates from Build &amp; Renovate): '+list.map(function(e){
+        return '$'+Number(e.total).toLocaleString()+' — '+esc2(String(e.property).split(' · ')[0]);
+      }).join(' · ')+' <button class="xref" type="button" onclick="flOpen(\'build-renovate\')" title="Open Build &amp; Renovate">Build &amp; Renovate</button>';
+      el.style.display='block';
+    }
+    var ov=null; try{ ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){}
+    if(ov&&(ov.estimates||[]).length){ show(ov.estimates); return; }
+    fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ show(d.estimates); }).catch(function(){});
+  })();
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  var viewOps = [];
+  function applyViewCfg(ops){
+    viewOps = ops||[];
+    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
+    viewOps.forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){
+          el.style.display = (op.type==='remove')?'none':'';
+        });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'sell-exit'});</script>
+</body>
+</html>

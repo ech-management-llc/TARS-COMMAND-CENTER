@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "_note": "SAMPLE inbox messages for the ECH reference install. Honest placeholders — NOT live. Single shared source the Inbox tile reads. Real messages arrive via the connected sources in STUB_CONNECTIONS (Zillow, Realtor.com, RentRedi, email) at the connector phase. The 'route' field is where non-lead messages hand off (cross-tile chips). kind: lead = enters Nadia's tour flow.",
+  "generated_at": "2026-06-10",
+  "messages": [
+    {
+      "id": "msg-sarah",
+      "from": "Sarah Mitchell",
+      "source": "zillow",
+      "kind": "lead",
+      "property": "102 Remington · Mabank, TX",
+      "preview": "Hi — is 102 Remington still available? I'd love to see it this week…",
+      "body": "Hi — is 102 Remington still available? I'd love to see it this week. I work days, afternoons are best.",
+      "received": "2026-06-10 8:05 AM"
+    },
+    {
+      "id": "msg-okafor",
+      "from": "D. Okafor",
+      "source": "realtor",
+      "kind": "inquiry",
+      "property": "410 Scott · Athens, TX",
+      "preview": "What's the deposit on the Athens house?",
+      "received": "2026-06-10 7:48 AM"
+    },
+    {
+      "id": "msg-morales",
+      "from": "J. Morales (tenant)",
+      "source": "rentredi",
+      "kind": "tenant",
+      "property": "415 Skiles St · Mabank, TX",
+      "preview": "Kitchen sink dripping again…",
+      "photos": 2,
+      "route": "maintenance",
+      "drafted_wo": "WO-1042",
+      "priority": "routine",
+      "received": "2026-06-09 9:12 PM"
+    },
+    {
+      "id": "msg-nguyen",
+      "from": "L. Nguyen (tenant)",
+      "source": "email",
+      "kind": "tenant",
+      "property": "410 Scott · Athens, TX",
+      "preview": "AC stopped cooling this afternoon — it's 88° inside…",
+      "photos": 1,
+      "route": "maintenance",
+      "drafted_wo": "WO-1043",
+      "priority": "urgent",
+      "received": "2026-06-11 2:15 PM"
+    },
+    {
+      "id": "msg-altra",
+      "from": "Altra Bank",
+      "source": "email",
+      "kind": "bank",
+      "preview": "Statement ready — ECH Mabank",
+      "route": "financials",
+      "received": "2026-06-09 7:30 AM"
+    }
+  ]
+}

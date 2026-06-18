@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>ECH Deal Analyzer · Prototype v0.1</title>
+<title>Deal Analyzer — Foundation Layer Command Center</title>
 <style>
   :root {
     color-scheme: dark;
@@ -47,12 +47,12 @@
 
   /* ── Top banner ── */
   .mockup-banner {
-    background: rgba(234,179,8,0.10);
-    border: 1px solid rgba(234,179,8,0.35);
+    background: rgba(16,185,129,0.10);
+    border: 1px solid rgba(16,185,129,0.35);
     border-radius: var(--radius-sm);
     padding: 8px 12px;
     font-size: 11px;
-    color: var(--yellow);
+    color: var(--green);
     margin-bottom: 16px;
     text-align: center;
   }
@@ -173,6 +173,12 @@
     color: var(--text-dim);
     text-transform: uppercase;
     margin: 0 0 12px 4px;
+  }
+  .section-label .sl-note {
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-faint);
   }
 
   /* ── The Big Three (key metrics) ── */
@@ -463,6 +469,115 @@
     text-align: center;
   }
 
+  /* ── Inputs / assumptions panel ── */
+  .inputs-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px 16px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  .in-group {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin: 14px 0 8px;
+  }
+  .in-group:first-child { margin-top: 0; }
+  .in-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+  }
+  .in-field { display: flex; flex-direction: column; }
+  .in-field.full { grid-column: 1 / -1; }
+  .in-lab {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .in-wrap { position: relative; display: flex; align-items: center; }
+  .in-pre, .in-suf {
+    position: absolute;
+    font-size: 12px;
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+  .in-pre { left: 10px; }
+  .in-suf { right: 10px; }
+  .in-num {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .in-num.has-pre { padding-left: 22px; }
+  .in-num:focus { outline: none; border-color: var(--green); }
+  .reset-btn {
+    margin-top: 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+    border-radius: var(--radius-sm);
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .reset-btn:hover { color: var(--text); border-color: var(--text-faint); }
+
+  /* ── Capital Gates ── */
+  .gates-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 16px 12px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  .gate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 0;
+    border-top: 1px solid var(--border);
+  }
+  .gate-row:first-child { border-top: none; }
+  .gate-main { flex: 1; min-width: 0; }
+  .gate-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .gate-sub { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+  .gate-val {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text);
+    min-width: 78px;
+    text-align: right;
+    letter-spacing: -0.3px;
+  }
+  .gate-pill {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    min-width: 64px;
+    text-align: center;
+  }
+  .gate-pill.pass { background: var(--green-bg); color: var(--green); }
+  .gate-pill.caution { background: var(--yellow-bg); color: var(--yellow); }
+  .gate-pill.fail { background: var(--red-bg); color: var(--red); }
+  .gate-pill.confirm { background: var(--blue-bg); color: var(--blue); }
+
   @media (min-width: 600px) {
     .wrap { max-width: 720px; padding: 24px 24px 80px; }
   }
@@ -471,33 +586,139 @@
 <body>
 <div class="wrap">
 
-  <div class="mockup-banner">
-    <b>PROTOTYPE v0.1</b> · Deal Analyzer · pre-loaded with 415 Skiles for demo · static data
+  <div class="mockup-banner" id="ana-banner">
+    <b>LIVE CALCULATOR</b> · computes cap rate / cash flow / DSCR / verdict from your inputs — adjust the assumptions below
+  </div>
+
+  <!-- CARRY-IN from Deal Finder (buy box + selected property) -->
+  <div id="finder-carry" style="display:none;background:#eff6ff;border:1.5px solid #3b82f6;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#1e3a8a">
+    <b>🔭 CARRIED FROM DEAL FINDER:</b> <span id="finder-carry-txt"></span>
+    <button type="button" onclick="flOpen('deal-finder')" style="margin-left:8px;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #cbd5e0;border-radius:999px;padding:2px 10px;cursor:pointer">Deal Finder ↗</button>
+    <div style="font-size:10.5px;color:#1d4ed8;margin-top:3px">Price &amp; property carried from the Finder — they're the live inputs below. Edit anything; the numbers recompute.</div>
+  </div>
+
+  <!-- RENO BUDGET INPUT — carried from Build & Renovate (the first real data carry in the funnel) -->
+  <div id="reno-carry" style="display:none;background:#ecfdf5;border:1.5px solid #16a34a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#14532d">
+    <b>🏗️ RENO BUDGET — carried from Build &amp; Renovate:</b> <span id="reno-carry-txt"></span>
+    <button type="button" onclick="flOpen('build-renovate')" style="margin-left:8px;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #cbd5e0;border-radius:999px;padding:2px 10px;cursor:pointer">Build &amp; Renovate ↗</button>
+    <div style="font-size:10.5px;color:#15803d;margin-top:3px">Real data carry (shared estimate record) — loaded as the rehab input below. AI/scrape-assisted estimate; verify before committing.</div>
   </div>
 
   <!-- HEADER -->
   <div class="hdr">
     <div class="hdr-top">
-      <div class="hdr-brand"><b>ECH</b> Deal Analyzer</div>
+      <div class="hdr-brand">Deal Analyzer</div>
       <div class="mode-toggle">
         <button class="active" id="mode-learner" onclick="setMode('learner')">Learner</button>
         <button id="mode-pro" onclick="setMode('pro')">Pro</button>
       </div>
     </div>
-    <div class="property-address">415 Skiles St</div>
-    <div class="property-meta">
-      Malakoff, TX 75148 · <b>3 bed</b> / <b>1.5 bath</b> / <b>1,008 sqft</b> · House
-    </div>
+    <div class="property-address" id="ana-addr">New deal</div>
+    <div class="property-meta" id="ana-meta">Enter the numbers below, or carry a property in from the Deal Finder.</div>
   </div>
 
   <!-- VERDICT (top hero) -->
-  <div class="verdict marginal">
+  <div class="verdict marginal" id="ana-verdict">
     <div class="verdict-label">Our Take</div>
-    <div class="verdict-title">⚠️ Marginal — Buy with discipline</div>
-    <div class="verdict-body">
-      <p><b>The short version:</b> This deal works on paper but has thin margins. The annual return rate is healthy at 10.6%, but the monthly cash you'd actually keep after all bills is only $334. That's above our "won't touch it" floor of $300 per door, but below our $400–500 target for a solid keeper.</p>
-      <p><b>What this means:</b> One bad month — a busted HVAC, a vacancy, an insurance hike — and you're at break-even or losing money on this property. Pros buy deals like this all the time, but only when they have <b>strong reserves</b> and a clear improvement plan. Don't treat it as set-and-forget.</p>
+    <div class="verdict-title" id="ana-verdict-title">—</div>
+    <div class="verdict-body" id="ana-verdict-body"></div>
+  </div>
+
+  <!-- INPUTS / ASSUMPTIONS -->
+  <div class="section-label">Deal Inputs &amp; Assumptions <span class="sl-note">— editable; everything recomputes live</span></div>
+  <div class="inputs-card">
+    <div class="in-group">The deal</div>
+    <div class="in-grid">
+      <div class="in-field">
+        <span class="in-lab">Purchase price</span>
+        <span class="in-wrap"><span class="in-pre">$</span><input class="in-num has-pre" inputmode="numeric" data-key="price" data-num="1"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Rehab budget</span>
+        <span class="in-wrap"><span class="in-pre">$</span><input class="in-num has-pre" inputmode="numeric" data-key="rehab" data-num="1"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Closing costs (% of price)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="closingPct" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Est. market value / ARV <span style="color:var(--blue)">(gate)</span></span>
+        <span class="in-wrap"><span class="in-pre">$</span><input class="in-num has-pre" inputmode="numeric" data-key="market" data-num="1" placeholder="comps"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Est. replacement cost <span style="color:var(--blue)">(gate)</span></span>
+        <span class="in-wrap"><span class="in-pre">$</span><input class="in-num has-pre" inputmode="numeric" data-key="replacement" data-num="1" placeholder="rebuild $"></span>
+      </div>
     </div>
+
+    <div class="in-group">Income</div>
+    <div class="in-grid">
+      <div class="in-field">
+        <span class="in-lab">Gross monthly rent (all units)</span>
+        <span class="in-wrap"><span class="in-pre">$</span><input class="in-num has-pre" inputmode="numeric" data-key="rent" data-num="1"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Units / doors</span>
+        <span class="in-wrap"><input class="in-num" inputmode="numeric" data-key="units" data-num="1"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Beds</span>
+        <span class="in-wrap"><input class="in-num" inputmode="numeric" data-key="beds" data-num="1" placeholder="opt"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Baths</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="baths" data-num="1" placeholder="opt"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Sqft</span>
+        <span class="in-wrap"><input class="in-num" inputmode="numeric" data-key="sqft" data-num="1" placeholder="opt"></span>
+      </div>
+    </div>
+
+    <div class="in-group">Financing</div>
+    <div class="in-grid">
+      <div class="in-field">
+        <span class="in-lab">Down payment (% of price)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="downPct" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Interest rate</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="rate" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Loan term (years)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="numeric" data-key="term" data-num="1"></span>
+      </div>
+    </div>
+
+    <div class="in-group">Operating costs</div>
+    <div class="in-grid">
+      <div class="in-field">
+        <span class="in-lab">Property tax (% of price/yr)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="taxPct" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Insurance ($/yr)</span>
+        <span class="in-wrap"><span class="in-pre">$</span><input class="in-num has-pre" inputmode="numeric" data-key="ins" data-num="1"></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Vacancy (% of rent)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="vac" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Management (% of rent)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="mgmt" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">Maintenance (% of rent)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="maint" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+      <div class="in-field">
+        <span class="in-lab">CapEx reserve (% of rent)</span>
+        <span class="in-wrap"><input class="in-num" inputmode="decimal" data-key="capex" data-num="1"><span class="in-suf">%</span></span>
+      </div>
+    </div>
+    <button type="button" class="reset-btn" id="ana-reset">↺ Reset assumptions to ECH defaults</button>
   </div>
 
   <!-- THE BIG THREE -->
@@ -512,19 +733,17 @@
           <span class="pro-mode-only">Cap Rate</span>
           <span class="pro layman-only">aka "cap rate"</span>
         </div>
-        <div class="metric-value">10.6%</div>
+        <div class="metric-value" id="m-cap-val">—</div>
       </div>
       <div class="metric-explanation">
         <span class="layman-only">If you bought this property in cash (no loan), this is the percent of your money it would return per year — before factoring in taxes or any growth in the property's value. <b>Higher is generally better.</b></span>
-        <span class="pro-mode-only">NOI / Purchase price. Pre-finance, pre-tax annual yield.</span>
+        <span class="pro-mode-only">NOI / all-in cost (price + rehab + closing). Pre-finance, pre-tax annual yield.</span>
       </div>
       <div class="metric-rating">
-        <div class="rating-bar"><div class="rating-bar-fill green" style="width: 78%"></div></div>
-        <div class="rating-label green">Strong</div>
+        <div class="rating-bar"><div class="rating-bar-fill green" id="m-cap-bar" style="width: 0%"></div></div>
+        <div class="rating-label green" id="m-cap-lbl">—</div>
       </div>
-      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;">
-        <b>How this compares:</b> East TX class-B rentals average around 7.2%. This deal is <b>well above average</b> at 10.6%. Five of your other 11 properties beat it — but those are exceptional. Among the financed deals in your portfolio, this one's actually middle-of-the-pack.
-      </div>
+      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;" id="m-cap-cmp"></div>
     </div>
 
     <!-- Cash Flow -->
@@ -535,19 +754,17 @@
           <span class="pro-mode-only">Net Cash Flow</span>
           <span class="pro layman-only">aka "cash flow"</span>
         </div>
-        <div class="metric-value">$334/mo</div>
+        <div class="metric-value" id="m-cf-val">—</div>
       </div>
       <div class="metric-explanation">
         <span class="layman-only">After collecting rent and paying the mortgage, property taxes, insurance, repairs, vacancy budget, and management fees — this is the actual money you'd put in your pocket each month.</span>
-        <span class="pro-mode-only">Monthly NOI minus debt service.</span>
+        <span class="pro-mode-only">Monthly NOI minus debt service. Rated per door against the $300 floor / $400–500 target.</span>
       </div>
       <div class="metric-rating">
-        <div class="rating-bar"><div class="rating-bar-fill yellow" style="width: 50%"></div></div>
-        <div class="rating-label yellow">Marginal</div>
+        <div class="rating-bar"><div class="rating-bar-fill yellow" id="m-cf-bar" style="width: 0%"></div></div>
+        <div class="rating-label yellow" id="m-cf-lbl">—</div>
       </div>
-      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;">
-        <b>How this compares to your rule:</b> Your hardwired rule says <b>$400–500/door target, $300 floor.</b> This deal is at $334 — above the floor, below the target. Out of your 12 properties, this one and 408 Kaufman are the only two financed deals below $400.
-      </div>
+      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;" id="m-cf-cmp"></div>
     </div>
 
     <!-- CoC -->
@@ -558,85 +775,49 @@
           <span class="pro-mode-only">Cash-on-Cash Return</span>
           <span class="pro layman-only">aka "CoC return"</span>
         </div>
-        <div class="metric-value">Infinity%</div>
+        <div class="metric-value" id="m-coc-val">—</div>
       </div>
       <div class="metric-explanation">
-        <span class="layman-only">This is the percent return on the <b>actual cash</b> you put down at closing — separate from the loan. "Infinity" means you put <b>no money down</b> (this was a creative-financing deal). Mathematically the return is infinite, which sounds amazing but…</span>
-        <span class="pro-mode-only">Annual cash flow / cash invested. Infinity = $0 cash basis (BRRRR or creative-finance acquisition).</span>
+        <span class="layman-only">This is the percent return on the <b>actual cash</b> you put in (down payment + rehab + closing) — separate from the loan. Higher means your cash is working harder.</span>
+        <span class="pro-mode-only">Annual cash flow / cash invested (down + rehab + closing). Infinity = $0 cash basis (BRRRR / creative finance).</span>
       </div>
       <div class="metric-rating">
-        <div class="rating-bar"><div class="rating-bar-fill green" style="width: 95%"></div></div>
-        <div class="rating-label green">N/A — no cash in</div>
+        <div class="rating-bar"><div class="rating-bar-fill green" id="m-coc-bar" style="width: 0%"></div></div>
+        <div class="rating-label green" id="m-coc-lbl">—</div>
       </div>
-      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;">
-        <b>Honest read:</b> Infinity-percent CoC sounds great but it means you have <b>zero equity cushion</b> on this deal. If property value drops or you need to sell fast, you have nothing to absorb the loss. Treat this as "free upside, but watch your back."
-      </div>
+      <div class="metric-explanation" style="margin-top:10px; margin-bottom:0; font-size:12px;" id="m-coc-cmp"></div>
     </div>
 
   </div>
+
+  <!-- CAPITAL GATES -->
+  <div class="section-label">Capital Gates <span class="sl-note">— ECH's 6 hard rules; a deal must clear all six</span></div>
+  <div class="gates-card" id="ana-gates"></div>
 
   <!-- PORTFOLIO BENCHMARK -->
   <div class="section-label">How This Stacks Against Your Other Properties</div>
   <div class="benchmark">
     <div class="benchmark-intro">
-      ECH currently owns <b>12 rentals</b>. Here's how <b>415 Skiles</b> ranks on monthly cash flow:
+      ECH currently owns <b>12 rentals</b>. Here's where <b id="bm-name">this deal</b> ranks on monthly cash flow:
     </div>
-    <div class="portfolio-list">
-      <div class="portfolio-row"><span class="row-name">124 Pierce Dr (Mabank)</span><span class="row-cf">$1,088/mo</span><span class="row-cap">0%</span></div>
-      <div class="portfolio-row"><span class="row-name">103 Mary Beth Ln EDU</span><span class="row-cf">$750/mo</span><span class="row-cap">0%</span></div>
-      <div class="portfolio-row"><span class="row-name">204 W Mount Vernon</span><span class="row-cf">$728/mo</span><span class="row-cap">18.0%</span></div>
-      <div class="portfolio-row"><span class="row-name">500 Reynolds Rd</span><span class="row-cf">$649/mo</span><span class="row-cap">15.2%</span></div>
-      <div class="portfolio-row"><span class="row-name">1301 E Royall Blvd</span><span class="row-cf">$628/mo</span><span class="row-cap">15.8%</span></div>
-      <div class="portfolio-row"><span class="row-name">410 W Scott St</span><span class="row-cf">$412/mo</span><span class="row-cap">12.2%</span></div>
-      <div class="portfolio-row"><span class="row-name">408 E Kaufman St</span><span class="row-cf">$392/mo</span><span class="row-cap">12.2%</span></div>
-      <div class="portfolio-row this-property"><span class="row-name">⚠️ 415 Skiles St (this deal)</span><span class="row-cf">$334/mo</span><span class="row-cap">10.6%</span></div>
-      <div class="portfolio-row"><span class="row-name">103 Mary Beth Ln</span><span class="row-cf">$110/mo</span><span class="row-cap">1.1%</span></div>
-      <div class="portfolio-row"><span class="row-name">12451 St Hwy 198</span><span class="row-cf">$0/mo</span><span class="row-cap">0%</span></div>
-    </div>
-    <div class="benchmark-intro" style="margin-top:14px; margin-bottom:0;">
-      <b>Rank: 8 of 12 by monthly cash flow.</b> This is one of your weaker performers — only 2 of the active financed deals do worse. The annual return rate (10.6%) saves the picture, but if you bought another property today with the same profile, it'd drag your portfolio average down.
-    </div>
+    <div class="portfolio-list" id="ana-portfolio"></div>
+    <div class="benchmark-intro" style="margin-top:14px; margin-bottom:0;" id="ana-rank"></div>
   </div>
 
   <!-- RISK FRAMING -->
   <div class="section-label">What If Things Go Sideways?</div>
   <div class="risk">
-    <div class="risk-scenarios">
-      <div class="risk-row">
-        <div class="risk-scenario-label">Rent drops 10%</div>
-        <div class="risk-impact">
-          Cash flow falls from <span class="number">$334</span> to roughly <span class="alert">$120/mo</span>. You'd drop <b>below your $300 floor.</b>
-        </div>
-      </div>
-      <div class="risk-row">
-        <div class="risk-scenario-label">One month vacant</div>
-        <div class="risk-impact">
-          You'd lose ~<span class="number">$1,200</span> in rent and still owe the mortgage. <b>4+ months of normal cash flow</b> to recover.
-        </div>
-      </div>
-      <div class="risk-row">
-        <div class="risk-scenario-label">Major repair ($8K)</div>
-        <div class="risk-impact">
-          New roof or HVAC = <span class="alert">~2 years of cash flow gone.</span> Pro reality, not catastrophe — but worth budgeting for.
-        </div>
-      </div>
-      <div class="risk-row">
-        <div class="risk-scenario-label">Refi rate ↑ 1%</div>
-        <div class="risk-impact">
-          If you refi later, monthly payment climbs ~<span class="number">$60-80</span>. Cash flow drops to <span class="alert">~$250</span>, <b>below your floor.</b>
-        </div>
-      </div>
-    </div>
+    <div class="risk-scenarios" id="ana-risk"></div>
   </div>
 
   <!-- ACTIONABLE TAKE -->
   <div class="action-card">
     <div class="label">📌 What We'd Watch</div>
     <ul>
-      <li><b>Cash reserve.</b> Keep at least $5K dedicated to this property — one bad month would eat it.</li>
-      <li><b>Rent growth.</b> If Malakoff rents tick up 5% next year, this becomes a healthy deal. Track Reventure data on this market.</li>
-      <li><b>Don't add another like this.</b> One marginal deal is fine. Three drags the whole portfolio.</li>
-      <li><b>Exit option open.</b> Because you have zero cash basis, you can walk if numbers turn. That's the upside of the financing.</li>
+      <li><b>Cash reserve.</b> Keep a dedicated reserve on this property — one bad month or a single major repair shouldn't sink it.</li>
+      <li><b>Rent growth.</b> If the local market ticks up, a marginal deal becomes a healthy one. Track Reventure data for this county.</li>
+      <li><b>Don't stack marginal deals.</b> One thin deal is fine; three drag the whole portfolio under the rules.</li>
+      <li><b>Confirm the comps.</b> Below-market and below-replacement are two of the six gates — verify with real comps before you commit.</li>
     </ul>
   </div>
 
@@ -654,19 +835,19 @@
         <b>Cash Flow</b> <span>— What's left over each month after rent comes in and ALL bills go out (mortgage, taxes, insurance, repairs, vacancy budget, management). The actual money in your pocket.</span>
       </div>
       <div class="glossary-item">
-        <b>CoC (Cash-on-Cash)</b> <span>— Return on the actual cash you put down at closing. Different from cap rate because it accounts for loans. "Infinity" means you put $0 down (creative financing).</span>
+        <b>CoC (Cash-on-Cash)</b> <span>— Return on the actual cash you put in (down payment + rehab + closing). Different from cap rate because it accounts for loans. "Infinity" means you put $0 in (creative financing).</span>
       </div>
       <div class="glossary-item">
         <b>NOI (Net Operating Income)</b> <span>— Annual rent collected minus annual expenses (NOT including loan payments). Used to calculate cap rate.</span>
       </div>
       <div class="glossary-item">
-        <b>DSCR (Debt Service Coverage Ratio)</b> <span>— How many times your NOI covers your mortgage payment. ECH requires 1.8× minimum — meaning property's income is 1.8x its mortgage.</span>
+        <b>DSCR (Debt Service Coverage Ratio)</b> <span>— How many times your NOI covers your mortgage payment. ECH's covenant floor is 1.25×; the deal target is 1.8×.</span>
       </div>
       <div class="glossary-item">
-        <b>LTV (Loan-to-Value)</b> <span>— What percent of the property's value is borrowed. ECH caps this at 50%. The other 50% is your equity (or in this deal's case, zero).</span>
+        <b>LTV (Loan-to-Value)</b> <span>— What percent of the property's value is borrowed. ECH's covenant caps this at 65%; the deal target is ≤50%.</span>
       </div>
       <div class="glossary-item">
-        <b>Per-door</b> <span>— Cash flow expressed per rental unit. A 4-unit property earning $1,600/mo is $400 per door. ECH targets $400-500/door.</span>
+        <b>Per-door</b> <span>— Cash flow expressed per rental unit. A 4-unit property earning $1,600/mo is $400 per door. ECH targets $400-500/door, $300 floor.</span>
       </div>
       <div class="glossary-item">
         <b>BRRRR</b> <span>— Buy, Rehab, Rent, Refinance, Repeat. A strategy where you buy a fixer, improve it, rent it, refinance to pull cash back out, then repeat. Common path to scaling a portfolio with limited starting capital.</span>
@@ -674,19 +855,27 @@
     </div>
   </div>
 
-  <!-- DISCLAIMER -->
-  <div class="disclaimer">
-    Educational analysis only. Not investment advice. ECH Management is not a registered investment advisor. Numbers reflect assumptions that may not match your situation. Consult a qualified professional before committing capital.
+  <!-- DEAL PATH — cross-tile nav (front-end; inert when viewed standalone) -->
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0;font-size:12px">
+    <button type="button" onclick="flOpen('deal-finder')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #2a2a2e;border-radius:999px;padding:3px 10px;cursor:pointer">← 1 · Deal Finder</button>
+    <span style="font-weight:700;color:#9a9aa2">2 · Deal Analyzer — you are here</span>
+    <button type="button" onclick="flOpen('deal-screener')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #2a2a2e;border-radius:999px;padding:3px 10px;cursor:pointer">3 · Deal Decider ↗</button>
   </div>
 
-  <div class="footer">
-    ECH Deal Analyzer · prototype v0.1 · pre-loaded with 415 Skiles St for demo<br>
-    Built 2026-05-15 PM-3 · Source: DealCheck data + ECH portfolio benchmarks + Capital Rules
+  <!-- DISCLAIMER -->
+  <div class="disclaimer">
+    Educational analysis only. Not investment advice. ECH Management is not a registered investment advisor. Numbers reflect the assumptions you enter and may not match your situation. Confirm comps and consult a qualified professional before committing capital.
+  </div>
+
+  <div class="footer" id="ana-footer">
+    Deal Analyzer · live calculator · numbers derive from your inputs<br>
+    Underwriting math + ECH portfolio benchmarks + Capital Rules
   </div>
 
 </div>
 
 <script>
+  // ── globals called from inline handlers ──
   function setMode(mode) {
     document.body.classList.toggle("pro-mode", mode === "pro");
     document.getElementById("mode-learner").classList.toggle("active", mode === "learner");
@@ -695,6 +884,334 @@
   function toggleGlossary() {
     document.getElementById("glossary").classList.toggle("open");
   }
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+
+  // ── Deal Analyzer engine ──
+  (function(){
+    var AKEY='fl_analyzer_assumptions_v1', PIPE='fl_deal_pipeline_v1', RENO='fl_reno_estimate_v1';
+    // ECH defaults: 50% down lands on the LTV target by design; costs are East-TX class-B typical.
+    var DEF={ price:95000, rehab:0, closingPct:3, market:null, replacement:null,
+              rent:null, units:1, beds:'', baths:'', sqft:'',
+              downPct:50, rate:7, term:30,
+              taxPct:2, ins:1400, vac:5, mgmt:8, maint:8, capex:5,
+              address:'', source:'' };
+    var NUMKEYS=['price','rehab','closingPct','market','replacement','rent','units','beds','baths','sqft','downPct','rate','term','taxPct','ins','vac','mgmt','maint','capex'];
+    var S=load();
+
+    // static ECH portfolio benchmark (reference data — the existing 12 rentals)
+    var PORT=[
+      {n:'124 Pierce Dr (Mabank)', cf:1088, cap:0},
+      {n:'103 Mary Beth Ln EDU',   cf:750,  cap:0},
+      {n:'204 W Mount Vernon',     cf:728,  cap:18.0},
+      {n:'500 Reynolds Rd',        cf:649,  cap:15.2},
+      {n:'1301 E Royall Blvd',     cf:628,  cap:15.8},
+      {n:'410 W Scott St',         cf:412,  cap:12.2},
+      {n:'408 E Kaufman St',       cf:392,  cap:12.2},
+      {n:'103 Mary Beth Ln',       cf:110,  cap:1.1},
+      {n:'12451 St Hwy 198',       cf:0,    cap:0}
+    ];
+
+    function load(){
+      var s={}; try{ s=JSON.parse(localStorage.getItem(AKEY))||{}; }catch(e){}
+      var o={}; for(var k in DEF){ o[k]=(s[k]!==undefined && s[k]!==null)?s[k]:DEF[k]; }
+      return o;
+    }
+    function save(){ try{ localStorage.setItem(AKEY, JSON.stringify(S)); }catch(e){} }
+    function num(v){ if(v===null||v===undefined||v==='') return null; v=String(v).replace(/[^0-9.\-]/g,''); return v===''?null:Number(v); }
+    function money(x){ if(!isFinite(x)) return '—'; return (x<0?'-$':'$')+Math.abs(Math.round(x)).toLocaleString(); }
+    function M(ov){ var o={}; for(var k in S){ o[k]=S[k]; } for(var k2 in ov){ o[k2]=ov[k2]; } return o; }
+
+    // ── core underwriting math ──
+    function calc(o){
+      o=o||S;
+      var price=+o.price||0, rehab=+o.rehab||0, closing=price*((+o.closingPct||0)/100);
+      var rent=+o.rent||0, units=Math.max(1, +o.units||1);
+      var gsi=rent*12, vacL=gsi*((+o.vac||0)/100), egi=gsi-vacL;
+      var taxes=price*((+o.taxPct||0)/100), ins=+o.ins||0;
+      var mgmt=gsi*((+o.mgmt||0)/100), maint=gsi*((+o.maint||0)/100), capex=gsi*((+o.capex||0)/100);
+      var opex=taxes+ins+mgmt+maint+capex;
+      var noi=egi-opex;
+      var allIn=price+rehab+closing;
+      var down=price*((+o.downPct||0)/100), loan=Math.max(0, price-down);
+      var r=(+o.rate||0)/100/12, nM=(+o.term||0)*12;
+      var pi;
+      if(loan<=0){ pi=0; }
+      else if(r>0 && nM>0){ pi=loan*r/(1-Math.pow(1+r,-nM)); }
+      else if(nM>0){ pi=loan/nM; }
+      else { pi=0; }
+      var ads=pi*12;
+      var cfMo=noi/12-pi, cfYr=noi-ads;
+      var cashIn=down+rehab+closing;
+      var coc = cashIn>0 ? (cfYr/cashIn*100) : (cfYr>0?Infinity:0);
+      var cap = allIn>0 ? (noi/allIn*100) : 0;
+      var dscr = ads>0 ? (noi/ads) : Infinity;
+      var ltv = price>0 ? (loan/price*100) : 0;
+      var perDoor = cfMo/units;
+      return { price:price, rehab:rehab, closing:closing, rent:rent, units:units,
+               gsi:gsi, egi:egi, noi:noi, allIn:allIn, down:down, loan:loan, pi:pi, ads:ads,
+               cfMo:cfMo, cfYr:cfYr, cashIn:cashIn, coc:coc, cap:cap, dscr:dscr, ltv:ltv, perDoor:perDoor, opex:opex };
+    }
+
+    function rate(val, redLt, yelLt){ // higher is better; returns class
+      if(val<redLt) return 'red'; if(val<yelLt) return 'yellow'; return 'green';
+    }
+    function setBar(id, cls, w){ var e=document.getElementById(id); if(e){ e.className='rating-bar-fill '+cls; e.style.width=Math.max(0,Math.min(100,w))+'%'; } }
+    function setLbl(id, cls, txt){ var e=document.getElementById(id); if(e){ e.className='rating-label '+cls; e.textContent=txt; } }
+    function txt(id, t){ var e=document.getElementById(id); if(e) e.textContent=t; }
+    function html(id, h){ var e=document.getElementById(id); if(e) e.innerHTML=h; }
+
+    // ── render ──
+    function render(){
+      var c=calc();
+
+      // header
+      txt('ana-addr', S.address ? S.address : 'New deal');
+      var meta=[];
+      if(S.beds) meta.push('<b>'+S.beds+' bed</b>');
+      if(S.baths) meta.push('<b>'+S.baths+' bath</b>');
+      if(S.sqft) meta.push('<b>'+Number(S.sqft).toLocaleString()+' sqft</b>');
+      var line2=[]; line2.push(money(c.price));
+      if(S.source) line2.push(S.source);
+      var metaStr=(meta.length?meta.join(' / ')+' · ':'')+line2.join(' · ');
+      html('ana-meta', metaStr);
+      txt('bm-name', S.address ? S.address : 'this deal');
+
+      // ── Big Three ──
+      // Cap rate: <6 red, 6-8 yellow, >=8 green
+      txt('m-cap-val', c.cap.toFixed(1)+'%');
+      var capCls=rate(c.cap,6,8);
+      setBar('m-cap-bar', capCls, c.cap/15*100);
+      setLbl('m-cap-lbl', capCls, capCls==='green'?'Strong':capCls==='yellow'?'Fair':'Weak');
+      html('m-cap-cmp', '<b>How this compares:</b> East-TX class-B rentals average ~7.2%. This deal computes to <b>'+c.cap.toFixed(1)+'%</b> on an all-in basis of '+money(c.allIn)+' (price + rehab + closing).');
+
+      // Cash flow: rated per door — <300 red, 300-400 yellow, >=400 green
+      txt('m-cf-val', money(c.cfMo)+'/mo');
+      var cfCls=rate(c.perDoor,300,400);
+      setBar('m-cf-bar', cfCls, c.perDoor/600*100);
+      setLbl('m-cf-lbl', cfCls, cfCls==='green'?'Strong':cfCls==='yellow'?'Marginal':'Below floor');
+      html('m-cf-cmp', '<b>Against your rule:</b> $400–500/door target, $300 floor. This is <b>'+money(c.perDoor)+'/door</b> across '+c.units+' unit'+(c.units>1?'s':'')+' — '+(c.perDoor>=400?'at or above target':c.perDoor>=300?'above the floor, below target':'below the floor')+'.');
+
+      // CoC: <4 red, 4-8 yellow, >=8 green; Infinity special
+      if(!isFinite(c.coc)){
+        txt('m-coc-val','∞');
+        setBar('m-coc-bar','green',95);
+        setLbl('m-coc-lbl','green','No cash in');
+        html('m-coc-cmp','<b>Honest read:</b> infinite CoC means <b>$0 of your own cash</b> in the deal — great leverage, but zero equity cushion if values dip.');
+      } else {
+        txt('m-coc-val', c.coc.toFixed(1)+'%');
+        var cocCls=rate(c.coc,4,8);
+        setBar('m-coc-bar', cocCls, c.coc/20*100);
+        setLbl('m-coc-lbl', cocCls, cocCls==='green'?'Strong':cocCls==='yellow'?'Fair':'Weak');
+        html('m-coc-cmp','<b>How this compares:</b> on '+money(c.cashIn)+' cash in (down + rehab + closing), you net '+money(c.cfYr)+'/yr — a '+c.coc.toFixed(1)+'% cash-on-cash return.');
+      }
+
+      // ── Capital Gates ──
+      renderGates(c);
+
+      // ── verdict ──
+      renderVerdict(c);
+
+      // ── portfolio benchmark ──
+      renderPortfolio(c);
+
+      // ── risk ──
+      renderRisk(c);
+
+      // ── publish to the Decider (Finder -> Analyzer -> Decider) ──
+      writeAnalysis(c);
+    }
+
+    function pill(state, label){ return '<span class="gate-pill '+state+'">'+label+'</span>'; }
+    function gateRow(name, sub, val, state, label){
+      return '<div class="gate-row"><div class="gate-main"><div class="gate-name">'+name+'</div><div class="gate-sub">'+sub+'</div></div>'+
+             '<div class="gate-val">'+val+'</div>'+pill(state,label)+'</div>';
+    }
+    function renderGates(c){
+      var rows='';
+      // 1. below replacement cost
+      if(S.replacement!=null){
+        var ok1=c.allIn < +S.replacement;
+        rows+=gateRow('1 · Below replacement cost','all-in '+money(c.allIn)+' vs rebuild '+money(+S.replacement), ok1?'✓':'✗', ok1?'pass':'fail', ok1?'Pass':'Fail');
+      } else {
+        rows+=gateRow('1 · Below replacement cost','enter replacement cost above to score','—','confirm','Confirm');
+      }
+      // 2. below market value
+      if(S.market!=null){
+        var ok2=c.price < +S.market;
+        rows+=gateRow('2 · Below market value','price '+money(c.price)+' vs market '+money(+S.market), ok2?'✓':'✗', ok2?'pass':'fail', ok2?'Pass':'Fail');
+      } else {
+        rows+=gateRow('2 · Below market value','enter market value / ARV above to score','—','confirm','Confirm');
+      }
+      // 3. day-one cash flow positive
+      rows+=gateRow('3 · Day-one cash flow','positive from month one', money(c.cfMo)+'/mo', c.cfMo>0?'pass':'fail', c.cfMo>0?'Pass':'Fail');
+      // 4. per-door floor
+      var s4=c.perDoor>=400?'pass':(c.perDoor>=300?'caution':'fail');
+      rows+=gateRow('4 · $300+ per door','$400–500 target · $300 floor', money(c.perDoor)+'/door', s4, s4==='pass'?'Pass':s4==='caution'?'Caution':'Fail');
+      // 5. DSCR
+      var dscrTxt=isFinite(c.dscr)?c.dscr.toFixed(2)+'×':'∞';
+      var s5=c.dscr>=1.40?'pass':(c.dscr>=1.25?'caution':'fail');
+      rows+=gateRow('5 · DSCR ≥ 1.25','covenant 1.25× · target 1.8×', dscrTxt, s5, s5==='pass'?'Pass':s5==='caution'?'Caution':'Fail');
+      // 6. LTV
+      var s6=c.ltv<=50?'pass':(c.ltv<=65?'caution':'fail');
+      rows+=gateRow('6 · LTV ≤ 65%','covenant 65% · target 50%', c.ltv.toFixed(0)+'%', s6, s6==='pass'?'Pass':s6==='caution'?'Caution':'Fail');
+      html('ana-gates', rows);
+    }
+
+    function verdictOf(c){
+      var fails=[], cautions=[], unconfirmed=[];
+      if(c.cfMo<=0) fails.push('negative cash flow');
+      if(c.perDoor<300) fails.push('per-door under the $300 floor');
+      if(c.dscr<1.25) fails.push('DSCR under the 1.25 covenant');
+      if(c.ltv>65) fails.push('LTV over the 65% covenant');
+      if(S.market!=null && c.price>=+S.market) fails.push('not below market value');
+      if(S.replacement!=null && c.allIn>=+S.replacement) fails.push('not below replacement cost');
+      if(c.perDoor>=300 && c.perDoor<400) cautions.push('per-door below the $400 target');
+      if(c.dscr>=1.25 && c.dscr<1.40) cautions.push('DSCR below the 1.40 comfort line');
+      if(c.ltv>50 && c.ltv<=65) cautions.push('LTV above the 50% target');
+      if(S.market==null) unconfirmed.push('below-market');
+      if(S.replacement==null) unconfirmed.push('below-replacement');
+      var kind = fails.length ? 'skip' : (cautions.length ? 'marginal' : 'good');
+      return { kind:kind, fails:fails, cautions:cautions, unconfirmed:unconfirmed };
+    }
+    function renderVerdict(c){
+      var v=verdictOf(c), fails=v.fails, cautions=v.cautions, unconfirmed=v.unconfirmed, kind=v.kind;
+      var el=document.getElementById('ana-verdict'), title;
+      if(kind==='skip') title='⛔ Skip — fails a hard Capital Gate';
+      else if(kind==='good') title='✅ Strong — clears every gate';
+      else title='⚠️ Marginal — buy with discipline';
+      el.className='verdict '+kind;
+      txt('ana-verdict-title', title);
+
+      var dscrTxt=isFinite(c.dscr)?c.dscr.toFixed(2)+'×':'∞ (cash deal)';
+      var cocTxt=isFinite(c.coc)?c.coc.toFixed(1)+'%':'∞';
+      var p1='<p><b>The numbers:</b> '+c.cap.toFixed(1)+'% cap, '+money(c.cfMo)+'/mo ('+money(c.perDoor)+'/door), DSCR '+dscrTxt+', LTV '+c.ltv.toFixed(0)+'%, '+cocTxt+' cash-on-cash on '+money(c.cashIn)+' in.</p>';
+      var p2;
+      if(fails.length){ p2='<p><b>Why skip:</b> it breaks '+fails.join(', ')+'. That’s a hard rule, not a judgment call — re-trade the price/terms or walk.</p>'; }
+      else if(cautions.length){ p2='<p><b>Watch:</b> '+cautions.join(', ')+'. It clears the floors but sits under target — only with strong reserves and a clear plan.</p>'; }
+      else { p2='<p><b>Why it works:</b> clears every computed gate with room — per-door, DSCR, and LTV are all at or better than target.</p>'; }
+      var p3 = unconfirmed.length ? '<p style="color:var(--blue)"><b>Confirm:</b> the '+unconfirmed.join(' and ')+' gate'+(unconfirmed.length>1?'s':'')+' need'+(unconfirmed.length>1?'':'s')+' your comps — enter market value / replacement cost above to lock '+(unconfirmed.length>1?'them':'it')+'. Until then, treat '+(unconfirmed.length>1?'them':'it')+' as unconfirmed.</p>' : '';
+      html('ana-verdict-body', p1+p2+p3);
+    }
+
+    function renderPortfolio(c){
+      var list=PORT.slice();
+      list.push({ n:'⚠️ '+(S.address||'This deal')+' (this deal)', cf:c.cfMo, cap:c.cap, me:true });
+      list.sort(function(a,b){ return b.cf-a.cf; });
+      var rows='', rank=0, total=list.length;
+      for(var i=0;i<list.length;i++){
+        var r=list[i]; if(r.me) rank=i+1;
+        rows+='<div class="portfolio-row'+(r.me?' this-property':'')+'"><span class="row-name">'+r.n+'</span>'+
+              '<span class="row-cf">'+money(r.cf)+'/mo</span>'+
+              '<span class="row-cap">'+(r.cap?r.cap.toFixed(1)+'%':'—')+'</span></div>';
+      }
+      html('ana-portfolio', rows);
+      var pos=(rank<=Math.ceil(total/3))?'one of your stronger performers':(rank<=Math.ceil(2*total/3))?'middle of the pack':'one of your weaker performers';
+      html('ana-rank', '<b>Rank: '+rank+' of '+total+' by monthly cash flow.</b> On these numbers it would be '+pos+' in the portfolio.');
+    }
+
+    function renderRisk(c){
+      var rows='';
+      // rent -10%
+      var rd=calc(M({rent:(+S.rent||0)*0.9}));
+      rows+=riskRow('Rent drops 10%', 'Cash flow goes from <span class="number">'+money(c.cfMo)+'</span> to <span class="'+(rd.cfMo<c.perDoor*0+300?'alert':'ok')+'">'+money(rd.cfMo)+'/mo</span>'+(rd.perDoor<300?' — <b>below your $300 floor.</b>':'.'));
+      // one month vacant
+      var lost=(+S.rent||0);
+      var recov = c.cfMo>0 ? Math.ceil(lost/c.cfMo) : null;
+      rows+=riskRow('One month vacant', 'You’d lose ~<span class="number">'+money(lost)+'</span> in rent and still owe the mortgage. '+(recov!=null?'<b>'+recov+' month'+(recov>1?'s':'')+'</b> of cash flow to recover.':'Cash flow is too thin to recover quickly.'));
+      // major repair $8K
+      var rmonths = c.cfMo>0 ? (8000/c.cfMo) : null;
+      rows+=riskRow('Major repair ($8K)', 'New roof or HVAC = '+(rmonths!=null?'<span class="alert">~'+(rmonths>=12?(rmonths/12).toFixed(1)+' years':Math.round(rmonths)+' months')+' of cash flow.</span>':'<span class="alert">more than a year of cash flow.</span>')+' Budget for it — pro reality, not catastrophe.');
+      // refi +1%
+      var rr=calc(M({rate:(+S.rate||0)+1}));
+      rows+=riskRow('Rate ↑ 1% (refi)', 'Monthly payment climbs ~<span class="number">'+money(rr.pi-c.pi)+'</span>. Cash flow drops to <span class="'+(rr.perDoor<300?'alert':'ok')+'">'+money(rr.cfMo)+'/mo</span>'+(rr.perDoor<300?', <b>below your floor.</b>':'.'));
+      html('ana-risk', rows);
+    }
+    function riskRow(label, impact){
+      return '<div class="risk-row"><div class="risk-scenario-label">'+label+'</div><div class="risk-impact">'+impact+'</div></div>';
+    }
+
+    // ── publish a normalized result the Deal Decider ingests ──
+    function writeAnalysis(c){
+      var v=verdictOf(c);
+      var rec={
+        address:S.address||'', source:S.source||'',
+        price:c.price, rehab:c.rehab, closing:c.closing, units:c.units,
+        rentMonthly:c.rent, vacPct:(+S.vac||0),
+        opexMonthly:c.opex/12, debtMonthly:c.pi, down:c.down, loan:c.loan, cashIn:c.cashIn,
+        cap:c.cap, cfMo:c.cfMo, perDoor:c.perDoor,
+        dscr:isFinite(c.dscr)?c.dscr:null, ltv:c.ltv, coc:isFinite(c.coc)?c.coc:null,
+        verdict:v.kind, at:new Date().toISOString()
+      };
+      try{ localStorage.setItem('fl_deal_analysis_v1', JSON.stringify(rec)); }catch(e){}
+    }
+
+    // ── inputs ──
+    function syncInputs(){
+      var els=document.querySelectorAll('[data-key]');
+      for(var i=0;i<els.length;i++){
+        var k=els[i].getAttribute('data-key'); var v=S[k];
+        els[i].value=(v===null||v===undefined)?'':v;
+      }
+    }
+    function bindInputs(){
+      var els=document.querySelectorAll('[data-key]');
+      for(var i=0;i<els.length;i++){
+        els[i].addEventListener('input', function(e){
+          var k=e.target.getAttribute('data-key');
+          var isNum=e.target.getAttribute('data-num');
+          S[k]= isNum ? num(e.target.value) : e.target.value;
+          save(); render();
+        });
+      }
+      var rb=document.getElementById('ana-reset');
+      if(rb) rb.addEventListener('click', function(){
+        var addr=S.address, src=S.source; // keep the carried property identity
+        S={}; for(var k in DEF){ S[k]=DEF[k]; }
+        S.address=addr; S.source=src;
+        if(S.rent==null && S.price) S.rent=Math.round(S.price*0.013); // ~1.3% rent-to-price: realistic for sub-$100K East-TX SFR; user overrides with actual rent
+        save(); syncInputs(); render();
+      });
+    }
+
+    // ── carry-in ──
+    function applyFinderCarry(){
+      var pipe=null; try{ pipe=JSON.parse(localStorage.getItem(PIPE)); }catch(e){}
+      if(!pipe) return;
+      if(pipe.price!=null) S.price=Number(pipe.price);
+      if(pipe.address) S.address=pipe.address;
+      if(pipe.source) S.source=pipe.source;
+      var bb=pipe.buybox||{};
+      var parts=[]; if(pipe.address)parts.push(pipe.address); if(pipe.price!=null)parts.push(money(pipe.price)); if(pipe.source)parts.push(pipe.source);
+      var box=[]; if(bb.where)box.push(bb.where); if(bb.target)box.push('target ≤ '+money(bb.target)); if(bb.cap)box.push('≥ '+bb.cap+'% cap');
+      var el=document.getElementById('finder-carry-txt'), w=document.getElementById('finder-carry');
+      if(el&&w){ el.textContent=parts.join(' · ')+(box.length?(' — buy box: '+box.join(', ')):''); w.style.display='block'; }
+    }
+    function applyRenoCarry(){
+      function set(e){
+        if(!e) return;
+        S.rehab=Number(e.total)||0;
+        var t=document.getElementById('reno-carry-txt'), w=document.getElementById('reno-carry');
+        if(t&&w){ t.textContent=money(e.total)+' · '+e.label+' · '+e.property+' ('+(e.basis||'estimate')+', '+e.date+')'; w.style.display='block'; }
+        save(); syncInputs(); render();
+      }
+      var ov=null; try{ ov=JSON.parse(localStorage.getItem(RENO)); }catch(e){}
+      var active = ov && (ov.estimates||[]).filter(function(e){ return e.active; })[0];
+      if(active){ set(active); return; }
+      fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
+        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+        .then(function(d){ var es=d.estimates||[]; if(es.length) set(es[es.length-1]); })
+        .catch(function(){});
+    }
+
+    // ── boot ──
+    applyFinderCarry();
+    if(S.rent==null && S.price) S.rent=Math.round(S.price*0.013); // ~1.3% rent-to-price: realistic for sub-$100K East-TX SFR; user overrides with actual rent
+    save();
+    syncInputs();
+    bindInputs();
+    render();
+    applyRenoCarry(); // async; re-renders when the estimate resolves
+  })();
 </script>
 </body>
 </html>

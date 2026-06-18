@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "_note": "Per-OWNER Capital Rules profiles for the Financial Dashboard entity selector (pass #6 follow-up). Capital Rules are policy thresholds that attach to the OWNER of an entity, not to ECH globally: ECH Management may manage a property/entity for a third-party owner whose covenants differ. DEFAULT behavior = every entity inherits the ECH self-managed profile, whose thresholds are read LIVE from the Foundation Layer consolidated capital_rules payload (no hardcoded numbers here, so nothing can drift from the API). To apply a different owner's rules, add an entry under 'overrides' keyed by the entity CODE as it appears in the FL API entities[] (e.g. ECH_ATHENS), with that owner's name + threshold overrides; the dashboard then evaluates that entity/owner against its own rule set. Today all entities are ECH self-managed, so 'overrides' is intentionally empty — the capability is wired, no fictitious third-party owner is invented. A change here changes everywhere this is read.",
+  "generated_at": "2026-06-12",
+  "default_owner": "ECH Management (self-managed)",
+  "default_profile_source": "fl-api-consolidated",
+  "default_thresholds_fallback": {
+    "_comment": "Used ONLY if the FL API is unreachable; normally the live consolidated thresholds win.",
+    "ltv_max": 0.65,
+    "dscr_min": 1.25,
+    "liquidity_floor": 500000,
+    "per_door_floor": 300,
+    "per_door_target_low": 400,
+    "per_door_target_high": 500
+  },
+  "overrides": {}
+}

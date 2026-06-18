@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tenant Screening — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">📝 Tenant Screening</div>
+
+  <div class="preview-banner"><b>PREVIEW — sample data.</b> The live source isn't wired yet, so the figures below are illustrative — honest sample state until the connector phase lands.<div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Reese</b> and say "remove the applications section" — the employee reshapes this view and it sticks.</div></div>
+
+  <div class="ruleg">
+    <div class="rule ry"><div class="rn">NEW APPS</div><div class="rv" style="color:var(--yellow)">2</div><div class="rt">from Inbox</div></div>
+    <div class="rule rg"><div class="rn">SCREENED</div><div class="rv">1</div><div class="rt">this week</div></div>
+    <div class="rule rg"><div class="rn">APPROVED</div><div class="rv">1</div><div class="rt">→ Lease</div></div>
+    <div class="rule rg"><div class="rn">UNIT</div><div class="rv">102</div><div class="rt">Remington</div></div>
+  </div>
+
+  <div class="card" data-view-section="applications">
+    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">APPLICATIONS — background search, the legal way (consent gates everything)</div>
+    <table><tr><th>APPLICANT</th><th>CONSENT</th><th>REGULATED REPORT</th><th>PUBLIC LOOKUPS</th></tr>
+      <tr>
+        <td>K. Alvarez · <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">102 Remington</button></td>
+        <td><span class="pill rg">SIGNED ✓</span></td>
+        <td><button class="xref" type="button" onclick="runProvider('K. Alvarez')" title="Runs through the consent-based FCRA-compliant provider">Run via provider</button></td>
+        <td><button class="xref" type="button" onclick="runPublic('K. Alvarez')" title="Location-aware public-records sweep — informational only">Public records · last known: Athens TX</button></td>
+      </tr>
+      <tr>
+        <td>D. Pham · <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">102 Remington</button></td>
+        <td><span class="pill rr">NOT YET</span></td>
+        <td><span class="pill ry" title="Reese enforces this — no consent, no search">LOCKED until consent</span></td>
+        <td><span class="pill ry" title="Reese enforces this — no consent, no search">LOCKED until consent</span></td>
+      </tr>
+    </table>
+    <div id="screen-result" style="margin-top:10px"></div>
+    <div class="warn">⚠️ <b>The law draws the line for us (FCRA — binding):</b> anything used to approve or deny is a consumer report — it must come through a consent-based, FCRA-compliant provider (the paid app ECH picks plugs in here), with adverse-action notices handled. The location-based public/social sweep runs as <b>INFORMATIONAL context only</b>, clearly labeled, never the basis of a denial by itself. Reese enforces this automatically — no consent, no search. Fair-housing rules apply to every recommendation; the decision is yours.</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:8px">Applications arrive from the Inbox lead-matcher. Approve → it drafts the lease in Legal, sends it to Sign <button class="xref" type="button" onclick="flOpen('sign')" title="Open Sign">Sign</button>, and adds the tenant to Rent Roll <button class="xref" type="button" onclick="flOpen('rent-roll')" title="Open Rent Roll">Rent Roll</button>. Applications, screening reports + IDs file in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button>. Sample data.</div>
+  </div>
+
+</div>
+
+<script src="../../../shared/ingest.js"></script>
+<script>
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  // regulated path — consent-based FCRA provider (honest stub: ECH picks the provider; it plugs in here)
+  function runProvider(who){
+    document.getElementById('screen-result').innerHTML =
+      '<div class="card" style="background:var(--surf2);margin:0"><b class="small">REGULATED REPORT — '+esc2(who)+' (consent on file ✓)</b>'+
+      '<div class="small muted" style="margin-top:4px">Runs through the FCRA-compliant provider ECH pays for — credit · criminal · eviction — with permissible purpose, consent, and adverse-action notices handled by the provider flow. Provider options to pick at the connector phase: <b>TransUnion SmartMove · RentPrep · First Advantage</b> (honest stub — nothing runs until one is connected).</div></div>';
+  }
+
+  // public path — informational only, through the ONE ingestion layer (never a consumer report)
+  function runPublic(who){
+    FLIngest.request('public-records', {filter:function(r){ return r.applicant===who; }}).then(function(res){
+      document.getElementById('screen-result').innerHTML =
+        '<div class="card" style="background:var(--surf2);margin:0"><b class="small">PUBLIC LOOKUPS — '+esc2(who)+' · last known: Athens TX <span class="pill ry">INFORMATIONAL ONLY — never a consumer report</span></b>'+
+        '<table style="margin-top:6px"><tr><th>CHECK</th><th>RESULT</th></tr>'+
+        res.rows.map(function(r){ return '<tr><td>'+esc2(r.check)+'</td><td'+(r.tone==='good'?' style="color:var(--green)"':'')+'>'+esc2(r.result)+'</td></tr>'; }).join('')+
+        '</table>'+FLIngest.stamp(res)+'</div>';
+    }).catch(function(){ document.getElementById('screen-result').innerHTML='<div class="small dim">Public-records source not reachable.</div>'; });
+  }
+  // In-tile view config from the core: show/hide sections. Never touches data.
+  function applyViewCfg(ops){
+    (ops||[]).forEach(function(op){
+      if(op.target_type==='section'){
+        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){
+          el.style.display = (op.type==='remove') ? 'none' : '';
+        });
+      }
+    });
+  }
+  window.addEventListener('message', function(e){
+    var d = e.data||{};
+    if(d && d.type==='tcc:viewcfg') applyViewCfg(d.ops);
+  });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'tenant-screening'});</script>
+</body>
+</html>

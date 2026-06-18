@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Website &amp; IT — TARS Command Center</title>
+<title>Website &amp; IT — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 <style>
   .ph{height:84px;background:var(--surf2);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:11px;text-align:center;flex-direction:column;gap:3px}
@@ -38,7 +38,7 @@
       <button class="btn primary" onclick="publish()">⬆ Publish to website</button>
       <button class="btn" onclick="note('preview','Live build: opens the staged listing preview before it goes live.')">Preview</button>
     </div>
-    <div class="wire-note" id="pubnote">One-button publish updates echmanagement.services AND the availability feed Inbox reads for lead-matching.</div>
+    <div class="wire-note" id="pubnote">One-button publish updates echmanagement.services AND the availability feed <button class="xref" type="button" onclick="flOpen('inbox')" title="Open Inbox — listing leads land here">Inbox</button> reads for lead-matching.</div>
   </div>
 
   <div class="card">
@@ -73,8 +73,12 @@
 </div>
 
 <script>
+  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function note(id,msg){ var el=document.getElementById(id==='preview'||id==='publish'?'pubnote':'synnote'); if(el) el.textContent=msg; }
   function publish(){ document.getElementById('pubnote').innerHTML='<b style="color:var(--green)">Published (preview).</b> Live build: writes the listing to echmanagement.services and updates the availability feed → the Inbox lead-matcher can now match prospects to 102 Remington.'; }
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>FLSettings.mount({tileId:'website-it'});</script>
 </body>
 </html>

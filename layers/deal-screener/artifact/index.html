@@ -2,7 +2,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ECH Deal Screener</title>
+<title>Deal Decider — Foundation Layer Command Center</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -77,7 +77,7 @@
 
 <div class="header">
   <div>
-    <h1>📐 ECH Deal Screener</h1>
+    <h1>📐 Deal Decider</h1>
     <div class="sub">Auto-underwrite against Capital Rules · Saves last deal in browser</div>
   </div>
   <div class="header-actions">
@@ -87,11 +87,30 @@
   </div>
 </div>
 
+<!-- DEAL PATH — cross-tile nav (front-end; inert when viewed standalone) -->
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px;font-size:12px">
+  <button type="button" onclick="flOpen('deal-finder')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #2a2a2e;border-radius:999px;padding:3px 10px;cursor:pointer">← 1 · Deal Finder</button>
+  <button type="button" onclick="flOpen('deal-analyzer')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6;background:transparent;border:1px solid #2a2a2e;border-radius:999px;padding:3px 10px;cursor:pointer">← 2 · Deal Analyzer</button>
+  <span style="font-weight:700;color:#9a9aa2">3 · Deal Decider — you are here</span>
+</div>
+
+<!-- CARRY-IN from Deal Analyzer (numbers propagate Finder -> Analyzer -> Decider) -->
+<div id="analyzer-carry" style="display:none;max-width:1400px;margin:0 auto;padding:0 16px 4px">
+  <div style="background:#eff6ff;border:1.5px solid #3b82f6;border-radius:10px;padding:10px 14px;font-size:13px;color:#1e3a8a;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <b>📊 Carried from Deal Analyzer:</b> <span id="analyzer-carry-txt"></span>
+    <button type="button" id="analyzer-carry-load" style="margin-left:auto;background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">↺ Load into the Decider</button>
+    <button type="button" onclick="flOpen('deal-analyzer')" style="background:transparent;color:#3b82f6;border:1px solid #93c5fd;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">Deal Analyzer ↗</button>
+  </div>
+  <div style="font-size:10.5px;color:#1d4ed8;margin-top:3px;padding-left:2px">The Decider applies its own deal-target gates (LTV ≤ 50% · DSCR ≥ 1.8×) — distinct by design from the Analyzer's covenant view.</div>
+</div>
+
 <div class="verdict-section">
   <div id="verdict" class="verdict gray">
     <div class="verdict-label">Verdict</div>
     <div class="verdict-headline" id="verdict-headline">Enter deal data</div>
     <div class="verdict-reasons" id="verdict-reasons">Capital Rules apply automatically as you type.</div>
+    <!-- PROCEED-only next step: open the contract step in Legal (front-end nav; inert standalone) -->
+    <button type="button" id="verdict-next" onclick="flOpen('legal')" style="display:none;margin-top:12px;align-items:center;gap:6px;background:#16a34a;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer">Next step: open the contract → Legal ↗</button>
   </div>
 
   <div class="gates">
@@ -101,6 +120,7 @@
       <div class="gate gray"><div class="gate-rule">DSCR ≥ 1.8×</div><div class="gate-value" id="gate-dscr">—</div><div class="gate-status" id="gate-dscr-status">awaiting input</div></div>
       <div class="gate gray"><div class="gate-rule">Per-door $400-500</div><div class="gate-value" id="gate-pd">—</div><div class="gate-status" id="gate-pd-status">awaiting input</div></div>
       <div class="gate gray"><div class="gate-rule">Liquidity ≥ $500K</div><div class="gate-value" id="gate-liq">—</div><div class="gate-status" id="gate-liq-status">awaiting input</div></div>
+      <div class="gate gray"><div class="gate-rule">Portfolio headroom (post-deal)</div><div class="gate-value" id="gate-headroom">—</div><div class="gate-status" id="gate-headroom-status">awaiting input</div></div>
     </div>
   </div>
 </div>
@@ -208,10 +228,20 @@
     </div>
   </div>
 
+  <div class="panel" style="grid-column: 1 / -1;">
+    <h2>Ops Takeoff — Material Estimate <span class="sub">Scout &rarr; Jordan · materials only</span></h2>
+    <div style="font-size:13px;color:#475569;line-height:1.6">
+      When a deal enters research, <b>Market &amp; Deals (Scout)</b> hands it to <b>Operations (Jordan)</b>, who runs a <b>material-only</b> takeoff with <b>cited sources</b> and feeds the trusted total into the decision above.
+      <div style="margin-top:6px;color:#64748b">The live cited web pass is the backend engine — until it ships this loads a <b>SAMPLE</b> cited price-compare (never a fabricated number).</div>
+    </div>
+    <button type="button" id="takeoff-go" style="margin-top:12px;background:#0f766e;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">&#9654; Request Ops takeoff</button>
+    <div id="takeoff-out" style="margin-top:14px"></div>
+  </div>
+
 </div>
 
 <div class="footer">
-  ECH Deal Screener · Capital Rules sourced from <code>MEGA_BRAIN/04_PORTFOLIO_LEVEL_REPORTING/04_CAPITAL_PLANNING/CAPITAL-RULES.md</code> · Built 2026-05-05 by TARS
+  Deal Decider · Capital Rules sourced from <code>MEGA_BRAIN/04_PORTFOLIO_LEVEL_REPORTING/04_CAPITAL_PLANNING/CAPITAL-RULES.md</code> · Built 2026-05-05 by TARS
 </div>
 
 <script>
@@ -237,6 +267,22 @@ function num(id) {
   const v = parseFloat(el.value);
   return isFinite(v) ? v : 0;
 }
+
+// --- Portfolio-headroom inputs (ties the deal funnel to Thread 2 / Build & Renovate) ---
+var RENO = [];            // shared takeoff estimates (also read by Deal Analyzer)
+var PORTFOLIO_LIQ = null; // real portfolio liquidity is Plaid-gated (Nov): stays null (pending) until the connector phase wires it to the FL API capital_rules.liquidity. NEVER fake a sandbox pass.
+function renoFor(title){  // takeoff estimate matched to this deal by address (first two tokens), folded into cash-in when Rehab is blank
+  var t=String(title||'').toLowerCase(); if(!t||!RENO.length) return 0;
+  for(var i=0;i<RENO.length;i++){
+    var toks=String(RENO[i].property||'').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).slice(0,2).join(' ');
+    if(toks && t.indexOf(toks)>=0){ var n=Number(RENO[i].total); return isNaN(n)?0:n; }
+  }
+  return 0;
+}
+(function loadReno(){     // localStorage overlay (front-end edits) wins, else the shared base file
+  try{ var ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')||'null'); if(ov&&ov.estimates&&ov.estimates.length){ RENO=ov.estimates; return; } }catch(e){}
+  fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(d&&d.estimates){ RENO=d.estimates; if(typeof compute==='function') compute(); } }).catch(function(){});
+})();
 
 function compute() {
   const purchase = num('purchase');
@@ -274,7 +320,7 @@ function compute() {
   document.getElementById('c-cf').textContent = fmtMoney(cashFlow);
   document.getElementById('c-dscr').textContent = fmtMult(dscr);
   document.getElementById('c-pd').textContent = perDoor === null ? '—' : fmtMoney(perDoor);
-  document.getElementById('c-liq').textContent = fmtMoney(liqAfter);
+  document.getElementById('c-liq').textContent = (liqCurrent === 0) ? '—' : fmtMoney(liqAfter);
 
   // Gates
   const gates = [];
@@ -325,14 +371,40 @@ function compute() {
   const liqEl = document.querySelector('#gates-grid .gate:nth-child(4)');
   const liqValEl = document.getElementById('gate-liq');
   const liqStatus = document.getElementById('gate-liq-status');
-  if (liqCurrent === 0 && liqOut === 0) {
-    liqEl.className = 'gate gray'; liqValEl.textContent = '—'; liqStatus.textContent = 'awaiting input';
+  if (liqCurrent === 0) {
+    // Post-close liquidity is meaningless without current liquidity (which is portfolio-level / Plaid-gated).
+    // Stay gray until the user enters it — never KILL a deal just because cash-in is known but current liquidity isn't.
+    liqEl.className = 'gate gray'; liqValEl.textContent = '—';
+    liqStatus.textContent = (liqOut > 0) ? 'enter current liquidity to assess' : 'awaiting input';
     gates.push({ name: 'Liquidity', state: 'gray' });
   } else {
     liqValEl.textContent = fmtMoney(liqAfter);
     if (liqAfter >= 500000) { liqEl.className = 'gate green'; liqStatus.textContent = 'WITHIN RULE'; gates.push({name:'Liquidity',state:'green'}); }
     else if (liqAfter >= 400000) { liqEl.className = 'gate yellow'; liqStatus.textContent = 'BELOW $500K — caution'; gates.push({name:'Liquidity',state:'yellow'}); }
     else { liqEl.className = 'gate red'; liqStatus.textContent = 'KILL — below floor'; gates.push({name:'Liquidity',state:'red'}); }
+  }
+
+  // Portfolio liquidity headroom AFTER this deal — the PORTFOLIO covenant question, distinct from the deal-level liquidity gate above.
+  // Cash-in = down + closing + reserves + reno; reno folds in the Build & Renovate takeoff (renoFor) when Rehab is blank — ties Thread 1 <-> Thread 2.
+  var dealTitle = (document.getElementById('title')||{}).value || '';
+  var renoIn = rehab > 0 ? rehab : renoFor(dealTitle);
+  var cashIn = down + closing + reserves + renoIn;
+  var renoNote = (renoIn > 0 && rehab === 0) ? (' · incl. ' + fmtMoney(renoIn) + ' takeoff') : '';
+  var hEl = document.querySelector('#gates-grid .gate:nth-child(5)');
+  var hVal = document.getElementById('gate-headroom');
+  var hStatus = document.getElementById('gate-headroom-status');
+  if (cashIn <= 0) {
+    hEl.className = 'gate gray'; hVal.textContent = '—'; hStatus.textContent = 'awaiting input';
+    gates.push({ name: 'Headroom', state: 'gray' });
+  } else if (PORTFOLIO_LIQ == null) {
+    // Honest: portfolio liquidity goes live with Plaid. Show the deal's cash-in; defer the pass/fail.
+    hEl.className = 'gate gray'; hVal.textContent = fmtMoney(cashIn); hStatus.textContent = 'cash-in' + renoNote + ' · headroom pending Plaid';
+    gates.push({ name: 'Headroom', state: 'gray' });
+  } else {
+    var headroom = PORTFOLIO_LIQ - 500000;
+    hVal.textContent = fmtMoney(cashIn);
+    if (cashIn <= headroom) { hEl.className = 'gate green'; hStatus.textContent = 'within headroom' + renoNote; gates.push({ name: 'Headroom', state: 'green' }); }
+    else { hEl.className = 'gate red'; hStatus.textContent = 'KILL — draws below $500K floor'; gates.push({ name: 'Headroom', state: 'red', reason: 'would draw liquidity below the $500K floor' }); }
   }
 
   // Verdict
@@ -352,7 +424,8 @@ function compute() {
   } else if (reds.length > 0) {
     verdictEl.className = 'verdict red';
     verdictHeadline.textContent = '🛑 KILL';
-    verdictReasons.textContent = `Hard rule(s) breached: ${reds.join(', ')}. ` + (yellows.length ? `Also caution on: ${yellows.join(', ')}.` : '');
+    const redReasons = gates.filter(g => g.state === 'red' && g.reason).map(g => g.reason);
+    verdictReasons.textContent = `Hard rule(s) breached: ${reds.join(', ')}. ` + (redReasons.length ? redReasons.join('; ') + '. ' : '') + (yellows.length ? `Also caution on: ${yellows.join(', ')}.` : '');
   } else if (yellows.length > 0) {
     verdictEl.className = 'verdict yellow';
     verdictHeadline.textContent = '⚠ CAUTION';
@@ -362,6 +435,10 @@ function compute() {
     verdictHeadline.textContent = '✓ PROCEED';
     verdictReasons.textContent = `All Capital Rules within target: ${greens.join(', ')}.`;
   }
+
+  // the contract step only offers itself on a PROCEED verdict
+  const nextBtn = document.getElementById('verdict-next');
+  if (nextBtn) nextBtn.style.display = (verdictEl.className === 'verdict green') ? 'inline-flex' : 'none';
 
   saveState();
 }
@@ -381,6 +458,9 @@ function loadState() {
     FIELDS.forEach(f => { const el = document.getElementById(f); if (el && state[f] !== undefined) el.value = state[f]; });
   } catch(e) {}
 }
+
+// cross-tile nav: ask the shell to open another tile (inert when viewed standalone)
+function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
 
 function resetAll() {
   if (!confirm('Reset all fields? This will clear the saved deal.')) return;
@@ -485,7 +565,7 @@ ${reasons}
 ${get('notes')}
 
 ---
-*Generated by ECH Deal Screener · ${new Date().toISOString()}*
+*Generated by Deal Decider · ${new Date().toISOString()}*
 `;
   const blob = new Blob([md], { type: 'text/markdown' });
   const a = document.createElement('a');
@@ -496,10 +576,87 @@ ${get('notes')}
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// --- Ops Takeoff (Scout -> Jordan): honest, cited, material-only estimate, gated behind a DD acknowledgment ---
+var TAKEOFF = null;
+function escH(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function runTakeoff(){
+  var out=document.getElementById('takeoff-out');
+  out.innerHTML='<div style="color:#64748b;font-size:13px">Scout -> Jordan · loading cited price-compare...</div>';
+  fetch('../../../data/STUB_MATERIALS.json',{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+    if(!d||!d.rows||!d.rows.length){ out.innerHTML='<div style="color:#b45309;font-size:13px">Estimate engine not yet live — manual entry only (no cited source rows).</div>'; return; }
+    var DOMAIN={lowes:'lowes.com',ace:'acehardware.com',local:'mabanklumber.com'}, LABEL={lowes:"Lowe's",ace:'Ace Hardware',local:'Mabank Lumber'};
+    var lines=[], total=0, needsSource=0;
+    d.rows.forEach(function(row){
+      var best=null; Object.keys(row.prices||{}).forEach(function(k){ var p=row.prices[k]; if(p!=null && (best===null||p<best.price)) best={src:k,price:p}; });
+      if(!best){ needsSource++; lines.push({item:row.item,src:null}); return; }
+      total+=best.price; lines.push({item:row.item,src:best.src,label:LABEL[best.src]||best.src,price:best.price,url:'https://'+(DOMAIN[best.src]||''),date:d.generated_at});
+    });
+    TAKEOFF={ total:total, lines:lines, date:d.generated_at, needsSource:needsSource, ack:false };
+    renderTakeoff();
+  }).catch(function(){ out.innerHTML='<div style="color:#b45309;font-size:13px">Estimate engine not yet live — manual entry only (source unreachable).</div>'; });
+}
+function renderTakeoff(){
+  if(!TAKEOFF) return;
+  var out=document.getElementById('takeoff-out');
+  var rows=TAKEOFF.lines.map(function(l){
+    if(!l.src) return '<tr><td style="padding:4px 8px">'+escH(l.item)+'</td><td style="padding:4px 8px;color:#b45309;font-weight:700">NEEDS SOURCE — manual review</td><td style="padding:4px 8px;text-align:right">—</td></tr>';
+    return '<tr><td style="padding:4px 8px">'+escH(l.item)+'</td><td style="padding:4px 8px"><a href="'+escH(l.url)+'" target="_blank" rel="noopener">'+escH(l.label)+'</a> <span style="color:#94a3b8">· '+escH(l.date)+'</span></td><td style="padding:4px 8px;text-align:right">'+fmtMoney(l.price)+'</td></tr>';
+  }).join('');
+  out.innerHTML=
+    '<div style="display:inline-flex;align-items:center;gap:6px;background:#ecfeff;border:1px solid #67e8f9;color:#155e75;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;margin-bottom:10px">Scout -> Jordan · Deal Research</div>'+
+    '<div style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:6px">SAMPLE — 102 Remington make-ready (WO-1041) · cheapest-source mix · cited prices, not a live scrape</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:#64748b;font-size:11px"><th style="padding:4px 8px">MATERIAL LINE</th><th style="padding:4px 8px">SOURCE · RETRIEVED</th><th style="padding:4px 8px;text-align:right">CHEAPEST</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr style="border-top:2px solid #cbd5e0;font-weight:800"><td style="padding:6px 8px">Trusted material total</td><td></td><td style="padding:6px 8px;text-align:right">'+fmtMoney(TAKEOFF.total)+'</td></tr></tfoot></table>'+
+    (TAKEOFF.needsSource?'<div style="font-size:12px;color:#b45309;margin-top:6px">'+TAKEOFF.needsSource+' line(s) flagged NEEDS SOURCE — excluded from the trusted total, never guessed.</div>':'')+
+    '<div style="font-size:12px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin-top:10px;line-height:1.6"><b>MATERIALS ONLY</b> — not labor, soft costs, or contingency (you own those lines). <b>ESTIMATE ONLY — due diligence required.</b> Sample cited prices retrieved '+escH(TAKEOFF.date)+'; the live cited web pass (per-line URLs from a source allow-list) is the backend engine. No figure is ever fabricated.</div>'+
+    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="takeoff-ack"'+(TAKEOFF.ack?' checked':'')+' style="margin-top:3px"> I acknowledge this is a material-only estimate from cited sources; due diligence required.</label>'+
+    '<div id="takeoff-fed" style="font-size:12px;font-weight:700;margin-top:8px;color:'+(TAKEOFF.ack?'#0f766e':'#94a3b8')+'">'+(TAKEOFF.ack?('&#10003; Fed into the decision matrix as Rehab/CapEx ('+fmtMoney(TAKEOFF.total)+')'):'Not counted toward the verdict until acknowledged.')+'</div>';
+  var ack=document.getElementById('takeoff-ack');
+  if(ack) ack.addEventListener('change', function(){
+    TAKEOFF.ack=ack.checked;
+    if(ack.checked){ var rh=document.getElementById('rehab'); if(rh) rh.value=String(TAKEOFF.total); }
+    compute(); renderTakeoff();
+  });
+}
+
 // Wire up
 loadState();
+var __hadSavedDeal=false; try{ __hadSavedDeal=!!localStorage.getItem(STORAGE_KEY); }catch(e){} // capture BEFORE compute() saves
 FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEventListener('input', compute); el && el.addEventListener('change', compute); });
+var __takeoffGo=document.getElementById('takeoff-go'); if(__takeoffGo) __takeoffGo.addEventListener('click', runTakeoff);
 compute();
+
+// --- Carry-in from the Deal Analyzer: map its published result (fl_deal_analysis_v1) into the Decider's fields ---
+function applyAnalysis(a){
+  if(!a) return;
+  var set=function(id,val){ var el=document.getElementById(id); if(el && val!=null && val!=='') el.value=val; };
+  set('title', a.address);
+  if(a.units!=null) set('units', a.units);
+  set('purchase', a.price!=null?Math.round(a.price):null);
+  set('closing', a.closing!=null?Math.round(a.closing):null);
+  set('rehab', a.rehab!=null?Math.round(a.rehab):null);
+  set('down', a.down!=null?Math.round(a.down):null);
+  set('loan', a.loan!=null?Math.round(a.loan):null);
+  set('rents', a.rentMonthly!=null?Math.round(a.rentMonthly):null);
+  if(a.vacPct!=null) set('vacancy', a.vacPct);
+  set('opex', a.opexMonthly!=null?Math.round(a.opexMonthly):null);
+  set('debt', a.debtMonthly!=null?Math.round(a.debtMonthly):null);
+  set('liq-out', a.cashIn!=null?Math.round(a.cashIn):null);
+  compute();
+}
+(function analyzerCarry(){
+  var a=null; try{ a=JSON.parse(localStorage.getItem('fl_deal_analysis_v1')); }catch(e){}
+  if(!a) return;
+  var bn=document.getElementById('analyzer-carry'), tx=document.getElementById('analyzer-carry-txt');
+  if(bn&&tx){
+    var parts=[]; if(a.address)parts.push(a.address); if(a.price!=null)parts.push('$'+Math.round(a.price).toLocaleString());
+    var m=[]; if(a.cap!=null)m.push(a.cap.toFixed(1)+'% cap'); if(a.cfMo!=null)m.push('$'+Math.round(a.cfMo).toLocaleString()+'/mo'); if(a.dscr!=null)m.push('DSCR '+a.dscr.toFixed(2)+'×'); if(a.ltv!=null)m.push('LTV '+Math.round(a.ltv)+'%');
+    tx.textContent=parts.join(' · ')+(m.length?(' — '+m.join(', ')):'');
+    bn.style.display='block';
+  }
+  var btn=document.getElementById('analyzer-carry-load');
+  if(btn) btn.addEventListener('click', function(){ applyAnalysis(a); });
+  if(!__hadSavedDeal) applyAnalysis(a); // first visit (no saved deal) with a carried analysis -> load it automatically
+})();
 </script>
 </body>
 </html>
