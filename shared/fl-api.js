@@ -53,6 +53,31 @@
 
   window.flApi = { base: BASE, token: token, authed: authed, call: call };
 
+  // AI Agent Layer (Lane 4a) — the hosted TARS advisor (READ-ONLY). Calls the separate
+  // fl-agent service with the same Supabase JWT (fl_auth_token). Returns the parsed
+  // {answer, tools_called, usage, cost_usd, ...} on success, or null on no-session / any
+  // error so the caller falls back to its honest stub — no lockout, no fabricated answer.
+  var AGENT_BASE = window.FL_AGENT_BASE || 'https://fl-agent.fly.dev';
+  window.flAgent = {
+    base: AGENT_BASE,
+    authed: authed,
+    chat: async function (message, context) {
+      var t = token();
+      if (!t) return null;                       // not signed in -> caller uses its stub
+      try {
+        var res = await fetch(AGENT_BASE + '/agent/chat', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: message, context: context || null }),
+        });
+        if (!res.ok) return null;                // 401/4xx/5xx -> honest fallback
+        return await res.json();
+      } catch (e) {
+        return null;                             // network/CORS -> fallback
+      }
+    },
+  };
+
   // Deal-funnel persistence (Lane 1). buy_box mirrors fl_deal_pipeline_v1.buybox;
   // analysis mirrors fl_deal_analysis_v1; decision is the Decider's gate verdict.
   window.flDeals = {

@@ -89,8 +89,8 @@ function layerReply(layer, emp, text){
   return head+' '+pendingNote;
 }
 
-// reply for the global TARS employee
-function globalReply(text){
+// honest stub reply for the global TARS employee (used when not signed in / agent offline)
+function globalStubReply(text){
   const fin = liveFinanceFacts(), mkt = liveMarketFacts();
   const parts = [];
   if (fin) parts.push('💰 '+fin);
@@ -100,6 +100,27 @@ function globalReply(text){
   if (parts.length) return head+'<br><br>Live right now:<br>'+parts.join('<br>')+'<br><br><span style="color:var(--dim)">'+pendingNote+'</span>';
   return head+' '+pendingNote;
 }
+
+// LIVE global TARS reply (Lane 4a) — hosted read-only advisor when signed in; honest stub otherwise.
+// Never fabricates: if the agent isn't reachable or returns nothing, we fall back to the stub.
+async function globalReply(text){
+  if (window.flAgent && window.flAgent.authed && window.flAgent.authed()){
+    let res = null;
+    try { res = await window.flAgent.chat(text, { hint: liveContextHint() }); } catch(e){ res = null; }
+    if (res && res.answer){
+      let out = formatAnswer(res.answer);
+      const names = (res.tools_called||[]).map(function(t){return t.tool;})
+        .filter(function(v,i,a){return a.indexOf(v)===i;});
+      if (names.length) out += '<div class="memline" style="margin-top:8px"><span class="pulse"></span> read live: '+esc(names.join(', '))+'</div>';
+      if (res.truncated) out += '<div style="color:var(--dim);margin-top:6px;font-size:.85em">(Stopped at this request\'s budget — ask something narrower and I\'ll finish.)</div>';
+      return out;
+    }
+    // not signed in to FL / API error / empty -> honest stub (no fabrication)
+  }
+  return globalStubReply(text);
+}
+function formatAnswer(s){ return escd(s).replace(/\n/g,'<br>'); }
+function liveContextHint(){ try { if (STATE && STATE.openLayer) return 'viewing the '+STATE.openLayer+' tile'; } catch(e){} return ''; }
 
 /* ════════════════════════════════════════════════════════════════
    IN-TILE VIEW CONFIG — the per-layer employee reshapes the tile in
@@ -232,7 +253,7 @@ function buildGlobal(){
   const g = (TENANT && TENANT.global_agent) || { name:'TARS', role:'company-wide employee' };
   $('gpanel').innerHTML =
     '<div class="pbar"><div class="pbar-l"><button class="back" type="button" id="gclose">← Close</button>'+
-    '<div class="ptitle" style="display:flex;align-items:center;gap:9px"><span class="empav" style="width:26px;height:26px">'+esc(g.avatar||'T')+'</span> '+esc(g.name||'TARS')+' — AI employee</div></div></div>'+
+    '<div class="ptitle" style="display:flex;align-items:center;gap:9px"><span class="empav" style="width:26px;height:26px">'+esc(g.avatar||'T')+'</span> '+esc(g.name||'TARS')+' — advisor (read-only)</div></div></div>'+
     memLine(false)+
     '<div class="empchat">'+
       '<div class="eh"><span class="empav">'+esc(g.avatar||'T')+'</span><div><div class="nm">'+esc(g.name||'TARS')+'</div><div class="ro">'+esc(g.role||'')+'</div></div></div>'+
@@ -241,10 +262,16 @@ function buildGlobal(){
       '<div class="einput"><input id="ginput" placeholder="Talk to '+esc(g.name||'TARS')+'…"><button type="button" id="gsend">Send</button></div>'+
     '</div>';
   const msgs = $('gmsgs'), input = $('ginput');
-  const send = () => {
+  const send = async () => {
     const v = input.value; if (!v || !v.trim()) return; input.value='';
     msgs.insertAdjacentHTML('beforeend','<div class="emsg u">'+escd(v)+'</div>');
-    setTimeout(()=>{ msgs.insertAdjacentHTML('beforeend','<div class="emsg a">'+globalReply(v)+'</div>'); msgs.scrollTop=msgs.scrollHeight; }, 220);
+    const pid = 'gpend-'+(new Date().getTime());
+    msgs.insertAdjacentHTML('beforeend','<div class="emsg a" id="'+pid+'">&hellip;</div>');
+    msgs.scrollTop=msgs.scrollHeight;
+    let html; try { html = await globalReply(v); } catch(e){ html = globalStubReply(v); }
+    const el = document.getElementById(pid);
+    if (el) el.innerHTML = html; else msgs.insertAdjacentHTML('beforeend','<div class="emsg a">'+html+'</div>');
+    msgs.scrollTop=msgs.scrollHeight;
   };
   $('gsend').onclick = send;
   input.addEventListener('keydown', e => { if (e.key==='Enter') send(); });
