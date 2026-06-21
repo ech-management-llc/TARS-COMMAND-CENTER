@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Facts — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .pf-card { margin-bottom: 14px; }
+  .pf-name { font-size: 16px; font-weight: 800; }
+  .pf-code { font-size: 11px; font-weight: 700; color: var(--dim, #8a8a93); letter-spacing: .5px; }
+  .pf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+  .pf-field { display: flex; flex-direction: column; }
+  .pf-field.full { grid-column: 1 / -1; }
+  .pf-lab { font-size: 11.5px; font-weight: 600; color: var(--dim, #8a8a93); margin-bottom: 4px; }
+  .pf-in { width: 100%; background: #fff; border: 1.5px solid #cbd5e0; border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; color: #0f172a; }
+  .pf-in:focus { outline: none; border-color: #16a34a; }
+  .pf-in:disabled { background: #f1f5f9; color: #94a3b8; }
+  .pf-hint { font-size: 10.5px; color: #94a3b8; margin-top: 3px; }
+  .pf-debtfree { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #334155; margin-top: 6px; cursor: pointer; }
+  .pf-ltv { font-size: 13px; margin-top: 12px; padding: 8px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+  .ltv-g { color: #16a34a; font-weight: 800; } .ltv-y { color: #d97706; font-weight: 800; } .ltv-r { color: #dc2626; font-weight: 800; }
+  .pf-save { margin-top: 12px; background: #16a34a; color: #fff; border: none; border-radius: 6px; padding: 9px 18px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  .pf-save:hover { filter: brightness(1.05); } .pf-save:disabled { opacity: .6; cursor: default; }
+  .pf-msg { font-size: 12px; margin-top: 8px; min-height: 16px; }
+  .ok { color: #16a34a; font-weight: 700; } .err { color: #dc2626; font-weight: 700; }
+  .pf-legend b { color: #0f172a; }
+  .pf-legend .k { display:inline-block; font-weight:800; padding:1px 6px; border-radius:4px; font-size:11px; }
+  .k-unknown { background:#f1f5f9; color:#475569; } .k-zero { background:#dcfce7; color:#166534; }
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">📐 Portfolio Facts</div>
+
+  <div class="preview-banner">
+    <b>The numbers Plaid can't see — entered once, computed forever.</b> Asset value, loan balance, and
+    door count per entity. These are the missing inputs for <b>LTV</b> and <b>per-door cash flow</b>; the
+    moment you save a row, the Financial dashboard computes those rules <b>live</b> for that entity. Nothing
+    is averaged or guessed — anything you leave blank stays honestly <b>UNKNOWN</b>.
+  </div>
+
+  <!-- NULL vs 0 legend — the honesty rule, made unmissable -->
+  <div class="card pf-legend">
+    <div class="section-label">HOW TO ENTER — BLANK vs ZERO</div>
+    <div class="small" style="line-height:1.65">
+      <div>• <span class="k k-unknown">Leave blank</span> = you don't know it yet → stays <b>UNKNOWN</b> on the dashboard (never guessed).</div>
+      <div>• <span class="k k-zero">Enter 0 / tick Debt-free</span> = a <b>real zero</b> (e.g. a paid-off, debt-free property).</div>
+      <div style="margin-top:6px;color:#b45309"><b>Why it matters:</b> leaving a loan blank does <u>not</u> mean $0 — it means unknown.
+      Only a real debt-free property is $0. This keeps a low LTV from being faked by an omitted loan.</div>
+    </div>
+  </div>
+
+  <!-- not signed in -->
+  <div id="pf-auth" class="card" style="display:none">
+    <div class="section-label">SIGN IN REQUIRED</div>
+    <div class="small">Portfolio facts feed the live capital rules, so they're saved to your account (not this
+    browser). <b>Sign in to the Command Center</b> to view and edit them. Admins and members see only the
+    entities they're granted.</div>
+  </div>
+
+  <!-- no entities / not authorized -->
+  <div id="pf-empty" class="card" style="display:none">
+    <div class="small muted">No entities available for your account. (Admins see all; members see their granted entities.)</div>
+  </div>
+
+  <div id="pf-loading" class="small muted" style="padding:8px 2px">Loading entities…</div>
+  <div id="pf-list"></div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">
+    Saved per entity to <code>/api/portfolio-facts</code> (RLS-scoped). LTV = loan ÷ value · per-door = NOI ÷ doors.
+  </div>
+</div>
+
+<script src="../../../shared/fl-api.js?v=20260621a"></script>
+<script>
+(function(){
+  'use strict';
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function today(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function ltvStatus(p){ return p<=50?{c:'ltv-g',l:'GREEN — at/under target'}:p<=65?{c:'ltv-y',l:'YELLOW — over the 50% target'}:{c:'ltv-r',l:'RED — over the 65% covenant'}; }
+
+  function cardHtml(e, f){
+    f = f || {};
+    var loan = f.loan_balance;                         // number | 0 | null/undefined
+    var debtFree = (loan === 0);
+    var loanVal = (loan != null && loan !== 0) ? loan : '';
+    var asset = (f.asset_value != null) ? f.asset_value : '';
+    var doors = (f.door_count != null) ? f.door_count : '';
+    var asof  = f.as_of_date ? String(f.as_of_date).slice(0,10) : today();
+    var src   = (f.source && f.source !== 'manual') ? f.source : '';
+    return ''+
+    '<div class="card pf-card" data-code="'+esc(e.code)+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'+
+        '<span class="pf-name">'+esc(e.name)+'</span><span class="pf-code">'+esc(e.code)+'</span></div>'+
+      '<div class="pf-grid">'+
+        '<div class="pf-field"><span class="pf-lab">Doors / units</span>'+
+          '<input class="pf-in" inputmode="numeric" data-f="door" value="'+esc(doors)+'" placeholder="blank = unknown">'+
+          '<span class="pf-hint">per-door denominator</span></div>'+
+        '<div class="pf-field"><span class="pf-lab">Market value / ARV ($)</span>'+
+          '<input class="pf-in" inputmode="numeric" data-f="value" value="'+esc(asset)+'" placeholder="blank = unknown">'+
+          '<span class="pf-hint">LTV denominator</span></div>'+
+        '<div class="pf-field full"><span class="pf-lab">Loan balance — outstanding principal ($)</span>'+
+          '<input class="pf-in" inputmode="numeric" data-f="loan" value="'+esc(loanVal)+'" placeholder="blank = unknown"'+(debtFree?' disabled':'')+'>'+
+          '<label class="pf-debtfree"><input type="checkbox" data-f="debtfree"'+(debtFree?' checked':'')+'> Debt-free (loan = $0 — a real zero, not unknown)</label></div>'+
+        '<div class="pf-field"><span class="pf-lab">As of date</span>'+
+          '<input class="pf-in" type="date" data-f="asof" value="'+esc(asof)+'"></div>'+
+        '<div class="pf-field"><span class="pf-lab">Source (optional)</span>'+
+          '<input class="pf-in" data-f="source" value="'+esc(src)+'" placeholder="manual"></div>'+
+      '</div>'+
+      '<div class="pf-ltv" data-f="ltv"></div>'+
+      '<button type="button" class="pf-save" data-f="save">Save '+esc(e.code)+'</button>'+
+      '<div class="pf-msg" data-f="msg"></div>'+
+    '</div>';
+  }
+
+  // Build the upsert payload — the honest NULL-vs-0 rule lives here.
+  function payloadFor(code, card){
+    var p = { entity_code: code };
+    var d = card.querySelector('[data-f=door]').value.trim();
+    if(d !== '' && isFinite(+d)) p.door_count = Math.round(+d);
+    var v = card.querySelector('[data-f=value]').value.trim();
+    if(v !== '' && isFinite(+v)) p.asset_value = +v;
+    var debtFree = card.querySelector('[data-f=debtfree]').checked;
+    var l = card.querySelector('[data-f=loan]').value.trim();
+    if(debtFree) p.loan_balance = 0;                 // explicit real zero
+    else if(l !== '' && isFinite(+l)) p.loan_balance = +l;
+    // else: OMIT loan_balance -> stored NULL -> UNKNOWN (never a faked 0)
+    var dt = card.querySelector('[data-f=asof]').value;
+    if(dt) p.as_of_date = dt;
+    var s = card.querySelector('[data-f=source]').value.trim();
+    if(s) p.source = s;
+    return p;
+  }
+
+  function previewLtv(card){
+    var el = card.querySelector('[data-f=ltv]');
+    var v = parseFloat(card.querySelector('[data-f=value]').value);
+    var debtFree = card.querySelector('[data-f=debtfree]').checked;
+    var lRaw = card.querySelector('[data-f=loan]').value.trim();
+    var loan = debtFree ? 0 : (lRaw !== '' ? parseFloat(lRaw) : null);
+    if(loan === null || isNaN(loan)){ el.innerHTML = '<span class="muted">LTV — enter a loan balance, or tick Debt-free.</span>'; return; }
+    if(!(v > 0)){ el.innerHTML = '<span class="muted">LTV — enter the market value.</span>'; return; }
+    var p = loan / v * 100, s = ltvStatus(p);
+    el.innerHTML = 'LTV <span class="'+s.c+'">'+p.toFixed(0)+'%</span> <span class="small muted">· '+s.l+' (target ≤50% · covenant ≤65%)</span>';
+  }
+
+  function bindCard(card){
+    var code = card.getAttribute('data-code');
+    card.querySelectorAll('[data-f=door],[data-f=value],[data-f=loan]').forEach(function(inp){
+      inp.addEventListener('input', function(){ previewLtv(card); });
+    });
+    var df = card.querySelector('[data-f=debtfree]');
+    df.addEventListener('change', function(){
+      var loanIn = card.querySelector('[data-f=loan]');
+      loanIn.disabled = df.checked;
+      if(df.checked){ loanIn.value = ''; loanIn.placeholder = '$0 (debt-free)'; }
+      else { loanIn.placeholder = 'blank = unknown'; }
+      previewLtv(card);
+    });
+    card.querySelector('[data-f=save]').addEventListener('click', function(){ save(code, card); });
+    previewLtv(card);
+  }
+
+  function save(code, card){
+    var btn = card.querySelector('[data-f=save]'), msg = card.querySelector('[data-f=msg]');
+    btn.disabled = true; msg.innerHTML = 'Saving…';
+    window.flPortfolioFacts.upsert(payloadFor(code, card)).then(function(res){
+      btn.disabled = false;
+      if(!res){ msg.innerHTML = '<span class="err">Save failed.</span> Confirm you\'re signed in and that this entity is in your scope, then retry.'; return; }
+      var ltvTxt = (res.asset_value > 0 && res.loan_balance != null)
+        ? ('LTV ' + (res.loan_balance / res.asset_value * 100).toFixed(0) + '%')
+        : 'LTV UNKNOWN (needs both loan balance and market value)';
+      var doorTxt = (res.door_count != null)
+        ? ('per-door denominator set (' + res.door_count + ' door' + (res.door_count===1?'':'s') + ')')
+        : 'per-door UNKNOWN (no door count)';
+      msg.innerHTML = '<span class="ok">✓ Saved.</span> ' + esc(ltvTxt) + ' · ' + esc(doorTxt) +
+        '. <span class="small muted">The Financial dashboard now computes LTV + per-door live for this entity.</span>';
+    });
+  }
+
+  // ── boot ──
+  if(!(window.flApi && window.flApi.authed && window.flApi.authed())){
+    $('pf-loading').style.display = 'none';
+    $('pf-auth').style.display = 'block';
+    return;
+  }
+  Promise.all([ window.flApi.call('GET','/api/entities'), window.flPortfolioFacts.list() ]).then(function(r){
+    $('pf-loading').style.display = 'none';
+    var ents = r[0], facts = r[1] || [];
+    if(!ents || !ents.length){ $('pf-empty').style.display = 'block'; return; }
+    var byCode = {}; facts.forEach(function(f){ byCode[f.entity_code] = f; });
+    $('pf-list').innerHTML = ents.map(function(e){ return cardHtml(e, byCode[e.code]); }).join('');
+    var cards = $('pf-list').querySelectorAll('.pf-card');
+    for(var i=0;i<cards.length;i++) bindCard(cards[i]);
+  }).catch(function(){
+    $('pf-loading').style.display = 'none';
+    $('pf-empty').style.display = 'block';
+  });
+})();
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>try{ FLSettings.mount({tileId:'portfolio-facts'}); }catch(e){}</script>
+</body>
+</html>

@@ -88,4 +88,14 @@
     },
     update: function (id, patch) { return call('PATCH', '/api/deals/' + encodeURIComponent(id), patch); },
   };
+
+  // Portfolio facts (P1b) — per-entity LTV + per-door inputs (door_count / asset_value /
+  // loan_balance / as_of_date / source). Server-only: these feed the LIVE capital rules, so
+  // there is NO localStorage fallback — every method needs the signed-in JWT (else call() -> null).
+  window.flPortfolioFacts = {
+    list: function () { return call('GET', '/api/portfolio-facts'); },
+    get: function (code) { return call('GET', '/api/portfolio-facts/' + encodeURIComponent(code)); },
+    upsert: function (facts) { return call('POST', '/api/portfolio-facts', facts); },
+    update: function (code, patch) { return call('PATCH', '/api/portfolio-facts/' + encodeURIComponent(code), patch); },
+  };
 })();
