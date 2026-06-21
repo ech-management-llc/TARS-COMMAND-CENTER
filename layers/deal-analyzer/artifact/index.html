@@ -578,6 +578,19 @@
   .gate-pill.fail { background: var(--red-bg); color: var(--red); }
   .gate-pill.confirm { background: var(--blue-bg); color: var(--blue); }
 
+  /* ── Funnel stepper + next-step CTA (novice navigation) ── */
+  .stepper { display:flex; align-items:center; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  .stepper button, .stepper .step-cur { font-size:11px; font-weight:800; letter-spacing:0.5px; border-radius:999px; padding:6px 12px; font-family:inherit; }
+  .stepper button { cursor:pointer; background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text-dim); }
+  .stepper button:hover { color:var(--text); border-color:var(--text-faint); }
+  .stepper .step-cur { background:var(--green); border:1px solid var(--green); color:#062b1d; }
+  .stepper button.step-next { background:var(--blue-bg); border:1px solid var(--blue); color:var(--blue); }
+  .step-hint { font-size:11.5px; color:var(--text-dim); background:var(--surface-2); border:1px dashed var(--border-strong); border-radius:var(--radius-sm); padding:8px 12px; margin-bottom:18px; line-height:1.45; }
+  .step-hint b { color:var(--text); }
+  .cta-decider { display:block; width:100%; text-align:center; background:var(--green); color:#062b1d; border:none; border-radius:var(--radius); padding:14px; font-size:15px; font-weight:800; letter-spacing:0.3px; font-family:inherit; cursor:pointer; box-shadow:var(--shadow-md); margin-bottom:24px; }
+  .cta-decider:hover { filter:brightness(1.05); }
+  .cta-decider .sub { display:block; font-size:11px; font-weight:600; opacity:0.85; margin-top:2px; }
+
   @media (min-width: 600px) {
     .wrap { max-width: 720px; padding: 24px 24px 80px; }
   }
@@ -616,6 +629,14 @@
     <div class="property-address" id="ana-addr">New deal</div>
     <div class="property-meta" id="ana-meta">Enter the numbers below, or carry a property in from the Deal Finder.</div>
   </div>
+
+  <!-- STEPPER — make the funnel + next step obvious (novice navigation) -->
+  <div class="stepper">
+    <button type="button" onclick="flOpen('deal-finder')">1 · Finder</button>
+    <span class="step-cur">2 · Analyzer</span>
+    <button type="button" class="step-next" onclick="loadIntoDecider()">3 · Decider →</button>
+  </div>
+  <div class="step-hint">Enter <b>reno / building costs</b> in <b>Build &amp; Renovate</b> — they carry in here as your <b>Rehab budget</b>. Adjust anything below and every number recomputes live.</div>
 
   <!-- VERDICT (top hero) -->
   <div class="verdict marginal" id="ana-verdict">
@@ -794,6 +815,12 @@
   <div class="section-label">Capital Gates <span class="sl-note">— ECH's 6 hard rules; a deal must clear all six</span></div>
   <div class="gates-card" id="ana-gates"></div>
 
+  <!-- LOAD INTO DECIDER — next step made obvious (UX #5/#6) -->
+  <button type="button" class="cta-decider" onclick="loadIntoDecider()">
+    Load this deal into the Decider →
+    <span class="sub">Your numbers save automatically — this opens step 3 (the go/no-go call)</span>
+  </button>
+
   <!-- PORTFOLIO BENCHMARK -->
   <div class="section-label">How This Stacks Against Your Other Properties</div>
   <div class="benchmark">
@@ -886,6 +913,9 @@
     document.getElementById("glossary").classList.toggle("open");
   }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  // Load into Decider (UX #5/#6): the analysis auto-saves to fl_deal_analysis_v1 on every render
+  // (and PATCHes /api/deals when signed in), so this just advances the funnel to step 3.
+  function loadIntoDecider(){ flOpen('deal-screener'); }
 
   // ── Deal Analyzer engine ──
   (function(){
@@ -947,11 +977,16 @@
       var coc = cashIn>0 ? (cfYr/cashIn*100) : (cfYr>0?Infinity:0);
       var cap = allIn>0 ? (noi/allIn*100) : 0;
       var dscr = ads>0 ? (noi/ads) : Infinity;
-      var ltv = price>0 ? (loan/price*100) : 0;
+      // LTV = loan-to-VALUE: the denominator is market value / ARV (the gate), NOT purchase price.
+      // A below-market / forced-equity buy (value > price) is exactly ECH's target and must read a LOW LTV.
+      // Falls back to price only until a market value is entered (gate 2 prompts for it).
+      var value = +o.market||0;
+      var ltvBasis = value>0 ? 'value' : (price>0 ? 'price' : 'none');
+      var ltv = value>0 ? (loan/value*100) : (price>0 ? (loan/price*100) : 0);
       var perDoor = cfMo/units;
-      return { price:price, rehab:rehab, closing:closing, rent:rent, units:units,
+      return { price:price, rehab:rehab, closing:closing, rent:rent, units:units, value:value,
                gsi:gsi, egi:egi, noi:noi, allIn:allIn, down:down, loan:loan, pi:pi, ads:ads,
-               cfMo:cfMo, cfYr:cfYr, cashIn:cashIn, coc:coc, cap:cap, dscr:dscr, ltv:ltv, perDoor:perDoor, opex:opex };
+               cfMo:cfMo, cfYr:cfYr, cashIn:cashIn, coc:coc, cap:cap, dscr:dscr, ltv:ltv, ltvBasis:ltvBasis, perDoor:perDoor, opex:opex };
     }
 
     function rate(val, redLt, yelLt){ // higher is better; returns class
@@ -1053,9 +1088,12 @@
       var dscrTxt=isFinite(c.dscr)?c.dscr.toFixed(2)+'×':'∞';
       var s5=c.dscr>=1.40?'pass':(c.dscr>=1.25?'caution':'fail');
       rows+=gateRow('5 · DSCR ≥ 1.25','covenant 1.25× · target 1.8×', dscrTxt, s5, s5==='pass'?'Pass':s5==='caution'?'Caution':'Fail');
-      // 6. LTV
+      // 6. LTV — loan-to-VALUE (against market value / ARV); falls back to price until a value is entered.
       var s6=c.ltv<=50?'pass':(c.ltv<=65?'caution':'fail');
-      rows+=gateRow('6 · LTV ≤ 65%','covenant 65% · target 50%', c.ltv.toFixed(0)+'%', s6, s6==='pass'?'Pass':s6==='caution'?'Caution':'Fail');
+      var ltvSub = c.ltvBasis==='value'
+        ? 'covenant 65% · target 50% · '+money(c.loan)+' loan ÷ '+money(c.value)+' value'
+        : 'covenant 65% · target 50% · vs price — enter market value/ARV above to gate on value';
+      rows+=gateRow('6 · LTV ≤ 65%', ltvSub, c.ltv.toFixed(0)+'%', s6, s6==='pass'?'Pass':s6==='caution'?'Caution':'Fail');
       html('ana-gates', rows);
     }
 
@@ -1092,7 +1130,15 @@
       else if(cautions.length){ p2='<p><b>Watch:</b> '+cautions.join(', ')+'. It clears the floors but sits under target — only with strong reserves and a clear plan.</p>'; }
       else { p2='<p><b>Why it works:</b> clears every computed gate with room — per-door, DSCR, and LTV are all at or better than target.</p>'; }
       var p3 = unconfirmed.length ? '<p style="color:var(--blue)"><b>Confirm:</b> the '+unconfirmed.join(' and ')+' gate'+(unconfirmed.length>1?'s':'')+' need'+(unconfirmed.length>1?'':'s')+' your comps — enter market value / replacement cost above to lock '+(unconfirmed.length>1?'them':'it')+'. Until then, treat '+(unconfirmed.length>1?'them':'it')+' as unconfirmed.</p>' : '';
-      html('ana-verdict-body', p1+p2+p3);
+      // P1 — on an LTV miss, explain (it’s against VALUE, not price) and show the path to pass, instead of a bare KILL.
+      var pLtv = '';
+      if(c.ltv>50){
+        var maxLoan=(c.value>0?c.value:c.price)*0.5;
+        pLtv = '<p style="color:var(--blue)"><b>On LTV:</b> it’s measured against <b>value</b>, not price'+
+               (c.ltvBasis==='value' ? (' — '+money(c.loan)+' loan ÷ '+money(c.value)+' value = '+c.ltv.toFixed(0)+'%.') : ' — enter your market value / ARV above so it gates on value.')+
+               ' To reach the ≤50% target, finance about '+money(maxLoan)+' or less (a larger down payment lowers LTV).</p>';
+      }
+      html('ana-verdict-body', p1+p2+pLtv+p3);
     }
 
     function renderPortfolio(c){
@@ -1137,7 +1183,7 @@
       var v=verdictOf(c);
       var rec={
         address:S.address||'', source:S.source||'',
-        price:c.price, rehab:c.rehab, closing:c.closing, units:c.units,
+        price:c.price, value:c.value, rehab:c.rehab, closing:c.closing, units:c.units,
         rentMonthly:c.rent, vacPct:(+S.vac||0),
         opexMonthly:c.opex/12, debtMonthly:c.pi, down:c.down, loan:c.loan, cashIn:c.cashIn,
         cap:c.cap, cfMo:c.cfMo, perDoor:c.perDoor,

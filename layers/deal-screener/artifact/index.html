@@ -165,6 +165,10 @@
       <div class="field"><label>Asking Price ($)</label><input type="number" id="asking" min="0" step="1000" placeholder="0"></div>
       <div class="field"><label>Target Purchase ($)</label><input type="number" id="purchase" min="0" step="1000" placeholder="0"></div>
     </div>
+    <div class="row">
+      <div class="field"><label>Market Value / ARV ($) — LTV gate</label><input type="number" id="market-value" min="0" step="1000" placeholder="comps / ARV"></div>
+      <div class="field" style="display:flex;align-items:flex-end"><span style="font-size:11px;color:#64748b;line-height:1.4">LTV = loan ÷ <b>value</b>, not price. A below-market buy reads a low LTV — that's the goal.</span></div>
+    </div>
     <div class="row three">
       <div class="field"><label>Closing Costs ($)</label><input type="number" id="closing" min="0" step="100" placeholder="0"></div>
       <div class="field"><label>Rehab / CapEx ($)</label><input type="number" id="rehab" min="0" step="100" placeholder="0"></div>
@@ -246,7 +250,7 @@
 
 <script src="../../../shared/fl-api.js?v=20260618a"></script>
 <script>
-const FIELDS = ['title','entity','type','units','year-built','asking','purchase','closing','rehab','reserves','down','loan','rents','vacancy','opex','debt','liq-current','liq-out','notes'];
+const FIELDS = ['title','entity','type','units','year-built','asking','purchase','market-value','closing','rehab','reserves','down','loan','rents','vacancy','opex','debt','liq-current','liq-out','notes'];
 const STORAGE_KEY = 'ech-deal-screener-v1';
 
 function fmtMoney(n) {
@@ -304,7 +308,9 @@ function compute() {
   const noi = egi - (opex * 12);
   const ads = debt * 12;
   const cashFlow = noi - ads;
-  const ltv = purchase > 0 ? loan / purchase : null;
+  // LTV = loan-to-VALUE (market value / ARV), not purchase price. Falls back to purchase only until a value is entered.
+  const value = num('market-value');
+  const ltv = value > 0 ? loan / value : (purchase > 0 ? loan / purchase : null);
   const dscr = ads > 0 ? noi / ads : null;
   const perDoor = units > 0 ? cashFlow / units / 12 : null;
 
@@ -503,7 +509,8 @@ function exportMarkdown() {
   const get = id => { const el = document.getElementById(id); return el ? (el.value || '—') : '—'; };
   const purchase = num('purchase');
   const loan = num('loan');
-  const ltv = purchase > 0 ? loan / purchase : null;
+  const value = num('market-value');
+  const ltv = value > 0 ? loan / value : (purchase > 0 ? loan / purchase : null);
   const rents = num('rents');
   const opex = num('opex');
   const debt = num('debt');
@@ -648,6 +655,7 @@ function applyAnalysis(a){
   set('title', a.address);
   if(a.units!=null) set('units', a.units);
   set('purchase', a.price!=null?Math.round(a.price):null);
+  set('market-value', a.value!=null?Math.round(a.value):null);
   set('closing', a.closing!=null?Math.round(a.closing):null);
   set('rehab', a.rehab!=null?Math.round(a.rehab):null);
   set('down', a.down!=null?Math.round(a.down):null);
