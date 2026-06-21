@@ -374,6 +374,32 @@
       "section_lead": "financials"
     },
     {
+      "id": "portfolio-facts",
+      "title": "Portfolio Facts",
+      "icon": "📐",
+      "desc": "LTV + per-door inputs · per entity",
+      "group": "financial",
+      "tier": "L2",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/portfolio-facts/artifact/index.html",
+      "employee": {
+        "name": "Margo",
+        "role": "Financials lead",
+        "avatar": "M"
+      },
+      "chips": [
+        "What's my LTV by entity?",
+        "Which entities are missing facts?",
+        "Mark a property debt-free"
+      ],
+      "section_lead": "financials"
+    },
+    {
       "id": "vendors-payables",
       "title": "Vendors & Payables",
       "icon": "🧾",
