@@ -28,7 +28,7 @@
       "render": "card"
     },
     {
-      "id": "deals",
+      "id": "build",
       "label": "BUILD, RENOVATE & MAINTENANCE",
       "render": "card"
     },
@@ -638,7 +638,7 @@
       "title": "Build & Renovate",
       "icon": "🏗️",
       "desc": "design · floor plan · reno budget",
-      "group": "deals",
+      "group": "build",
       "tier": "L3",
       "enabled": true,
       "entitled": true,
@@ -701,9 +701,9 @@
       "status_rules": "neutral",
       "drilldown": "./layers/sign/artifact/index.html",
       "employee": {
-        "name": "Quinn",
-        "role": "Admin lead",
-        "avatar": "Q"
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D"
       },
       "chips": [
         "Send the 102 Remington lease",
@@ -743,7 +743,7 @@
       "title": "Maintenance",
       "icon": "🔧",
       "desc": "work orders · dispatch",
-      "group": "deals",
+      "group": "build",
       "tier": "L1",
       "enabled": true,
       "entitled": true,
@@ -951,7 +951,7 @@
       "title": "Compliance, Inspections & Permits",
       "icon": "✅",
       "desc": "licenses · inspections · permits",
-      "group": "deals",
+      "group": "build",
       "tier": "L1",
       "enabled": true,
       "entitled": true,
