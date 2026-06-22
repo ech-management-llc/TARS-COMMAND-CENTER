@@ -116,10 +116,13 @@ const Auth = {
   signOut(){ try { localStorage.removeItem(AUTH_KEY); } catch(e){} }
 };
 
-// First-run gate (Phase 2): the full board is hidden until setup is complete. Per-browser flag —
-// the onboarding engine (Phase 3) will set it on completion; "explore on my own" sets it as the
-// escape hatch so an already-set-up user is never trapped on the locked board.
+// First-run gates (Phase 2 + polish). Two DISTINCT states so "explore" is never a one-way door:
+//  - explored: the user chose to roam ("explore on my own") — unlocks the board, but setup is NOT done.
+//  - setupComplete: setup is genuinely finished (Phase 3 sets it). The persistent "Set up with TARS"
+//    entry shows until THIS is true, so the user can always return to setup after exploring.
 function setupComplete(){ try { return localStorage.getItem('fl_setup_complete') === 'true'; } catch(e){ return false; } }
+function explored(){ try { return localStorage.getItem('fl_explored') === 'true'; } catch(e){ return false; } }
+function boardUnlocked(){ return explored() || setupComplete(); }
 
 /* ── entitlement: registry flag OR a tenant purchase override (Plans & Billing) ── */
 const ENT_KEY = 'tcc_entitlements';
@@ -182,40 +185,49 @@ function renderChrome(){
       '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
   }
 
-  // Phase 2 — first-run "Set up with TARS" entry. While setup is incomplete the board is locked
-  // (renderHome greys every area but Administration → Document Navigator); this flashing card is the
-  // prominent way in. "Explore on my own" is the escape (resolved decision #5): it unlocks the full
-  // board for hands-on use so an already-set-up user is never trapped. Phase 3 swaps the click target
-  // from the global TARS chat to the TARS-led onboarding engine.
+  // Phase 2 (+ polish) — setup entry. Shows until setup is COMPLETE (not merely explored), so
+  // "explore on my own" is never a one-way door: a persistent path back to setup always remains.
+  // First run = the prominent flashing CTA on the locked board; after exploring = a compact resume bar.
+  // Phase 3 swaps the click target from the global TARS chat to the TARS-led onboarding engine.
   (function(){
     var host = $('tars-btn'); if(!host) return;
     var old = document.getElementById('tars-firstrun'); if(old) old.remove();
-    if (STATE.role === 'field') return;            // scoped field role: no concierge
-    if (setupComplete()) return;                   // board already unlocked -> no setup banner
+    if (STATE.role === 'field') return;            // scoped field role: no setup entry
+    if (setupComplete()) return;                   // setup finished -> no entry at all
     var name = esc(g.name||'TARS');
+    var firstRun = !boardUnlocked();               // locked board, hasn't explored yet
     var el = document.createElement('div');
     el.id = 'tars-firstrun';
-    el.className = 'setup-cta';
-    el.innerHTML =
-      '<div class="setup-cta-row">'+
-        '<span style="flex:0 0 auto">'+tarsSvg(28)+'</span>'+
-        '<div style="flex:1">'+
-          '<b>Welcome to Foundation Layer.</b> Your areas are locked until they’re set up. '+
-          name+' will walk you through it — your business, your entities, and which areas to turn on — '+
-          'and file everything as you go. Prefer hands-on? Explore on your own and set up each area manually.'+
+    var goSetup = function(){ try{ if(window.Agents && Agents.openSetup) Agents.openSetup(); else if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
+    if (firstRun){
+      el.className = 'setup-cta';
+      el.innerHTML =
+        '<div class="setup-cta-row">'+
+          '<span style="flex:0 0 auto">'+tarsSvg(28)+'</span>'+
+          '<div style="flex:1">'+
+            '<b>Welcome to Foundation Layer.</b> Your areas are locked until they’re set up. '+
+            name+' will walk you through it — your business, your entities, and which areas to turn on — '+
+            'and file everything as you go. Prefer hands-on? Explore on your own; you can come back to setup anytime.'+
+          '</div>'+
         '</div>'+
-      '</div>'+
-      '<div class="setup-cta-btns">'+
-        '<button type="button" class="btn primary setup-cta-go" id="tfr-go">🚀 Set up with '+name+'</button>'+
-        '<button type="button" class="btn" id="tfr-later">I’ll explore on my own →</button>'+
-      '</div>';
+        '<div class="setup-cta-btns">'+
+          '<button type="button" class="btn primary setup-cta-go" id="tfr-go">🚀 Set up with '+name+'</button>'+
+          '<button type="button" class="btn" id="tfr-later">I’ll explore on my own →</button>'+
+        '</div>';
+    } else {
+      el.className = 'setup-resume';
+      el.innerHTML =
+        '<span style="flex:0 0 auto">'+tarsSvg(20)+'</span>'+
+        '<span class="setup-resume-tx"><b>Setup isn’t finished.</b> '+name+' can pick up where you left off and turn on the rest.</span>'+
+        '<button type="button" class="btn primary" id="tfr-go">Set up with '+name+'</button>';
+    }
     host.parentNode.insertBefore(el, host.nextSibling);
     var go=document.getElementById('tfr-go'), later=document.getElementById('tfr-later');
-    if(go) go.onclick=function(){ try{ if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
+    if(go) go.onclick=goSetup;
     if(later) later.onclick=function(){
-      try{ localStorage.setItem('fl_setup_complete','true'); }catch(e){}
-      el.remove();
-      if (typeof renderHome === 'function') renderHome();   // unlock the full board
+      try{ localStorage.setItem('fl_explored','true'); }catch(e){}   // explore != setup complete
+      if (typeof renderChrome === 'function') renderChrome();        // swap CTA -> persistent resume bar
+      if (typeof renderHome === 'function') renderHome();            // unlock the board for roaming
     };
   })();
 
@@ -395,7 +407,7 @@ function renderHome(){
   const collapsed = collapsedSet();
   let html = '';
   let firstCard = true;
-  const locked = !setupComplete();      // Phase 2: first-run locked board
+  const locked = !boardUnlocked();      // Phase 2: locked until explored or setup-complete
   const LIVE_AREA = 'admin';            // only Administration is live until setup completes
   groups.forEach(grp => {
     const ls = layersInGroup(grp.id);
