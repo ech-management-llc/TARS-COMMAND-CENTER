@@ -33,25 +33,47 @@
   }
 
   function authed() { return !!token(); }
+  // authExpired() = the session was alive but a refresh confirmed it's dead. Consumers use it to show
+  // "your session expired" instead of a misleading empty state when a call returns null.
+  function authExpired() { return !!(window.flAuth && flAuth.expired && flAuth.expired()); }
 
-  async function call(method, path, body) {
+  // The single authed-fetch path for every FL call (FL API + the agent service). Returns parsed JSON,
+  // {} for 204, or null ("use your fallback"). Token-expiry aware: refreshes proactively when the
+  // stored token is near expiry, and reactively retries ONCE on a 401. A confirmed-dead session is
+  // cleared by flAuth.refresh(), so after a null the caller can branch on flApi.authed()/authExpired()
+  // — distinguishing an expired session from a genuinely-empty result.
+  async function authedCall(base, method, path, body) {
     var t = token();
-    if (!t) return null;                       // no session -> caller uses localStorage fallback
-    try {
-      var res = await fetch(BASE + path, {
+    if (!t) return null;                                   // not signed in -> caller fallback
+    if (window.flAuth && flAuth.needsRefresh && flAuth.needsRefresh()) {
+      await flAuth.refresh();                              // proactive (may clear the session)
+      t = token();
+      if (!t) return null;
+    }
+    function doFetch(tok) {
+      return fetch(base + path, {
         method: method,
-        headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
       });
-      if (!res.ok) return null;                // 401/4xx/5xx -> fallback (never surface a half-state)
+    }
+    try {
+      var res = await doFetch(t);
+      if (res.status === 401 && window.flAuth && flAuth.refresh) {
+        var ok = await flAuth.refresh();                   // ONE reactive refresh
+        if (ok) res = await doFetch(token());
+      }
+      if (!res.ok) return null;                            // incl. a still-401 (session now cleared)
       if (res.status === 204) return {};
       return await res.json();
     } catch (e) {
-      return null;                             // network/CORS error -> fallback
+      return null;                                         // network/CORS error -> fallback
     }
   }
 
-  window.flApi = { base: BASE, token: token, authed: authed, call: call };
+  function call(method, path, body) { return authedCall(BASE, method, path, body); }
+
+  window.flApi = { base: BASE, token: token, authed: authed, authExpired: authExpired, call: call };
 
   // AI Agent Layer (Lane 4a) — the hosted TARS advisor (READ-ONLY). Calls the separate
   // fl-agent service with the same Supabase JWT (fl_auth_token). Returns the parsed
@@ -61,20 +83,10 @@
   window.flAgent = {
     base: AGENT_BASE,
     authed: authed,
-    chat: async function (message, context) {
-      var t = token();
-      if (!t) return null;                       // not signed in -> caller uses its stub
-      try {
-        var res = await fetch(AGENT_BASE + '/agent/chat', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: message, context: context || null }),
-        });
-        if (!res.ok) return null;                // 401/4xx/5xx -> honest fallback
-        return await res.json();
-      } catch (e) {
-        return null;                             // network/CORS -> fallback
-      }
+    // Token-expiry aware (shares authedCall): refreshes proactively + retries once on 401, and a
+    // confirmed-dead session flips flApi.authed()/authExpired() so the caller can prompt re-sign-in.
+    chat: function (message, context) {
+      return authedCall(AGENT_BASE, 'POST', '/agent/chat', { message: message, context: context || null });
     },
   };
 
