@@ -286,6 +286,31 @@ function buildGlobal(){
 }
 function openGlobal(){ if (!gInit) buildGlobal(); $('gov').classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; }
 
+// Setup-flavored entry (Phase 2 polish): opens the global TARS chat with a SETUP opener + setup
+// actions, not the generic advisor greeting. Phase 3 wires these chips to the real engine (create
+// entities, turn an area on, hire/skip an employee); for now they seed the conversation.
+function openSetup(){
+  openGlobal();
+  var msgs = $('gmsgs'), chips = $('gchips');
+  if (msgs){
+    msgs.insertAdjacentHTML('beforeend',
+      '<div class="emsg a"><b>Let’s set up your Foundation Layer — ready to start?</b><br>'+
+      'I’ll walk you through your business and entities, turn on the areas you want (or turn any on yourself in one click), '+
+      'hire or skip each area’s employee, and file everything into your Document Navigator as we go. '+
+      'Text for now — voice conversation is coming soon.</div>');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+  if (chips){
+    chips.innerHTML = '';
+    ['Yes — start setup','Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually']
+      .forEach(function(c){
+        var b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=c;
+        b.onclick=function(){ var i=$('ginput'), s=$('gsend'); if(i&&s){ i.value=c; s.click(); } };
+        chips.appendChild(b);
+      });
+  }
+}
+
 function $(id){ return document.getElementById(id); }
 
 /* ── public API ── */
@@ -299,6 +324,7 @@ window.Agents = {
     });
   },
   openGlobal: openGlobal,
+  openSetup: openSetup,
   injectLayerEmployee: injectLayerEmployee,
   pushViewConfig: pushViewConfig,
   memory: Memory,
