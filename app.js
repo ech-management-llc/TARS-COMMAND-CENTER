@@ -116,6 +116,11 @@ const Auth = {
   signOut(){ try { localStorage.removeItem(AUTH_KEY); } catch(e){} }
 };
 
+// First-run gate (Phase 2): the full board is hidden until setup is complete. Per-browser flag —
+// the onboarding engine (Phase 3) will set it on completion; "explore on my own" sets it as the
+// escape hatch so an already-set-up user is never trapped on the locked board.
+function setupComplete(){ try { return localStorage.getItem('fl_setup_complete') === 'true'; } catch(e){ return false; } }
+
 /* ── entitlement: registry flag OR a tenant purchase override (Plans & Billing) ── */
 const ENT_KEY = 'tcc_entitlements';
 const Entitlement = {
@@ -177,36 +182,41 @@ function renderChrome(){
       '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
   }
 
-  // first-run TARS concierge — top-level greeting + setup offer (once, dismissible).
-  // Mirrors the per-tile employee setup, one level up: TARS offers to do it for you,
-  // or points to manual / employee setup inside each tile.
+  // Phase 2 — first-run "Set up with TARS" entry. While setup is incomplete the board is locked
+  // (renderHome greys every area but Administration → Document Navigator); this flashing card is the
+  // prominent way in. "Explore on my own" is the escape (resolved decision #5): it unlocks the full
+  // board for hands-on use so an already-set-up user is never trapped. Phase 3 swaps the click target
+  // from the global TARS chat to the TARS-led onboarding engine.
   (function(){
     var host = $('tars-btn'); if(!host) return;
     var old = document.getElementById('tars-firstrun'); if(old) old.remove();
     if (STATE.role === 'field') return;            // scoped field role: no concierge
-    var done=false; try{ done = localStorage.getItem('fl_tars_firstrun_v1')==='done'; }catch(e){}
-    if(done) return;
+    if (setupComplete()) return;                   // board already unlocked -> no setup banner
     var name = esc(g.name||'TARS');
     var el = document.createElement('div');
     el.id = 'tars-firstrun';
-    el.style.cssText = 'background:var(--purplebg,#1c1830);border:1px solid var(--purpleln,#5b4b8a);border-radius:12px;padding:14px 16px;margin:10px 0 4px;line-height:1.55';
+    el.className = 'setup-cta';
     el.innerHTML =
-      '<div style="display:flex;gap:10px;align-items:flex-start">'+
-        '<span style="flex:0 0 auto">'+tarsSvg(26)+'</span>'+
+      '<div class="setup-cta-row">'+
+        '<span style="flex:0 0 auto">'+tarsSvg(28)+'</span>'+
         '<div style="flex:1">'+
-          '<b>'+name+' here — welcome to your Foundation Layer.</b><br>'+
-          'When you’re ready to set things up, come to me and I’ll walk through it and do it for you. '+
-          'Prefer hands-on? Open any tile and set it up <b>manually</b> — or, if you’ve hired that tile’s <b>employee</b>, let them ask you a few questions and set it up for you.'+
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:11px">'+
-            '<button type="button" class="btn primary" id="tfr-go">Set up with '+name+'</button>'+
-            '<button type="button" class="btn" id="tfr-later">I’ll explore first</button>'+
-          '</div>'+
+          '<b>Welcome to Foundation Layer.</b> Your areas are locked until they’re set up. '+
+          name+' will walk you through it — your business, your entities, and which areas to turn on — '+
+          'and file everything as you go. Prefer hands-on? Explore on your own and set up each area manually.'+
         '</div>'+
+      '</div>'+
+      '<div class="setup-cta-btns">'+
+        '<button type="button" class="btn primary setup-cta-go" id="tfr-go">🚀 Set up with '+name+'</button>'+
+        '<button type="button" class="btn" id="tfr-later">I’ll explore on my own →</button>'+
       '</div>';
     host.parentNode.insertBefore(el, host.nextSibling);
     var go=document.getElementById('tfr-go'), later=document.getElementById('tfr-later');
     if(go) go.onclick=function(){ try{ if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
-    if(later) later.onclick=function(){ try{ localStorage.setItem('fl_tars_firstrun_v1','done'); }catch(e){} el.remove(); };
+    if(later) later.onclick=function(){
+      try{ localStorage.setItem('fl_setup_complete','true'); }catch(e){}
+      el.remove();
+      if (typeof renderHome === 'function') renderHome();   // unlock the full board
+    };
   })();
 
   // header — tenant title only (date / role / sign-out moved up into the ribbon)
@@ -332,7 +342,7 @@ const GROUP_STYLE = {
   market:      { a:'#f59e0b', bg:'rgba(245,158,11,.06)',  ico:'📊' },
   portfolio:   { a:'#10b981', bg:'rgba(16,185,129,.06)',  ico:'🏠' },
   financial:   { a:'#3b82f6', bg:'rgba(59,130,246,.06)',  ico:'💰' },
-  deals:       { a:'#2dd4bf', bg:'rgba(45,212,191,.06)',  ico:'🏗️' },
+  build:       { a:'#2dd4bf', bg:'rgba(45,212,191,.06)',  ico:'🏗️' },
   it:          { a:'#ec4899', bg:'rgba(236,72,153,.06)',  ico:'🌐' },
   admin:       { a:'#94a3b8', bg:'rgba(148,163,184,.06)', ico:'🗂️' },
   legal:       { a:'#c8a24a', bg:'rgba(200,162,74,.06)',  ico:'⚖️' }
@@ -385,11 +395,31 @@ function renderHome(){
   const collapsed = collapsedSet();
   let html = '';
   let firstCard = true;
+  const locked = !setupComplete();      // Phase 2: first-run locked board
+  const LIVE_AREA = 'admin';            // only Administration is live until setup completes
   groups.forEach(grp => {
     const ls = layersInGroup(grp.id);
     if (!ls.length) return;
+    const gs = GROUP_STYLE[grp.id] || {};
+    const ico = gs.ico ? '<span class="grp-ico">'+gs.ico+'</span>' : '';
+
+    // Locked board: every area is dormant (greyed, not expandable) except Administration. The user
+    // sees what's coming but can't dive in — TARS unlocks each area as setup progresses (Phase 3).
+    if (locked && grp.id !== LIVE_AREA){
+      html += '<section class="grp grp-locked" data-group="'+esc(grp.id)+'">'+
+        '<div class="grp-head"><div class="grp-toggle-locked">'+ico+
+          '<span class="grp-label">'+esc(grp.label||grp.id)+'</span>'+
+          '<span class="grp-lock">🔒 set up to unlock</span>'+
+        '</div></div></section>';
+      return;
+    }
+
     let body;
-    if (grp.id === 'brief')            body = renderBriefGroup(ls);
+    if (locked && grp.id === LIVE_AREA){
+      // Admin is live, but only Document Navigator is active — it is TARS's filing destination.
+      body = '<div class="gridA">'+ls.map(l => l.id === 'document-navigator' ? artTile(l) : lockedTile(l)).join('')+'</div>';
+    }
+    else if (grp.id === 'brief')       body = renderBriefGroup(ls);
     else if (grp.id === 'market')      body = renderMarketGroup(ls);
     else if (grp.render === 'card')  { body = renderCardGroup(ls, firstCard); firstCard = false; }
     else {                             // glance (overview): data tiles as value tiles, static tiles as cards
@@ -398,10 +428,8 @@ function renderHome(){
       body = '<div class="grid2">'+dataT.map(tileShell).join('')+'</div>';
       if (cardT.length) body += '<div class="gridA" style="margin-top:12px">'+cardT.map(artTile).join('')+'</div>';
     }
-    const isCol = collapsed.has(grp.id);
-    const gs = GROUP_STYLE[grp.id] || {};
+    const isCol = (locked && grp.id === LIVE_AREA) ? false : collapsed.has(grp.id);
     const styleAttr = gs.a ? ' style="--ga:'+gs.a+';--gabg:'+gs.bg+'"' : '';
-    const ico = gs.ico ? '<span class="grp-ico">'+gs.ico+'</span>' : '';
     html += '<section class="grp'+(isCol?' collapsed':'')+'" data-group="'+esc(grp.id)+'"'+styleAttr+'>'+
       '<div class="grp-head">'+
         '<button type="button" class="grp-toggle" data-grp="'+esc(grp.id)+'">'+
@@ -537,6 +565,15 @@ function artTile(l){
     '<div class="ico">'+esc(l.icon||'▫')+'</div>'+
     '<div class="nm">'+esc(l.title)+'</div>'+
     '<div class="ds">'+esc(l.desc||'')+'</div></button>';
+}
+
+// A greyed, inert tile for the locked first-run board. No data-tile, so bindTileClicks skips it.
+function lockedTile(l){
+  return '<button type="button" class="art disabled locked-tile" disabled aria-disabled="true">'+
+    '<span class="soon">🔒</span>'+
+    '<div class="ico">'+esc(l.icon||'▫')+'</div>'+
+    '<div class="nm">'+esc(l.title)+'</div>'+
+    '<div class="ds">set up to unlock</div></button>';
 }
 
 /* ── MARKET group: county picker + market tiles + full-width Portfolio ── */

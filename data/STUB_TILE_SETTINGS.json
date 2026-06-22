@@ -257,13 +257,13 @@
     },
     "sign": {
       "employee": {
-        "name": "Quinn",
-        "role": "Admin lead",
-        "avatar": "Q",
-        "intro": "Hi, I’m Quinn — I lead admin: signing, team & access, inbox, documents, and billing."
+        "name": "Dean",
+        "role": "Legal lead",
+        "avatar": "D",
+        "intro": "Hi, I’m Dean — I lead legal: contracts, tenant screening, and entities."
       },
       "params": [],
-      "section": "admin"
+      "section": "legal"
     },
     "team-access": {
       "employee": {
