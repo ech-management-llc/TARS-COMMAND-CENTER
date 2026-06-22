@@ -53,8 +53,8 @@
 
   <!-- not signed in -->
   <div id="pf-auth" class="card" style="display:none">
-    <div class="section-label">SIGN IN REQUIRED</div>
-    <div class="small">Portfolio facts feed the live capital rules, so they're saved to your account (not this
+    <div class="section-label" id="pf-auth-title">SIGN IN REQUIRED</div>
+    <div class="small" id="pf-auth-body">Portfolio facts feed the live capital rules, so they're saved to your account (not this
     browser). <b>Sign in to the Command Center</b> to view and edit them. Admins and members see only the
     entities they're granted.</div>
   </div>
@@ -72,7 +72,8 @@
   </div>
 </div>
 
-<script src="../../../shared/fl-api.js?v=20260621a"></script>
+<script src="../../../shared/fl-auth.js?v=20260622a"></script>
+<script src="../../../shared/fl-api.js?v=20260622a"></script>
 <script>
 (function(){
   'use strict';
@@ -168,7 +169,11 @@
     btn.disabled = true; msg.innerHTML = 'Saving…';
     window.flPortfolioFacts.upsert(payloadFor(code, card)).then(function(res){
       btn.disabled = false;
-      if(!res){ msg.innerHTML = '<span class="err">Save failed.</span> Confirm you\'re signed in and that this entity is in your scope, then retry.'; return; }
+      if(!res){
+        if(window.flApi && !flApi.authed()){ msg.innerHTML = '<span class="err">Session expired.</span> Sign in to the Command Center again, then re-save — your inputs above are still here.'; }
+        else { msg.innerHTML = '<span class="err">Save failed.</span> Confirm this entity is in your scope, then retry.'; }
+        return;
+      }
       var ltvTxt = (res.asset_value > 0 && res.loan_balance != null)
         ? ('LTV ' + (res.loan_balance / res.asset_value * 100).toFixed(0) + '%')
         : 'LTV UNKNOWN (needs both loan balance and market value)';
@@ -180,23 +185,43 @@
     });
   }
 
+  // Show the sign-in card — with "session expired" copy when a live session just died (vs never signed in).
+  function showAuth(){
+    var exp = window.flApi && flApi.authExpired && flApi.authExpired();
+    var t = $('pf-auth-title'), b = $('pf-auth-body');
+    if(exp){
+      if(t) t.textContent = 'SESSION EXPIRED';
+      if(b) b.innerHTML = 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to view and edit portfolio facts. <span class="muted">Your saved data is safe — this is only a re-login.</span>';
+    } else {
+      if(t) t.textContent = 'SIGN IN REQUIRED';
+      if(b) b.innerHTML = 'Portfolio facts feed the live capital rules, so they\'re saved to your account (not this browser). <b>Sign in to the Command Center</b> to view and edit them. Admins and members see only the entities they\'re granted.';
+    }
+    $('pf-auth').style.display = 'block';
+  }
+
   // ── boot ──
   if(!(window.flApi && window.flApi.authed && window.flApi.authed())){
     $('pf-loading').style.display = 'none';
-    $('pf-auth').style.display = 'block';
+    showAuth();
     return;
   }
   Promise.all([ window.flApi.call('GET','/api/entities'), window.flPortfolioFacts.list() ]).then(function(r){
     $('pf-loading').style.display = 'none';
     var ents = r[0], facts = r[1] || [];
-    if(!ents || !ents.length){ $('pf-empty').style.display = 'block'; return; }
+    if(!ents || ents.length === 0){
+      // null = the call failed. If the session is now gone (401 -> refresh failed -> cleared) this is
+      // AUTH, not "no entities" — prompt re-sign-in instead of a misleading empty state.
+      if(window.flApi && !flApi.authed()){ showAuth(); }
+      else { $('pf-empty').style.display = 'block'; }
+      return;
+    }
     var byCode = {}; facts.forEach(function(f){ byCode[f.entity_code] = f; });
     $('pf-list').innerHTML = ents.map(function(e){ return cardHtml(e, byCode[e.code]); }).join('');
     var cards = $('pf-list').querySelectorAll('.pf-card');
     for(var i=0;i<cards.length;i++) bindCard(cards[i]);
   }).catch(function(){
     $('pf-loading').style.display = 'none';
-    $('pf-empty').style.display = 'block';
+    if(window.flApi && !flApi.authed()){ showAuth(); } else { $('pf-empty').style.display = 'block'; }
   });
 })();
 </script>

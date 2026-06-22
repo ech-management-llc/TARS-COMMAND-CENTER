@@ -115,6 +115,10 @@ async function globalReply(text){
       if (res.truncated) out += '<div style="color:var(--dim);margin-top:6px;font-size:.85em">(Stopped at this request\'s budget — ask something narrower and I\'ll finish.)</div>';
       return out;
     }
+    // session died mid-use (token expired + refresh failed) -> prompt re-sign-in, not the stub
+    if (window.flApi && flApi.authExpired && flApi.authExpired()){
+      return 'Your session expired (sign-ins last about an hour). Sign in to the Command Center again to use the live advisor. <span style="color:var(--dim)">I won’t answer from stale data in the meantime.</span>';
+    }
     // not signed in to FL / API error / empty -> honest stub (no fabrication)
   }
   return globalStubReply(text);
