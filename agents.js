@@ -269,6 +269,7 @@ function buildGlobal(){
   const send = async () => {
     const v = input.value; if (!v || !v.trim()) return; input.value='';
     msgs.insertAdjacentHTML('beforeend','<div class="emsg u">'+escd(v)+'</div>');
+    if (handleSetup(v)) { msgs.scrollTop=msgs.scrollHeight; return; }   // Phase 3: setup runs as the user, not the read-only advisor
     const pid = 'gpend-'+(new Date().getTime());
     msgs.insertAdjacentHTML('beforeend','<div class="emsg a" id="'+pid+'">&hellip;</div>');
     msgs.scrollTop=msgs.scrollHeight;
@@ -286,9 +287,115 @@ function buildGlobal(){
 }
 function openGlobal(){ if (!gInit) buildGlobal(); $('gov').classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; }
 
-// Setup-flavored entry (Phase 2 polish): opens the global TARS chat with a SETUP opener + setup
-// actions, not the generic advisor greeting. Phase 3 wires these chips to the real engine (create
-// entities, turn an area on, hire/skip an employee); for now they seed the conversation.
+// ── Phase 3 setup actions (TARS-assisted mode) ─────────────────────────────────
+// The setup chips EXECUTE here, as the signed-in user, via window.FLSetup — they do NOT go to the
+// read-only advisor (that "I can't run setup, I'm read-only" dead-end is the bug this fixes). Create
+// entities · turn areas on · hire/skip employees · file to Document Navigator — the SAME engine
+// manual mode uses (so the two modes are interchangeable). Free-form questions still fall through to
+// the advisor (globalReply). This is the write-capable user-driven path; the advisor stays read-only.
+function FL(){ return window.FLSetup || null; }
+function aBubble(html){ var m=$('gmsgs'); if(!m) return null; m.insertAdjacentHTML('beforeend','<div class="emsg a">'+html+'</div>'); m.scrollTop=m.scrollHeight; return m.lastElementChild; }
+function setGchips(arr){
+  var c=$('gchips'); if(!c) return; c.innerHTML='';
+  (arr||[]).forEach(function(t){ var b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=t;
+    b.onclick=function(){ var i=$('ginput'), s=$('gsend'); if(i&&s){ i.value=t; s.click(); } }; c.appendChild(b); });
+}
+function paintHire(b){
+  var fl=FL(); if(!fl){ b.innerHTML='Sign in to the Command Center to manage employees.'; return; }
+  var areas=fl.areas().filter(function(a){ return a.employee && !a.employee.always; });
+  b.innerHTML='Hire or skip an area’s employee — change anytime, independent of setup:<div class="setup-emprows">'+
+    areas.map(function(a){ var h=a.hire;
+      return '<div class="setup-emprow"><span><b>'+escd(a.employee.name)+'</b> <span class="su-dim">· '+escd(a.label)+'</span></span>'+
+        '<span class="setup-emprow-btns"><button type="button" class="echip'+(h==='hire'?' on':'')+'" data-hire="'+escd(a.id)+'">'+(h==='hire'?'✓ Hired':'Hire')+'</button> '+
+        '<button type="button" class="echip'+(h==='skip'?' on':'')+'" data-skip="'+escd(a.id)+'">'+(h==='skip'?'✓ Manual':'Skip')+'</button></span></div>';
+    }).join('')+
+    '</div><div class="su-dim" style="margin-top:6px">Billing soon — hiring activates the area’s L0 advisor for now; the tiles always work by hand.</div>';
+  b.querySelectorAll('[data-hire]').forEach(function(btn){ btn.onclick=function(){ var g=btn.getAttribute('data-hire'); fl.hireArea(g, fl.areaHire(g)==='hire'?null:'hire'); paintHire(b); }; });
+  b.querySelectorAll('[data-skip]').forEach(function(btn){ btn.onclick=function(){ var g=btn.getAttribute('data-skip'); fl.hireArea(g, fl.areaHire(g)==='skip'?null:'skip'); paintHire(b); }; });
+}
+function handleSetup(v){
+  var t=(v||'').trim().toLowerCase().replace(/[’‘]/g,"'").replace(/[—–]/g,'-');
+  var is=function(s){ return t === s.toLowerCase().replace(/[’‘]/g,"'").replace(/[—–]/g,'-'); };
+  var fl=FL();
+
+  if (is('I’ll set up manually') || /set up manually|do it manually/.test(t)){
+    aBubble('👍 Click any area on your board to set it up — one click turns it on (data optional, fill it later). I’m here whenever you want me to take over.');
+    return true;
+  }
+  if (is('Finish setup') || /finish setup|i'?m done|complete setup|done with setup/.test(t)){
+    if (fl) fl.completeSetup();
+    aBubble('🎉 <b>Setup complete</b> — your board is live. The areas you turned on are colored in; switch on any of the rest anytime by clicking them. What do you want to do first?');
+    setGchips([]);
+    return true;
+  }
+  if (is('Set up my business & entities') || /(set ?up|setup).*(business|entit)|business (and|&) entit/.test(t)){
+    var b=aBubble('Let’s capture your business and entities — I’ll create the entity rows and file them in your Document Navigator.'+
+      '<div class="setup-mini">'+
+        '<label class="setup-mini-l">Business name</label><input class="setup-mini-in" id="su-biz" placeholder="e.g. ECH Management Services LLC">'+
+        '<label class="setup-mini-l">Your entities — one per line (LLCs)</label><textarea class="setup-mini-in" id="su-ents" rows="3" placeholder="ECH Management Services LLC&#10;ECH Mabank LLC"></textarea>'+
+        '<button type="button" class="echip on" id="su-biz-go">Create &amp; file</button>'+
+        '<div class="setup-mini-msg su-dim" id="su-biz-msg"></div>'+
+      '</div>');
+    var go=b.querySelector('#su-biz-go');
+    go.onclick=async function(){
+      var biz=(b.querySelector('#su-biz').value||'').trim();
+      var ents=(b.querySelector('#su-ents').value||'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
+      var msg=b.querySelector('#su-biz-msg');
+      if(!biz && !ents.length){ msg.innerHTML='<span class="su-err">Enter a business name or at least one entity.</span>'; return; }
+      if(!fl){ msg.innerHTML='<span class="su-err">Sign in to the Command Center to save these.</span>'; return; }
+      go.disabled=true; msg.textContent='Saving…';
+      var created=0, noted=0;
+      if(biz) fl.fileToDocNav(biz+' — business profile','personal-info','document-navigator');
+      for(var i=0;i<ents.length;i++){
+        var name=ents[i];
+        var code=name.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || ('ENTITY_'+(i+1));
+        var res=null; try { res=await fl.createEntity({ code:code, name:name }); } catch(e){ res=null; }
+        if(res){ created++; fl.fileToDocNav(name+' — entity formation','entity','entities'); }
+        else { noted++; fl.fileToDocNav(name+' — entity (pending)','entity','entities'); }
+      }
+      if(ents.length) fl.activateArea('legal');   // Entities live in the Legal area
+      go.disabled=false;
+      var out='';
+      if(created) out+='✅ Created '+created+' entit'+(created===1?'y':'ies')+' in your account. ';
+      if(noted) out+='📝 Noted '+noted+' entit'+(noted===1?'y':'ies')+' — the name is filed and retrievable; an admin finalizes the row. ';
+      if(biz) out+='Filed your business profile to Document Navigator. ';
+      if(ents.length) out+='Opened the <b>Legal</b> area (Entities lives there).';
+      msg.innerHTML=out||'Saved.';
+    };
+    return true;
+  }
+  if (is('Hire or skip an employee') || /hire (or|and|\/) ?skip|hire an employee|hire\/skip/.test(t)){
+    var hb=aBubble(''); paintHire(hb);
+    return true;
+  }
+  if (is('Turn on an area') || /turn on (an|a) area|activate an area|turn an area on/.test(t)){
+    if(!fl){ aBubble('Sign in to the Command Center to turn areas on.'); return true; }
+    var areas=fl.areas().filter(function(a){ return a.id!=='brief' && a.id!=='overview'; });
+    var html='Which area do you want to turn on? One click — data optional, fill it later.<div class="setup-chiprow">';
+    areas.forEach(function(a){ html+='<button type="button" class="echip'+(a.active?' on':'')+'" data-area="'+escd(a.id)+'">'+(a.active?'✓ ':'')+escd(a.label)+'</button>'; });
+    html+='</div>';
+    var ab=aBubble(html);
+    ab.querySelectorAll('[data-area]').forEach(function(btn){
+      btn.onclick=function(){
+        var g=btn.getAttribute('data-area'); fl.activateArea(g);
+        if(btn.textContent.indexOf('✓')===-1) btn.textContent='✓ '+btn.textContent;
+        btn.classList.add('on');
+        var emp=fl.areaEmployee(g);
+        aBubble('✅ <b>'+escd(btn.textContent.replace('✓ ',''))+'</b> is live on your board'+(emp&&!emp.always?' — '+escd(emp.name)+' is available to hire for it':'')+'. Turn on another, or hire its employee?');
+      };
+    });
+    return true;
+  }
+  if (is('Yes — start setup') || is('Yes') || /^(yes|start setup|begin|let's go|lets go)/.test(t)){
+    aBubble('Great — here’s how this works. Tell me your <b>business &amp; entities</b>, turn on the <b>areas</b> you use, and <b>hire or skip</b> each area’s employee. Everything files into your Document Navigator. Pick any to start — or just click an area on the board to set it up yourself.');
+    setGchips(['Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']);
+    return true;
+  }
+  return false;
+}
+
+// Setup-flavored entry (Phase 2 polish; Phase 3 wires the chips to the real engine above): opens the
+// global TARS chat with a SETUP opener + setup actions that EXECUTE (not the generic advisor greeting).
 function openSetup(){
   openGlobal();
   var msgs = $('gmsgs'), chips = $('gchips');
@@ -302,7 +409,7 @@ function openSetup(){
   }
   if (chips){
     chips.innerHTML = '';
-    ['Yes — start setup','Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually']
+    ['Yes — start setup','Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']
       .forEach(function(c){
         var b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=c;
         b.onclick=function(){ var i=$('ginput'), s=$('gsend'); if(i&&s){ i.value=c; s.click(); } };

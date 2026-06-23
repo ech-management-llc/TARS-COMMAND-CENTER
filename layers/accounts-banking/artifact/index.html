@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accounts — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap"><div id="rec-root"></div></div>
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260622d"></script>
+<script src="../../../shared/fl-records-tile.js?v=20260622d"></script>
+<script>
+try {
+  FLRecordsTile.mount({
+    kind: 'bank_account',
+    title: 'Accounts',
+    icon: '🏦',
+    labelLabel: 'Account nickname',
+    entityLink: true,
+    retentionDefault: '7yr',
+    blurb: 'Bank accounts, cards &amp; lines of credit — the money map. Store the <b>last 4 only</b>, never full numbers. ' +
+           'Link each to its owning entity. <b>Anything blank stays UNKNOWN.</b>',
+    fields: [
+      { key: 'institution', label: 'Institution', type: 'text', ph: 'Altra / Chase / …' },
+      { key: 'type', label: 'Type', type: 'select', options: ['Checking', 'Savings', 'Credit card', 'Line of credit'] },
+      { key: 'last4', label: 'Last 4', type: 'text', ph: '•••• 1234' },
+      { key: 'opened', label: 'Opened', type: 'date' }
+    ]
+  });
+} catch (e) {}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>try{ FLSettings.mount({tileId:'accounts-banking'}); }catch(e){}</script>
+</body>
+</html>

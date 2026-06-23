@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Information — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap"><div id="rec-root"></div></div>
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260622d"></script>
+<script src="../../../shared/fl-records-tile.js?v=20260622d"></script>
+<script>
+try {
+  FLRecordsTile.mount({
+    kind: 'personal_info',
+    title: 'Personal Information',
+    icon: '👤',
+    labelLabel: 'Full name',
+    entityLink: false,
+    retentionDefault: '7yr',
+    blurb: 'Owner &amp; key-person profile — kept deliberately minimal by doctrine (no extraneous PII). ' +
+           '<b>Anything blank stays UNKNOWN</b>; supporting documents file into Administration → Document Navigator.',
+    fields: [
+      { key: 'role',  label: 'Role',  type: 'text', ph: 'Owner / Manager / Member' },
+      { key: 'email', label: 'Email', type: 'text', ph: '' },
+      { key: 'phone', label: 'Phone', type: 'text', ph: '' },
+      { key: 'emergency_contact', label: 'Emergency contact', type: 'text', full: true, ph: 'name + phone' }
+    ]
+  });
+} catch (e) {}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>try{ FLSettings.mount({tileId:'personal-information'}); }catch(e){}</script>
+</body>
+</html>

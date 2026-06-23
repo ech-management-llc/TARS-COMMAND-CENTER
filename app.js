@@ -124,6 +124,160 @@ function setupComplete(){ try { return localStorage.getItem('fl_setup_complete')
 function explored(){ try { return localStorage.getItem('fl_explored') === 'true'; } catch(e){ return false; } }
 function boardUnlocked(){ return explored() || setupComplete(); }
 
+// ── Phase 3 dual-mode setup engine ─────────────────────────────────────────────
+// Per-area "active" + per-area employee hire/skip. BOTH modes — manual (click an area → "Set up"
+// panel → one-click activate) and TARS-assisted (chips that execute via window.FLSetup) — write
+// these SAME keys, so the board state is identical however setup is done. Progressive unlock: an
+// area lights up the instant it's active, with NO data required up front (fill it in later).
+const AREA_EMPLOYEE = {
+  brief:    { name:'TARS',   role:'Company-wide',        avatar:'T', always:true },
+  overview: { name:'TARS',   role:'Company-wide',        avatar:'T', always:true },
+  market:   { name:'Scout',  role:'Market & Deals lead', avatar:'S' },
+  portfolio:{ name:'Reed',   role:'Portfolio lead',      avatar:'R' },
+  financial:{ name:'Margo',  role:'Financials lead',     avatar:'M' },
+  build:    { name:'Jordan', role:'Operations lead',     avatar:'J' },
+  legal:    { name:'Dean',   role:'Legal lead',          avatar:'D' },
+  it:       { name:'Iris',   role:'IT & Marketing lead', avatar:'I' },
+  admin:    { name:'Quinn',  role:'Admin lead',          avatar:'Q' }
+};
+function areaEmployee(g){ return AREA_EMPLOYEE[g] || null; }
+function areaActive(g){ try { return localStorage.getItem('fl_area_active_'+g) === 'true'; } catch(e){ return false; } }
+function setAreaActiveFlag(g,on){ try { if(on) localStorage.setItem('fl_area_active_'+g,'true'); else localStorage.removeItem('fl_area_active_'+g); } catch(e){} }
+function areaHire(g){ try { return localStorage.getItem('fl_area_hire_'+g) || null; } catch(e){ return null; } }   // 'hire' | 'skip' | null
+function setAreaHireFlag(g,val){ try { if(val) localStorage.setItem('fl_area_hire_'+g,val); else localStorage.removeItem('fl_area_hire_'+g); } catch(e){} }
+
+function refreshBoard(){ if (typeof renderChrome==='function') renderChrome(); if (typeof renderHome==='function') renderHome(); }
+function activateArea(g){ setAreaActiveFlag(g,true); refreshBoard(); }
+function hireArea(g,val){ setAreaHireFlag(g,val); refreshBoard(); }
+function completeSetup(){ try{ localStorage.setItem('fl_setup_complete','true'); }catch(e){} refreshBoard(); }
+
+// Files gathered setup info into Administration → Document Navigator (the canonical record), via the
+// same fl_documents_overlay_v1 overlay every tile's file-drop uses — so it's genuinely retrievable.
+function fileToDocNav(name, folder, sourceTile){
+  try {
+    var ov = JSON.parse(localStorage.getItem('fl_documents_overlay_v1')||'{"added":[]}');
+    if (!ov.added) ov.added = [];
+    ov.added.push({ name:name, folder:folder||'entity', source_tile:sourceTile||'document-navigator', added:(new Date()).toISOString().slice(0,10) });
+    localStorage.setItem('fl_documents_overlay_v1', JSON.stringify(ov));
+  } catch(e){}
+}
+
+function restartSetup(){
+  if (!window.confirm('Restart setup? This resets which areas are switched on and the first-run walkthrough. Your saved records, entities, and documents are NOT deleted.')) return;
+  try {
+    var rm = [];
+    for (var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if (k && (k.indexOf('fl_area_active_')===0 || k.indexOf('fl_area_hire_')===0)) rm.push(k); }
+    rm.forEach(function(k){ localStorage.removeItem(k); });
+    localStorage.removeItem('fl_explored'); localStorage.removeItem('fl_setup_complete');
+  } catch(e){}
+  closeSetupModal(); refreshBoard();
+  if (window.Agents && Agents.openSetup) Agents.openSetup();
+}
+
+function bindSetupClicks(){
+  document.querySelectorAll('[data-setup-area]').forEach(function(el){
+    if (el.__setupBound) return; el.__setupBound = true;
+    el.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); openAreaSetup(el.getAttribute('data-setup-area')); });
+  });
+}
+
+// ── setup modal (manual mode + Employees manager) ──
+function showSetupModal(html){
+  var m = $('setup-modal');
+  if (!m){
+    m = document.createElement('div'); m.id='setup-modal'; m.className='setup-modal';
+    m.innerHTML='<div class="setup-modal-card" id="setup-modal-card"></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', function(e){ if (e.target===m) closeSetupModal(); });
+  }
+  $('setup-modal-card').innerHTML = html;
+  m.classList.add('on'); document.body.style.overflow='hidden';
+}
+function closeSetupModal(){ var m=$('setup-modal'); if(m) m.classList.remove('on'); document.body.style.overflow=''; }
+
+// Manual "Set up [area]" panel: explains the area, hire/skip its employee, one-click activate.
+function openAreaSetup(groupId){
+  var grp = (STATE.registry.groups||[]).filter(function(g){ return g.id===groupId; })[0];
+  if (!grp) return;
+  var ls = layersInGroup(groupId);
+  var emp = areaEmployee(groupId);
+  function paint(){
+    var active = areaActive(groupId), h = areaHire(groupId);
+    var tiles = ls.map(function(l){ return '<span class="setup-tile-chip">'+esc(l.icon||'▫')+' '+esc(l.title)+'</span>'; }).join('') || '<span class="small muted">tiles coming</span>';
+    var empBlock = '';
+    if (emp && !emp.always){
+      empBlock = '<div class="setup-sec"><div class="setup-sec-h">'+esc(emp.name)+' — '+esc(emp.role)+'</div>'+
+        '<div class="small muted">Your optional AI employee for this area. Hire to command '+esc(emp.name)+' through TARS; skip and these tiles work fully by hand. Change anytime — billing soon.</div>'+
+        '<div class="setup-btns">'+
+          '<button type="button" class="btn'+(h==='hire'?' primary':'')+'" data-act="hire">'+(h==='hire'?'✓ '+esc(emp.name)+' hired':'🤝 Hire '+esc(emp.name))+'</button>'+
+          '<button type="button" class="btn'+(h==='skip'?' primary':'')+'" data-act="skip">'+(h==='skip'?'✓ Manual':'Skip — do it manually')+'</button>'+
+        '</div></div>';
+    } else if (emp && emp.always){
+      empBlock = '<div class="setup-sec"><div class="small muted"><b>'+esc(emp.name)+'</b> runs this area company-wide — always on, nothing to hire.</div></div>';
+    }
+    var actBlock = '<div class="setup-sec">'+
+      (active
+        ? '<div class="ok" style="font-weight:800">✓ This area is live on your board.</div><div class="small muted">Fill in its data anytime — nothing is required up front.</div>'
+        : '<div class="small muted">Turning it on adds this area to your board now. <b>Data is optional</b> — add it later from the tiles or with TARS.</div>')+
+      '<div class="setup-btns">'+
+        (active ? '<button type="button" class="btn" data-act="off">Turn back off</button>'
+                : '<button type="button" class="btn primary" data-act="on">⚡ Turn on '+esc(grp.label||groupId)+'</button>')+
+        '<button type="button" class="btn" data-act="close">Done</button>'+
+      '</div></div>';
+    showSetupModal(
+      '<div class="setup-modal-top"><span class="setup-modal-title">Set up '+esc(grp.label||groupId)+'</span>'+
+        '<button type="button" class="setup-x" data-act="close" aria-label="Close">✕</button></div>'+
+      '<div class="small muted" style="margin:2px 0 6px">What’s inside this area:</div>'+
+      '<div class="setup-tiles">'+tiles+'</div>'+ empBlock + actBlock);
+    var card = $('setup-modal-card');
+    card.querySelectorAll('[data-act]').forEach(function(b){
+      b.onclick = function(){
+        var a = b.getAttribute('data-act');
+        if (a==='on'){ setAreaActiveFlag(groupId,true); refreshBoard(); paint(); }
+        else if (a==='off'){ setAreaActiveFlag(groupId,false); refreshBoard(); paint(); }
+        else if (a==='hire'){ setAreaHireFlag(groupId, h==='hire'?null:'hire'); refreshBoard(); paint(); }
+        else if (a==='skip'){ setAreaHireFlag(groupId, h==='skip'?null:'skip'); refreshBoard(); paint(); }
+        else if (a==='close'){ closeSetupModal(); }
+      };
+    });
+  }
+  paint();
+}
+
+// Central Employees manager (Administration) — hire/skip any area's employee anytime + Restart setup.
+function openEmployeesManager(){
+  var groups = STATE.registry.groups || [];
+  function paint(){
+    var rows = groups.filter(function(g){ var e=areaEmployee(g.id); return e && !e.always && layersInGroup(g.id).length; })
+      .map(function(g){
+        var e=areaEmployee(g.id), h=areaHire(g.id), active=areaActive(g.id);
+        return '<div class="emp-row"><div class="emp-row-l"><span class="empav">'+esc(e.avatar)+'</span>'+
+          '<div><div class="emp-row-nm">'+esc(e.name)+' <span class="small muted">· '+esc(g.label)+'</span></div>'+
+          '<div class="small muted">'+esc(e.role)+(active?' · area live':'')+'</div></div></div>'+
+          '<div class="emp-row-r">'+
+            '<button type="button" class="btn sm'+(h==='hire'?' primary':'')+'" data-hire="'+esc(g.id)+'">'+(h==='hire'?'✓ Hired':'Hire')+'</button>'+
+            '<button type="button" class="btn sm'+(h==='skip'?' primary':'')+'" data-skip="'+esc(g.id)+'">'+(h==='skip'?'✓ Manual':'Skip')+'</button>'+
+          '</div></div>';
+      }).join('');
+    showSetupModal(
+      '<div class="setup-modal-top"><span class="setup-modal-title">👔 Employees</span>'+
+        '<button type="button" class="setup-x" data-act="close" aria-label="Close">✕</button></div>'+
+      '<div class="small muted" style="margin-bottom:10px">Each area has one optional AI employee. <b>Hire</b> to command it through TARS; <b>skip</b> and the tiles work by hand. Change anytime — independent of setup. Billing soon.</div>'+
+      '<div class="emp-list">'+rows+'</div>'+
+      '<div class="emp-row" style="border:0;padding-top:8px"><span class="small muted">TARS runs your overview &amp; daily brief company-wide — always on.</span></div>'+
+      '<div class="setup-btns" style="margin-top:12px;border-top:1px solid var(--ln,#26263a);padding-top:12px">'+
+        '<button type="button" class="btn" data-act="restart">↻ Restart setup</button>'+
+        '<button type="button" class="btn primary" data-act="close">Done</button>'+
+      '</div>');
+    var card=$('setup-modal-card');
+    card.querySelectorAll('[data-hire]').forEach(function(b){ b.onclick=function(){ var g=b.getAttribute('data-hire'); setAreaHireFlag(g, areaHire(g)==='hire'?null:'hire'); refreshBoard(); paint(); }; });
+    card.querySelectorAll('[data-skip]').forEach(function(b){ b.onclick=function(){ var g=b.getAttribute('data-skip'); setAreaHireFlag(g, areaHire(g)==='skip'?null:'skip'); refreshBoard(); paint(); }; });
+    var rb=card.querySelector('[data-act=restart]'); if(rb) rb.onclick=restartSetup;
+    card.querySelectorAll('[data-act=close]').forEach(function(b){ b.onclick=closeSetupModal; });
+  }
+  paint();
+}
+
 /* ── entitlement: registry flag OR a tenant purchase override (Plans & Billing) ── */
 const ENT_KEY = 'tcc_entitlements';
 const Entitlement = {
@@ -415,20 +569,25 @@ function renderHome(){
     const gs = GROUP_STYLE[grp.id] || {};
     const ico = gs.ico ? '<span class="grp-ico">'+gs.ico+'</span>' : '';
 
-    // Locked board: every area is dormant (greyed, not expandable) except Administration. The user
-    // sees what's coming but can't dive in — TARS unlocks each area as setup progresses (Phase 3).
-    if (locked && grp.id !== LIVE_AREA){
+    // Phase 3 progressive unlock: an area is LIVE when the board's unlocked, when it's the always-live
+    // Administration area, or when this specific area has been activated (manual OR via TARS) — both
+    // modes set fl_area_active_<group>. A dormant area is greyed but CLICKABLE: it opens "Set up [area]".
+    const areaLive = !locked || grp.id === LIVE_AREA || areaActive(grp.id);
+    if (!areaLive){
       html += '<section class="grp grp-locked" data-group="'+esc(grp.id)+'">'+
-        '<div class="grp-head"><div class="grp-toggle-locked">'+ico+
-          '<span class="grp-label">'+esc(grp.label||grp.id)+'</span>'+
-          '<span class="grp-lock">🔒 set up to unlock</span>'+
-        '</div></div></section>';
+        '<button type="button" class="grp-head grp-setup-open" data-setup-area="'+esc(grp.id)+'">'+
+          '<span class="grp-toggle-locked">'+ico+
+            '<span class="grp-label">'+esc(grp.label||grp.id)+'</span>'+
+            '<span class="grp-lock">🔒 click to set up</span>'+
+          '</span></button></section>';
       return;
     }
 
     let body;
-    if (locked && grp.id === LIVE_AREA){
-      // Admin is live, but only Document Navigator is active — it is TARS's filing destination.
+    const adminPartial = locked && grp.id === LIVE_AREA && !areaActive('admin');
+    if (adminPartial){
+      // First-run Admin: only Document Navigator (TARS's filing destination) is active until Admin is
+      // set up; the rest stay locked tiles. Activating Admin (manual or TARS) lights up the whole area.
       body = '<div class="gridA">'+ls.map(l => l.id === 'document-navigator' ? artTile(l) : lockedTile(l)).join('')+'</div>';
     }
     else if (grp.id === 'brief')       body = renderBriefGroup(ls);
@@ -440,7 +599,16 @@ function renderHome(){
       body = '<div class="grid2">'+dataT.map(tileShell).join('')+'</div>';
       if (cardT.length) body += '<div class="gridA" style="margin-top:12px">'+cardT.map(artTile).join('')+'</div>';
     }
-    const isCol = (locked && grp.id === LIVE_AREA) ? false : collapsed.has(grp.id);
+    // Per-area employee strip (hireable areas only) — shows hire/skip state + opens the setup panel.
+    const emp = areaEmployee(grp.id);
+    if (emp && !emp.always && !adminPartial){
+      const h = areaHire(grp.id);
+      const st = h==='hire' ? '<span class="emp-on">🤝 '+esc(emp.name)+' hired</span>'
+               : h==='skip' ? '<span class="emp-off">'+esc(emp.name)+' · manual</span>'
+               :              '<span class="emp-q">'+esc(emp.name)+' available to hire</span>';
+      body = '<div class="area-emp">'+st+'<button type="button" class="area-emp-btn" data-setup-area="'+esc(grp.id)+'">⚙ Set up / employee</button></div>'+body;
+    }
+    const isCol = locked ? false : collapsed.has(grp.id);
     const styleAttr = gs.a ? ' style="--ga:'+gs.a+';--gabg:'+gs.bg+'"' : '';
     html += '<section class="grp'+(isCol?' collapsed':'')+'" data-group="'+esc(grp.id)+'"'+styleAttr+'>'+
       '<div class="grp-head">'+
@@ -455,6 +623,7 @@ function renderHome(){
   // initial paint of data-bound tiles (skeleton → fills when data lands)
   refreshDataTiles();
   bindTileClicks();
+  bindSetupClicks();
   bindMarketPicker();
   bindGroupHeaders();
   bindBrief();
@@ -883,6 +1052,7 @@ function bindTileClicks(){
 }
 
 function openLayer(id){
+  if (id === 'employees') return openEmployeesManager();   // central Employees manager (modal, not a drill-in)
   if (id === 'market-info-catalog') return openDrillURL('./layers/market-catalog/artifact/index.html','Information Tiles','➕');
   const l = layerById(id); if (!l) return;
   if (l.kind === 'add') return openAddLayer();
@@ -1010,3 +1180,19 @@ else boot();
 
 /* expose a few internals for the agents module */
 window.TCC = { STATE, layerById, visibleLayers, fmtMoney, fmtTs, esc };
+
+/* Phase 3 dual-mode setup API — the TARS chips (agents.js) call THESE to execute setup AS THE
+   SIGNED-IN USER (create entities, turn areas on, hire/skip employees, file to Document Navigator).
+   This is the write-capable, user-driven path; the read-only advisor stays read-only. Both modes
+   (manual board clicks + TARS chips) share this same engine, so they're fully interchangeable. */
+window.FLSetup = {
+  areas: function(){ return (STATE.registry.groups||[]).filter(function(g){ return layersInGroup(g.id).length; })
+    .map(function(g){ return { id:g.id, label:g.label, employee:areaEmployee(g.id), active:areaActive(g.id), hire:areaHire(g.id) }; }); },
+  areaEmployee: areaEmployee, areaActive: areaActive, areaHire: areaHire,
+  activateArea: activateArea, hireArea: hireArea,
+  openAreaSetup: openAreaSetup, openEmployeesManager: openEmployeesManager,
+  restartSetup: restartSetup, completeSetup: completeSetup,
+  fileToDocNav: fileToDocNav,
+  createEntity: function(payload){ return (window.flEntities && flEntities.create) ? flEntities.create(payload) : Promise.resolve(null); },
+  refresh: refreshBoard
+};

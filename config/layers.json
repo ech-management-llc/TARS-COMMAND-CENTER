@@ -998,6 +998,133 @@
       "section_lead": "admin"
     },
     {
+      "id": "personal-information",
+      "title": "Personal Information",
+      "icon": "👤",
+      "desc": "owner & key-person profile",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/personal-information/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Update my contact info",
+        "Add an emergency contact"
+      ],
+      "section_lead": "admin"
+    },
+    {
+      "id": "accounts-banking",
+      "title": "Accounts",
+      "icon": "🏦",
+      "desc": "bank · cards · lines of credit",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/accounts-banking/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Add a bank account",
+        "Which entity owns this account?"
+      ],
+      "section_lead": "admin"
+    },
+    {
+      "id": "loans-lenders",
+      "title": "Loans & Lenders",
+      "icon": "💰",
+      "desc": "loans · lenders · terms",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/loans-lenders/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Add a loan",
+        "Which loans mature this year?",
+        "What's my total debt service?"
+      ],
+      "section_lead": "admin"
+    },
+    {
+      "id": "vendors-professionals",
+      "title": "Vendors & Professionals",
+      "icon": "👔",
+      "desc": "contractors · attorney · CPA",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/vendors-professionals/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Add a vendor",
+        "Who's my CPA?",
+        "Which vendors lack a W-9?"
+      ],
+      "section_lead": "admin"
+    },
+    {
+      "id": "employees",
+      "title": "Employees",
+      "icon": "👔",
+      "desc": "hire · skip · manage your AI staff",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": null,
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Hire the Financials employee",
+        "Who have I hired?"
+      ],
+      "section_lead": "admin"
+    },
+    {
       "id": "business-plan",
       "title": "Business Plan",
       "icon": "📋",

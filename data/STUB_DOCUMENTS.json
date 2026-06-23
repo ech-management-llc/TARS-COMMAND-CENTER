@@ -13,7 +13,11 @@
     { "id": "permits", "icon": "📐", "name": "Permits & Codes", "count_hint": 5, "source_tile": "compliance", "source_label": "Compliance" },
     { "id": "invoices", "icon": "🧾", "name": "Invoices & Receipts", "count_hint": 22, "source_tile": "vendors-payables", "source_label": "Vendors & Payables" },
     { "id": "plans", "icon": "🏗️", "name": "Plans & Renderings", "count_hint": 7, "source_tile": "build-renovate", "source_label": "Build & Renovate" },
-    { "id": "legal-review", "icon": "⚖️", "name": "Legal Review", "count_hint": 0, "source_tile": "legal", "source_label": "Legal" }
+    { "id": "legal-review", "icon": "⚖️", "name": "Legal Review", "count_hint": 0, "source_tile": "legal", "source_label": "Legal" },
+    { "id": "personal-info", "icon": "👤", "name": "Personal Information", "count_hint": 0, "source_tile": "personal-information", "source_label": "Personal Information" },
+    { "id": "accounts", "icon": "🏦", "name": "Accounts (Bank & Cards)", "count_hint": 0, "source_tile": "accounts-banking", "source_label": "Accounts" },
+    { "id": "loans-lenders", "icon": "💰", "name": "Loans & Lenders", "count_hint": 0, "source_tile": "loans-lenders", "source_label": "Loans & Lenders" },
+    { "id": "vendors-professionals", "icon": "👔", "name": "Vendors & Professionals", "count_hint": 0, "source_tile": "vendors-professionals", "source_label": "Vendors & Professionals" }
   ],
   "docs": [
     { "name": "415 Skiles — lease", "folder": "leases", "meta": "J. Morales · exp 2026-07-31", "source_tile": "rent-roll" },

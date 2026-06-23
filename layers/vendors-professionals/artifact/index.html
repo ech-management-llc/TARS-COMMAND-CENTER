@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendors &amp; Professionals — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap"><div id="rec-root"></div></div>
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260622d"></script>
+<script src="../../../shared/fl-records-tile.js?v=20260622d"></script>
+<script>
+try {
+  FLRecordsTile.mount({
+    kind: 'vendor',
+    title: 'Vendors & Professionals',
+    icon: '👔',
+    labelLabel: 'Name',
+    entityLink: false,
+    retentionDefault: '7yr',
+    blurb: 'Contractors, attorney, CPA, insurance agent, lender reps — your trusted bench, with W-9 / COI status. ' +
+           '<b>Anything blank stays UNKNOWN.</b>',
+    fields: [
+      { key: 'trade', label: 'Trade / role', type: 'text', ph: 'plumber · CPA · attorney' },
+      { key: 'contact', label: 'Contact name', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'w9', label: 'W-9', type: 'select', options: ['On file', 'Requested', 'Missing'] },
+      { key: 'coi', label: 'Insurance (COI)', type: 'select', options: ['On file', 'Expired', 'Missing'] }
+    ]
+  });
+} catch (e) {}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>try{ FLSettings.mount({tileId:'vendors-professionals'}); }catch(e){}</script>
+</body>
+</html>

@@ -285,6 +285,46 @@
       "params": [],
       "section": "admin"
     },
+    "personal-information": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I keep your personal & owner profile. I record only what we need, nothing extra."
+      },
+      "params": [],
+      "section": "admin"
+    },
+    "accounts-banking": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I track your bank accounts, cards, and lines of credit by entity. Last 4 only, never full numbers."
+      },
+      "params": [],
+      "section": "admin"
+    },
+    "loans-lenders": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I keep your loans, lenders, and terms. A blank balance stays UNKNOWN; a paid-off loan is a real 0."
+      },
+      "params": [],
+      "section": "admin"
+    },
+    "vendors-professionals": {
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q",
+        "intro": "Hi, I’m Quinn — I keep your bench: contractors, attorney, CPA, agents — with W-9 and COI status."
+      },
+      "params": [],
+      "section": "admin"
+    },
     "deal-finder": {
       "employee": {
         "name": "Scout",
