@@ -110,4 +110,23 @@
     upsert: function (facts) { return call('POST', '/api/portfolio-facts', facts); },
     update: function (code, patch) { return call('PATCH', '/api/portfolio-facts/' + encodeURIComponent(code), patch); },
   };
+
+  // Entities (Phase 3 setup). The setup flow creates the LLC rows here, as the SIGNED-IN USER —
+  // TARS guides/asks, the app writes (this is NOT the autonomous agent). create() -> the new row,
+  // or null on no-session / error (caller surfaces an honest "sign in to persist").
+  window.flEntities = {
+    list: function () { return call('GET', '/api/entities'); },
+    create: function (entity) { return call('POST', '/api/entities', entity); },
+    update: function (id, patch) { return call('PATCH', '/api/entities/' + encodeURIComponent(id), patch); },
+  };
+
+  // Source-of-truth admin records (Phase 3 / spine §2b): personal_info | bank_account | loan |
+  // vendor. One resource, many kinds — structured fields + linked documents + retention, RLS-scoped.
+  // No localStorage fallback (these ARE the source of truth): every method needs the signed-in JWT.
+  window.flRecords = {
+    list: function (kind) { return call('GET', '/api/admin-records?kind=' + encodeURIComponent(kind)); },
+    get: function (id) { return call('GET', '/api/admin-records/' + encodeURIComponent(id)); },
+    create: function (rec) { return call('POST', '/api/admin-records', rec); },
+    update: function (id, patch) { return call('PATCH', '/api/admin-records/' + encodeURIComponent(id), patch); },
+  };
 })();

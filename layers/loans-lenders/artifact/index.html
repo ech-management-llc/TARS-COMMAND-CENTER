@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loans &amp; Lenders — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+</head>
+<body>
+<div class="art-wrap"><div id="rec-root"></div></div>
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260622d"></script>
+<script src="../../../shared/fl-records-tile.js?v=20260622d"></script>
+<script>
+try {
+  FLRecordsTile.mount({
+    kind: 'loan',
+    title: 'Loans & Lenders',
+    icon: '💰',
+    labelLabel: 'Loan / lender name',
+    entityLink: true,
+    retentionDefault: '7yr',
+    blurb: 'Loans, lenders &amp; terms — the debt side of the balance sheet (feeds debt-service &amp; LTV). ' +
+           '<b>A blank balance is UNKNOWN; a paid-off loan is a real 0</b> — type 0, don\'t leave it blank.',
+    fields: [
+      { key: 'lender', label: 'Lender', type: 'text', ph: 'Altra Federal CU' },
+      { key: 'loan_number', label: 'Loan #', type: 'text', ph: '' },
+      { key: 'original_balance', label: 'Original balance ($)', type: 'number' },
+      { key: 'current_balance', label: 'Current balance ($)', type: 'number', hint: '0 = paid off (a real zero, not unknown)' },
+      { key: 'rate', label: 'Rate (%)', type: 'number', suffix: '%' },
+      { key: 'payment', label: 'Payment ($/mo)', type: 'number' },
+      { key: 'maturity', label: 'Maturity', type: 'date' },
+      { key: 'collateral', label: 'Collateral property', type: 'text', full: true, ph: 'address / entity' }
+    ]
+  });
+} catch (e) {}
+</script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>try{ FLSettings.mount({tileId:'loans-lenders'}); }catch(e){}</script>
+</body>
+</html>
