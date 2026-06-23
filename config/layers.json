@@ -1100,6 +1100,31 @@
       "section_lead": "admin"
     },
     {
+      "id": "employees",
+      "title": "Employees",
+      "icon": "👔",
+      "desc": "hire · skip · manage your AI staff",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": null,
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Hire the Financials employee",
+        "Who have I hired?"
+      ],
+      "section_lead": "admin"
+    },
+    {
       "id": "business-plan",
       "title": "Business Plan",
       "icon": "📋",
