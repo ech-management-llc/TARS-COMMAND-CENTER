@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Document Navigator — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .rec-del-nav{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .rec-del-nav:hover{background:#fee2e2;border-color:#f87171}
+  .rec-badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.3px;color:#34d399;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);border-radius:9px;padding:0 6px;margin-left:6px;vertical-align:middle}
+  #nav-msg{min-height:15px;margin-bottom:6px}
+  .err{color:#f87171;font-weight:700} .ok{color:#34d399;font-weight:700}
+</style>
 </head>
 <body>
 <div class="art-wrap">
@@ -19,6 +26,7 @@
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <input type="text" id="docsearch" placeholder="🔎 Search every document… (e.g. 415 Skiles lease)" style="flex:1;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 11px;font:inherit;font-size:12.5px">
     </div>
+    <div id="nav-msg" class="small"></div>
     <div id="fview"></div>
     <div class="small dim" style="margin-top:8px">Folder counts = what the real vault holds; itemized rows are honest samples until vault wiring. Source chips open the tile each document came from.</div>
   </div>
@@ -31,22 +39,50 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Standalone public view — sample structure only, no credentials or personal data. Live vault indexing wires to your chosen store.</div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260624d"></script>
+<script src="../../../shared/fl-api.js?v=20260624d"></script>
 <script>
-  // index = data/STUB_DOCUMENTS.json + the shared doc-drop overlay (fl_documents_overlay_v1) —
-  // every tile's FLDocDrop registers {name, folder, source_tile, added} here. Same merge contract
-  // as the calendar overlay; the backend replaces the overlay with real vault writes.
+  // The indexed VIEW = data/STUB_DOCUMENTS.json (sample structure) + the doc-drop overlay
+  // (fl_documents_overlay_v1 breadcrumbs) + the REAL source-of-truth records from /api/admin-records
+  // (when signed in). Real records carry a Delete that calls the SAME DELETE /api/admin-records/{id}.
   var DOCKEY = 'fl_documents_overlay_v1';
-  var FOLDERS = [], DOCS = [], openF = null;
+  var FOLDERS = [], DOCS = [], REAL = [], openF = null;
+
+  // kind -> [folder id, source tile] for the four source-of-truth record types (spine §2b).
+  var KIND_FOLDER = [
+    ['personal_info', 'personal-info',         'personal-information'],
+    ['bank_account',  'accounts',              'accounts-banking'],
+    ['loan',          'loans-lenders',         'loans-lenders'],
+    ['vendor',        'vendors-professionals', 'vendors-professionals']
+  ];
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function overlayDocs(){ try{ return (JSON.parse(localStorage.getItem(DOCKEY))||{added:[]}).added||[]; }catch(e){ return []; } }
+  function navMsg(html){ var el=document.getElementById('nav-msg'); if(el) el.innerHTML=html||''; }
+
+  // Turn one admin_records row into a doc-list entry (carrying recordId+real so it gets a Delete).
+  function recordToDoc(r, folderId, sourceTile){
+    var det = r.details||{}, bits = [];
+    for(var k in det){ if(det[k]!=null && det[k]!=='') bits.push(det[k]); if(bits.length>=3) break; }
+    return { name:(r.label||'(untitled record)'), folder:folderId, source_tile:sourceTile, recordId:r.id, real:true,
+      meta:'record'+(r.retention?(' · retain '+r.retention):'')+(bits.length?(' · '+bits.join(' · ')):'') };
+  }
+  // Load real records per kind (signed in only). Each list() failure degrades to [] — never throws.
+  function loadRealRecords(){
+    if(!(window.flApi && flApi.authed && flApi.authed()) || !(window.flRecords && flRecords.list)) return Promise.resolve([]);
+    return Promise.all(KIND_FOLDER.map(function(kf){
+      return flRecords.list(kf[0]).then(function(rows){ return (rows||[]).map(function(r){ return recordToDoc(r, kf[1], kf[2]); }); }).catch(function(){ return []; });
+    })).then(function(arrs){ return arrs.reduce(function(a,b){ return a.concat(b); }, []); });
+  }
+
   function allDocs(){
     // overlay docs name their folder by id OR display name — resolve both
     var byName = {}; FOLDERS.forEach(function(f){ byName[f.name]=f.id; });
-    return DOCS.concat(overlayDocs().map(function(d){
+    var overlay = overlayDocs().map(function(d){
       return { name:d.name, folder: byName[d.folder]||d.folder, meta:'added '+(d.added||'')+' · via '+(d.source_tile||'drop'), source_tile:d.source_tile };
-    }));
+    });
+    return DOCS.concat(overlay).concat(REAL);
   }
   function docsIn(fid){ return allDocs().filter(function(d){ return d.folder===fid; }); }
 
@@ -56,7 +92,7 @@
   }
 
   function renderFolders(){
-    openF = null;
+    openF = null; navMsg('');
     var q = document.getElementById('docsearch').value.trim().toLowerCase();
     if(q){ renderSearch(q); return; }
     document.getElementById('fview').innerHTML = '<div class="folderg">'+FOLDERS.map(function(f,i){
@@ -67,12 +103,14 @@
   }
 
   function docTile(d){
-    return '<div class="docit">📄 <b>'+esc(d.name)+'</b><span class="dim">'+esc(d.meta||'')+'</span>'+
-      (d.source_tile?'<div style="margin-top:5px">'+srcChip(d.source_tile)+'</div>':'')+'</div>';
+    var del = (d.real && d.recordId) ? '<button class="rec-del-nav" type="button" data-del="'+esc(d.recordId)+'" title="Delete this record from your account">🗑 Delete</button>' : '';
+    var badge = d.real ? '<span class="rec-badge">RECORD</span>' : '';
+    var foot = (d.source_tile||del) ? '<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+srcChip(d.source_tile)+del+'</div>' : '';
+    return '<div class="docit">📄 <b>'+esc(d.name)+'</b>'+badge+'<span class="dim">'+esc(d.meta||'')+'</span>'+foot+'</div>';
   }
 
   function openFolder(i){
-    openF = i;
+    openF = i; navMsg('');
     var f = FOLDERS[i], docs = docsIn(f.id);
     var more = (f.count_hint||0) - docs.filter(function(d){ return DOCS.indexOf(d)>=0; }).length;
     document.getElementById('fview').innerHTML =
@@ -89,7 +127,25 @@
       '<div class="docgrid">'+(hits.length?hits.map(docTile).join(''):'<div class="small dim">No matches in the index. The live vault search covers full text at vault wiring.</div>')+'</div>';
   }
 
+  // Delete a real record via the SAME endpoint the tiles use (DELETE /api/admin-records/{id}).
+  function delRecord(id){
+    if(!id) return;
+    if(!window.confirm('Delete this record permanently? This removes it from your account — not just this view.')) return;
+    navMsg('<span class="dim">Deleting…</span>');
+    flRecords.del(id).then(function(res){
+      if(!res){
+        var authed = window.flApi && flApi.authed && flApi.authed();
+        navMsg('<span class="err">'+(authed ? 'Delete failed — only the record’s creator or an admin can delete it.' : 'Session expired — sign in again, then retry. Nothing was deleted.')+'</span>');
+        return;
+      }
+      REAL = REAL.filter(function(d){ return String(d.recordId)!==String(id); });
+      if(openF!=null) openFolder(openF); else renderFolders();
+      navMsg('<span class="ok">✓ Deleted.</span> Removed from your account.');
+    });
+  }
+
   document.addEventListener('input', function(e){ if(e.target&&e.target.id==='docsearch') renderFolders(); });
+  document.addEventListener('click', function(e){ var b=e.target&&e.target.closest?e.target.closest('[data-del]'):null; if(b){ e.preventDefault(); delRecord(b.getAttribute('data-del')); } });
 
   // In-tile view config from the core: show/hide sections. Never touches data.
   var viewOps=[];
@@ -104,11 +160,17 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  fetch('../../../data/STUB_DOCUMENTS.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ FOLDERS=d.folders||[]; DOCS=d.docs||[]; if(!FOLDERS.length) throw 0; renderFolders();
-      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
-    .catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
+  // Boot: the sample index + the real records load together, so folder counts and the folder
+  // view reflect what's actually on file (when signed in). Unauthed -> REAL stays [] (samples only).
+  Promise.all([
+    fetch('../../../data/STUB_DOCUMENTS.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+    loadRealRecords()
+  ]).then(function(out){
+    var d = out[0]; FOLDERS=d.folders||[]; DOCS=d.docs||[]; REAL=out[1]||[];
+    if(!FOLDERS.length) throw 0;
+    renderFolders();
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+  }).catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
 <script>FLSettings.mount({tileId:'document-navigator'});</script>
