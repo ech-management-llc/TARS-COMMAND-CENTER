@@ -128,5 +128,8 @@
     get: function (id) { return call('GET', '/api/admin-records/' + encodeURIComponent(id)); },
     create: function (rec) { return call('POST', '/api/admin-records', rec); },
     update: function (id, patch) { return call('PATCH', '/api/admin-records/' + encodeURIComponent(id), patch); },
+    // Hard-delete one record (creator or admin only — enforced server-side). Resolves to {} on
+    // success (204), or null on no-session / 4xx / error so the caller keeps the row and explains.
+    del: function (id) { return call('DELETE', '/api/admin-records/' + encodeURIComponent(id)); },
   };
 })();

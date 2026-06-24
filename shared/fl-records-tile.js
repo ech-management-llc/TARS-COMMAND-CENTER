@@ -52,6 +52,8 @@
     '.rec-dl span{color:var(--dim,#64748b)}.rec-dl b{color:var(--fg,#0f172a)}' +
     '.rec-notes{margin-top:8px;font-size:12px;color:#475569;font-style:italic}' +
     '.rec-docs{margin-top:8px;font-size:11.5px;color:#64748b}' +
+    '.rec-del{margin-left:auto;background:transparent;border:1.5px solid #e2e8f0;color:#94a3b8;border-radius:6px;padding:2px 9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.4}' +
+    '.rec-del:hover{border-color:#fca5a5;color:#dc2626;background:#fef2f2}' +
     '.ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}';
 
   function fieldInputHtml(f) {
@@ -109,8 +111,9 @@
     var docs = (r.documents && r.documents.length)
       ? (r.documents.length + ' linked')
       : 'none yet — file in Document Navigator';
+    var del = r.id ? '<button type="button" class="rec-del" data-id="' + esc(r.id) + '" title="Delete this record">Delete</button>' : '';
     return '<div class="card rec-card">' +
-      '<div class="rec-top"><span class="rec-label">' + esc(r.label || '(untitled)') + '</span>' + ent + ret + '</div>' +
+      '<div class="rec-top"><span class="rec-label">' + esc(r.label || '(untitled)') + '</span>' + ent + ret + del + '</div>' +
       (rows ? '<div class="rec-details">' + rows + '</div>' : '<div class="small muted" style="margin-top:6px">No fields recorded yet — that\'s fine, you can fill them later.</div>') +
       (r.notes ? '<div class="rec-notes">' + esc(r.notes) + '</div>' : '') +
       '<div class="rec-docs">📎 Documents: ' + esc(docs) + '</div>' +
@@ -190,10 +193,17 @@
       document.getElementById('rec-loading').style.display = 'none';
       var records = res[0], entities = res[1];
       if (records == null && window.flApi && !flApi.authed()) { showAuth(cfg); return; }
+      var list = records || [];                       // one shared array: save + delete mutate it
       document.getElementById('rec-form-host').innerHTML = formHtml(cfg, entities || []);
-      renderList(cfg, records || []);
+      renderList(cfg, list);
       var saveBtn = document.getElementById('rec-save');
-      if (saveBtn) saveBtn.addEventListener('click', function () { save(cfg, records || []); });
+      if (saveBtn) saveBtn.addEventListener('click', function () { save(cfg, list); });
+      // Delete is wired by delegation so it survives every re-render of the list.
+      var listHost = document.getElementById('rec-list');
+      if (listHost) listHost.addEventListener('click', function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest('.rec-del') : null;
+        if (btn) remove(cfg, list, btn.getAttribute('data-id'));
+      });
     }).catch(function () {
       document.getElementById('rec-loading').style.display = 'none';
       if (window.flApi && !flApi.authed()) showAuth(cfg);
@@ -219,6 +229,28 @@
       // reset the add-form for the next entry
       var form = document.getElementById('rec-form');
       if (form) form.querySelectorAll('input,select,textarea').forEach(function (el) { if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = ''; });
+    });
+  }
+
+  function remove(cfg, current, id) {
+    if (!id) return;
+    var msg = document.getElementById('rec-msg');
+    if (!window.confirm('Delete this record permanently? This can\'t be undone.')) return;
+    window.flRecords.del(id).then(function (res) {
+      if (!res) {
+        if (msg) {
+          if (window.flApi && !flApi.authed())
+            msg.innerHTML = '<span class="err">Session expired.</span> Sign in again, then retry — nothing was deleted.';
+          else
+            msg.innerHTML = '<span class="err">Delete failed.</span> Only the record’s creator or an admin can delete it.';
+        }
+        return;
+      }
+      for (var i = 0; i < current.length; i++) {
+        if (String(current[i].id) === String(id)) { current.splice(i, 1); break; }
+      }
+      renderList(cfg, current);
+      if (msg) msg.innerHTML = '<span class="ok">✓ Deleted.</span> The record was removed from your account.';
     });
   }
 
