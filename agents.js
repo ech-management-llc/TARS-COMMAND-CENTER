@@ -329,46 +329,51 @@ function handleSetup(v){
     return true;
   }
   if (is('Set up my business & entities') || /(set ?up|setup).*(business|entit)|business (and|&) entit/.test(t)){
-    var b=aBubble('Let’s capture your business and entities — I’ll create the entity rows and file them in your Document Navigator.'+
+    var b=aBubble('Let’s capture your business and people. Your business (an LLC) becomes an <b>entity</b>; the owner is filed under <b>Personal Information</b>. Add any other entities one per line.'+
       '<div class="setup-mini">'+
-        '<label class="setup-mini-l">Business name</label><input class="setup-mini-in" id="su-biz" placeholder="e.g. ECH Management Services LLC">'+
-        '<label class="setup-mini-l">Your entities — one per line (LLCs)</label><textarea class="setup-mini-in" id="su-ents" rows="3" placeholder="ECH Management Services LLC&#10;ECH Mabank LLC"></textarea>'+
+        '<label class="setup-mini-l">Business / primary entity name (LLC)</label><input class="setup-mini-in" id="su-biz" placeholder="e.g. ECH Management Services LLC">'+
+        '<label class="setup-mini-l">Owner name (the person)</label><input class="setup-mini-in" id="su-owner" placeholder="e.g. Jerry Eads">'+
+        '<label class="setup-mini-l">Other entities — one per line (optional)</label><textarea class="setup-mini-in" id="su-ents" rows="2" placeholder="ECH Mabank LLC&#10;ECH Athens LLC"></textarea>'+
         '<button type="button" class="echip on" id="su-biz-go">Create &amp; file</button>'+
         '<div class="setup-mini-msg su-dim" id="su-biz-msg"></div>'+
       '</div>');
     var go=b.querySelector('#su-biz-go');
+    var busy=false, done=false;
     go.onclick=async function(){
+      if(busy || done) return;                                   // guard: one row set per submission, no double-write
       var biz=(b.querySelector('#su-biz').value||'').trim();
+      var owner=(b.querySelector('#su-owner').value||'').trim();
       var ents=(b.querySelector('#su-ents').value||'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
       var msg=b.querySelector('#su-biz-msg');
-      if(!biz && !ents.length){ msg.innerHTML='<span class="su-err">Enter a business name or at least one entity.</span>'; return; }
+      if(!biz && !owner && !ents.length){ msg.innerHTML='<span class="su-err">Enter a business name, an owner, or at least one entity.</span>'; return; }
       if(!fl){ msg.innerHTML='<span class="su-err">Sign in to the Command Center to save these.</span>'; return; }
+      busy=true; go.disabled=true; msg.textContent='Saving…';
       var authed = !!(window.flApi && flApi.authed && flApi.authed());
-      go.disabled=true; msg.textContent='Saving…';
-      var entCreated=0, entFailed=0, bizSaved=false;
-      // Business profile -> /api/admin-records (kind=personal_info) AS THE SIGNED-IN USER — the durable
-      // source of truth. The Doc Navigator overlay is added too, but only for instant on-screen display.
-      if(biz){
-        var br=null; try { br=await fl.createRecord({ kind:'personal_info', label:biz, details:{ profile:'Business profile' }, retention:'permanent' }); } catch(e){ br=null; }
-        bizSaved=!!br;
-        fl.fileToDocNav(biz+' — business profile','personal-info', bizSaved?'personal-information':'document-navigator');
-      }
-      // Entities -> POST /api/entities (admin create). Honest fallback ONLY when the write genuinely fails.
-      for(var i=0;i<ents.length;i++){
-        var name=ents[i];
+      // The business NAME is an entity, not a profile — it (plus any extras) goes to the entities table.
+      var allEnts=[]; if(biz) allEnts.push(biz); ents.forEach(function(n){ allEnts.push(n); });
+      var entCreated=0, entFailed=0, ownerSaved=false;
+      for(var i=0;i<allEnts.length;i++){
+        var name=allEnts[i];
         var code=name.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || ('ENTITY_'+(i+1));
-        var res=null; try { res=await fl.createEntity({ code:code, name:name }); } catch(e){ res=null; }
+        var res=null; try { res=await fl.createEntity({ code:code, name:name, legal_form:'LLC' }); } catch(e){ res=null; }
         if(res){ entCreated++; fl.fileToDocNav(name+' — entity formation','entity','entities'); }
-        else { entFailed++; fl.fileToDocNav(name+' — entity (pending)','entity','entities'); }
+        else { entFailed++; }
       }
-      if(ents.length) fl.activateArea('legal');   // Entities live in the Legal area
-      go.disabled=false;
+      // The OWNER (a person) is the personal_info record — NOT the business name.
+      if(owner){
+        var orec=null; try { orec=await fl.createRecord({ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' }); } catch(e){ orec=null; }
+        ownerSaved=!!orec;
+        if(ownerSaved) fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information');
+      }
+      if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
+      done = (entFailed===0 && (!owner || ownerSaved));          // lock the form only when everything attempted saved
+      busy=false; if(done){ go.textContent='✓ Saved'; } else { go.disabled=false; }
       var out=[];
-      if(entCreated) out.push('✅ Created '+entCreated+' entit'+(entCreated===1?'y':'ies')+' in your account (entities table)');
-      if(bizSaved) out.push('✅ Saved your business profile to your account (admin_records)');
-      if(entFailed) out.push('📝 '+entFailed+' entit'+(entFailed===1?'y':'ies')+' '+(authed?'couldn’t be created — check for a duplicate name, then retry':'noted — sign in to persist')+', filed to Document Navigator');
-      if(biz && !bizSaved) out.push('📝 Business profile '+(authed?'didn’t save — retry':'noted — sign in to persist')+', filed to Document Navigator');
-      if(ents.length) out.push('Opened the <b>Legal</b> area (Entities lives there)');
+      if(entCreated) out.push('✅ Created '+entCreated+' entit'+(entCreated===1?'y':'ies')+' in the entities table');
+      if(ownerSaved) out.push('✅ Filed the owner under Personal Information');
+      if(entFailed) out.push('⚠️ '+entFailed+' entit'+(entFailed===1?'y':'ies')+' '+(authed?'failed — a duplicate name? check, then retry':'need sign-in to persist'));
+      if(owner && !ownerSaved) out.push('⚠️ Owner '+(authed?'didn’t save — retry':'needs sign-in to persist'));
+      if(entCreated) out.push('Opened the <b>Legal</b> area (Entities lives there)');
       msg.innerHTML=(out.join('. ')||'Nothing to save')+'.';
     };
     return true;
