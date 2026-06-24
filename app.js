@@ -1194,5 +1194,6 @@ window.FLSetup = {
   restartSetup: restartSetup, completeSetup: completeSetup,
   fileToDocNav: fileToDocNav,
   createEntity: function(payload){ return (window.flEntities && flEntities.create) ? flEntities.create(payload) : Promise.resolve(null); },
+  createRecord: function(payload){ return (window.flRecords && flRecords.create) ? flRecords.create(payload) : Promise.resolve(null); },
   refresh: refreshBoard
 };

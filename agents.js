@@ -343,24 +343,33 @@ function handleSetup(v){
       var msg=b.querySelector('#su-biz-msg');
       if(!biz && !ents.length){ msg.innerHTML='<span class="su-err">Enter a business name or at least one entity.</span>'; return; }
       if(!fl){ msg.innerHTML='<span class="su-err">Sign in to the Command Center to save these.</span>'; return; }
+      var authed = !!(window.flApi && flApi.authed && flApi.authed());
       go.disabled=true; msg.textContent='Saving…';
-      var created=0, noted=0;
-      if(biz) fl.fileToDocNav(biz+' — business profile','personal-info','document-navigator');
+      var entCreated=0, entFailed=0, bizSaved=false;
+      // Business profile -> /api/admin-records (kind=personal_info) AS THE SIGNED-IN USER — the durable
+      // source of truth. The Doc Navigator overlay is added too, but only for instant on-screen display.
+      if(biz){
+        var br=null; try { br=await fl.createRecord({ kind:'personal_info', label:biz, details:{ profile:'Business profile' }, retention:'permanent' }); } catch(e){ br=null; }
+        bizSaved=!!br;
+        fl.fileToDocNav(biz+' — business profile','personal-info', bizSaved?'personal-information':'document-navigator');
+      }
+      // Entities -> POST /api/entities (admin create). Honest fallback ONLY when the write genuinely fails.
       for(var i=0;i<ents.length;i++){
         var name=ents[i];
         var code=name.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || ('ENTITY_'+(i+1));
         var res=null; try { res=await fl.createEntity({ code:code, name:name }); } catch(e){ res=null; }
-        if(res){ created++; fl.fileToDocNav(name+' — entity formation','entity','entities'); }
-        else { noted++; fl.fileToDocNav(name+' — entity (pending)','entity','entities'); }
+        if(res){ entCreated++; fl.fileToDocNav(name+' — entity formation','entity','entities'); }
+        else { entFailed++; fl.fileToDocNav(name+' — entity (pending)','entity','entities'); }
       }
       if(ents.length) fl.activateArea('legal');   // Entities live in the Legal area
       go.disabled=false;
-      var out='';
-      if(created) out+='✅ Created '+created+' entit'+(created===1?'y':'ies')+' in your account. ';
-      if(noted) out+='📝 Noted '+noted+' entit'+(noted===1?'y':'ies')+' — the name is filed and retrievable; an admin finalizes the row. ';
-      if(biz) out+='Filed your business profile to Document Navigator. ';
-      if(ents.length) out+='Opened the <b>Legal</b> area (Entities lives there).';
-      msg.innerHTML=out||'Saved.';
+      var out=[];
+      if(entCreated) out.push('✅ Created '+entCreated+' entit'+(entCreated===1?'y':'ies')+' in your account (entities table)');
+      if(bizSaved) out.push('✅ Saved your business profile to your account (admin_records)');
+      if(entFailed) out.push('📝 '+entFailed+' entit'+(entFailed===1?'y':'ies')+' '+(authed?'couldn’t be created — check for a duplicate name, then retry':'noted — sign in to persist')+', filed to Document Navigator');
+      if(biz && !bizSaved) out.push('📝 Business profile '+(authed?'didn’t save — retry':'noted — sign in to persist')+', filed to Document Navigator');
+      if(ents.length) out.push('Opened the <b>Legal</b> area (Entities lives there)');
+      msg.innerHTML=(out.join('. ')||'Nothing to save')+'.';
     };
     return true;
   }
