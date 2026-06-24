@@ -31,7 +31,7 @@
   }
 
   var CSS =
-    '.rec-blurb b{color:var(--fg,#0f172a)}' +
+    '.rec-blurb b{color:var(--txt,#0f172a)}' +
     '.rec-form{margin:12px 0}' +
     '.rec-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:10px}' +
     '.rec-field{display:flex;flex-direction:column}.rec-field.full{grid-column:1/-1}' +
@@ -44,16 +44,16 @@
     '.rec-msg{font-size:12px;margin-top:8px;min-height:16px}' +
     '.rec-card{margin-bottom:10px}' +
     '.rec-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}' +
-    '.rec-label{font-size:15px;font-weight:800;color:var(--fg,#0f172a)}' +
+    '.rec-label{font-size:15px;font-weight:800;color:var(--txt,#0f172a)}' +
     '.rec-ent{font-size:10.5px;font-weight:800;letter-spacing:.4px;color:#475569;background:#eef2ff;padding:1px 7px;border-radius:10px}' +
     '.rec-ret{font-size:10.5px;font-weight:700;color:#92400e;background:#fef3c7;padding:1px 7px;border-radius:10px}' +
     '.rec-details{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-top:8px}' +
-    '.rec-dl{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;border-bottom:1px dotted #e2e8f0;padding:2px 0}' +
-    '.rec-dl span{color:var(--dim,#64748b)}.rec-dl b{color:var(--fg,#0f172a)}' +
-    '.rec-notes{margin-top:8px;font-size:12px;color:#475569;font-style:italic}' +
-    '.rec-docs{margin-top:8px;font-size:11.5px;color:#64748b}' +
-    '.rec-del{margin-left:auto;background:transparent;border:1.5px solid #e2e8f0;color:#94a3b8;border-radius:6px;padding:2px 9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.4}' +
-    '.rec-del:hover{border-color:#fca5a5;color:#dc2626;background:#fef2f2}' +
+    '.rec-dl{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;border-bottom:1px dotted var(--line,#e2e8f0);padding:2px 0}' +
+    '.rec-dl span{color:var(--mut,#64748b)}.rec-dl b{color:var(--txt,#0f172a)}' +
+    '.rec-notes{margin-top:8px;font-size:12px;color:var(--mut,#475569);font-style:italic}' +
+    '.rec-docs{margin-top:8px;font-size:11.5px;color:var(--mut,#64748b)}' +
+    '.rec-del{margin-left:auto;background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}' +
+    '.rec-del:hover{background:#fee2e2;border-color:#f87171}' +
     '.ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}';
 
   function fieldInputHtml(f) {
@@ -111,7 +111,7 @@
     var docs = (r.documents && r.documents.length)
       ? (r.documents.length + ' linked')
       : 'none yet — file in Document Navigator';
-    var del = r.id ? '<button type="button" class="rec-del" data-id="' + esc(r.id) + '" title="Delete this record">Delete</button>' : '';
+    var del = r.id ? '<button type="button" class="rec-del" data-id="' + esc(r.id) + '" title="Delete this record">🗑 Delete</button>' : '';
     return '<div class="card rec-card">' +
       '<div class="rec-top"><span class="rec-label">' + esc(r.label || '(untitled)') + '</span>' + ent + ret + del + '</div>' +
       (rows ? '<div class="rec-details">' + rows + '</div>' : '<div class="small muted" style="margin-top:6px">No fields recorded yet — that\'s fine, you can fill them later.</div>') +
