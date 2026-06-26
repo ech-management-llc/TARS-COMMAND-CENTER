@@ -40,7 +40,7 @@
 </div>
 
 <script src="../../../shared/fl-auth.js?v=20260624d"></script>
-<script src="../../../shared/fl-api.js?v=20260624d"></script>
+<script src="../../../shared/fl-api.js?v=20260626a"></script>
 <script>
   // The indexed VIEW = data/STUB_DOCUMENTS.json (sample structure) + the doc-drop overlay
   // (fl_documents_overlay_v1 breadcrumbs) + the REAL source-of-truth records from /api/admin-records
@@ -76,11 +76,28 @@
     })).then(function(arrs){ return arrs.reduce(function(a,b){ return a.concat(b); }, []); });
   }
 
+  // Turn one /api/entities row into an Entity Formation doc entry (carrying entityId+real -> Delete).
+  function entityToDoc(e){
+    return { name:(e.name||'(unnamed entity)'), folder:'entity', source_tile:'entities', entityId:e.id, real:true,
+      meta:'entity'+(e.legal_form?(' · '+e.legal_form):'')+(e.primary_bank?(' · '+e.primary_bank):'') };
+  }
+  // Load real entities into the Entity Formation folder (signed in only). Degrades to [] — never throws.
+  function loadRealEntities(){
+    if(!(window.flApi && flApi.authed && flApi.authed()) || !(window.flEntities && flEntities.list)) return Promise.resolve([]);
+    return flEntities.list().then(function(rows){ return (rows||[]).map(entityToDoc); }).catch(function(){ return []; });
+  }
+
   function allDocs(){
     // overlay docs name their folder by id OR display name — resolve both
     var byName = {}; FOLDERS.forEach(function(f){ byName[f.name]=f.id; });
+    // TD-107 dedupe: a real record/entity suppresses its localStorage breadcrumb so folders don't
+    // show phantom duplicates. Match on folder + name (case-insensitive). Real always wins.
+    var realKeys = {};
+    REAL.forEach(function(d){ realKeys[(d.folder||'')+'|'+String(d.name||'').trim().toLowerCase()] = true; });
     var overlay = overlayDocs().map(function(d){
       return { name:d.name, folder: byName[d.folder]||d.folder, meta:'added '+(d.added||'')+' · via '+(d.source_tile||'drop'), source_tile:d.source_tile };
+    }).filter(function(d){
+      return !realKeys[(d.folder||'')+'|'+String(d.name||'').trim().toLowerCase()];
     });
     return DOCS.concat(overlay).concat(REAL);
   }
@@ -103,8 +120,10 @@
   }
 
   function docTile(d){
-    var del = (d.real && d.recordId) ? '<button class="rec-del-nav" type="button" data-del="'+esc(d.recordId)+'" title="Delete this record from your account">🗑 Delete</button>' : '';
-    var badge = d.real ? '<span class="rec-badge">RECORD</span>' : '';
+    var del = '';
+    if(d.real && d.recordId) del = '<button class="rec-del-nav" type="button" data-del="'+esc(d.recordId)+'" title="Delete this record from your account">🗑 Delete</button>';
+    else if(d.real && d.entityId) del = '<button class="rec-del-nav" type="button" data-del-entity="'+esc(d.entityId)+'" title="Soft-delete this entity">🗑 Delete</button>';
+    var badge = d.real ? '<span class="rec-badge">'+(d.entityId?'ENTITY':'RECORD')+'</span>' : '';
     var foot = (d.source_tile||del) ? '<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+srcChip(d.source_tile)+del+'</div>' : '';
     return '<div class="docit">📄 <b>'+esc(d.name)+'</b>'+badge+'<span class="dim">'+esc(d.meta||'')+'</span>'+foot+'</div>';
   }
@@ -144,8 +163,29 @@
     });
   }
 
+  // Soft-delete a real entity via the SAME endpoint the Entities tile uses (DELETE /api/entities/{id}).
+  function delEntity(id){
+    if(!id) return;
+    if(!window.confirm('Soft-delete this entity? It is removed from the active list (recoverable by an admin) — not just this view.')) return;
+    navMsg('<span class="dim">Deleting…</span>');
+    flEntities.del(id).then(function(res){
+      if(!res){
+        var authed = window.flApi && flApi.authed && flApi.authed();
+        navMsg('<span class="err">'+(authed ? 'Delete failed — only an admin can delete an entity, and one with active children needs a cascade.' : 'Session expired — sign in again, then retry. Nothing was deleted.')+'</span>');
+        return;
+      }
+      REAL = REAL.filter(function(d){ return String(d.entityId)!==String(id); });
+      if(openF!=null) openFolder(openF); else renderFolders();
+      navMsg('<span class="ok">✓ Deleted.</span> Removed from the active list.');
+    });
+  }
+
   document.addEventListener('input', function(e){ if(e.target&&e.target.id==='docsearch') renderFolders(); });
-  document.addEventListener('click', function(e){ var b=e.target&&e.target.closest?e.target.closest('[data-del]'):null; if(b){ e.preventDefault(); delRecord(b.getAttribute('data-del')); } });
+  document.addEventListener('click', function(e){
+    if(!e.target||!e.target.closest) return;
+    var b=e.target.closest('[data-del]'); if(b){ e.preventDefault(); delRecord(b.getAttribute('data-del')); return; }
+    var be=e.target.closest('[data-del-entity]'); if(be){ e.preventDefault(); delEntity(be.getAttribute('data-del-entity')); }
+  });
 
   // In-tile view config from the core: show/hide sections. Never touches data.
   var viewOps=[];
@@ -160,13 +200,14 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  // Boot: the sample index + the real records load together, so folder counts and the folder
-  // view reflect what's actually on file (when signed in). Unauthed -> REAL stays [] (samples only).
+  // Boot: the sample index + the real records + real entities load together, so folder counts and
+  // the folder view reflect what's actually on file (when signed in). Unauthed -> REAL stays [].
   Promise.all([
     fetch('../../../data/STUB_DOCUMENTS.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
-    loadRealRecords()
+    loadRealRecords(),
+    loadRealEntities()
   ]).then(function(out){
-    var d = out[0]; FOLDERS=d.folders||[]; DOCS=d.docs||[]; REAL=out[1]||[];
+    var d = out[0]; FOLDERS=d.folders||[]; DOCS=d.docs||[]; REAL=(out[1]||[]).concat(out[2]||[]);
     if(!FOLDERS.length) throw 0;
     renderFolders();
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
