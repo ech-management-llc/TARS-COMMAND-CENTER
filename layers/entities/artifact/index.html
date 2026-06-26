@@ -5,6 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Entities — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+  /* Add-entity form + per-row delete — visual parity with the shared .rec-* record tiles. */
+  .ent-form{margin:12px 0}
+  .ent-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:10px}
+  .ent-field{display:flex;flex-direction:column}.ent-field.full{grid-column:1/-1}
+  .ent-lab{font-size:11.5px;font-weight:600;color:var(--dim,#8a8a93);margin-bottom:4px}
+  .ent-in{width:100%;background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a}
+  .ent-in:focus{outline:none;border-color:#6366f1}
+  .ent-hint{font-size:10.5px;color:#94a3b8;margin-top:3px}
+  .ent-save{margin-top:12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+  .ent-save:hover{filter:brightness(1.06)}.ent-save:disabled{opacity:.6;cursor:default}
+  .ent-msg{font-size:12px;margin-top:8px;min-height:16px}
+  .ent-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
+  .ent-del:hover{background:#fee2e2;border-color:#f87171}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+</style>
 </head>
 <body>
 <div class="art-wrap">
@@ -12,43 +28,94 @@
   <div id="scopebar"></div>
 
   <div class="preview-banner">
-    <b>Your companies — one place.</b> Every row is a <b>live read</b> from the shared entity record
-    (<code>data/STUB_ENTITIES.json</code>). Entity names, roles, and primary bank reflect the real ECH
-    stack; door counts mirror the property record. EIN, formation dates, registered agent, and filing
-    dates are <b>honest SAMPLE</b> values until the legal/records source is wired (Secretary of State + vault).
-    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Ellis</b> and say “flag annual reports due in 90 days” or “add a column for franchise tax” — the employee reshapes this view and it sticks.</div>
+    <b>Your companies — one place.</b> Every row is a <b>live read</b> from the Foundation Layer
+    backend (<code>/api/entities</code>, RLS-scoped to your access). Legal name, type, parent, and
+    primary bank are <b>real</b>. EIN, formation date, registered agent, door count, and annual-report
+    status are <b>not in the entities table yet</b> — they show as <b>“—” (UNKNOWN)</b>, never faked,
+    until the Secretary-of-State / records source is wired.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Ellis</b> and say “flag annual reports due in 90 days” — the employee reshapes this view once the records source lands.</div>
   </div>
 
-  <div class="ruleg" id="ent-kpis" data-view-section="kpis"></div>
+  <!-- Sign-in required (shown when not authenticated) -->
+  <div class="card" id="ent-auth" style="display:none"></div>
 
-  <div class="card" data-view-section="detail" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-    <div id="ent-head"><div style="font-size:16px;font-weight:800">…</div></div>
-    <select id="ent-picker"></select>
-  </div>
-  <div class="card" data-view-section="detail-rows">
-    <div class="section-label">ENTITY DETAIL — pulled from every layer</div>
-    <table><tbody id="ent-detail-rows"></tbody></table>
-    <div class="small dim" style="margin-top:8px">Sample data until the records source is wired. EIN masked on purpose — never faked.</div>
+  <!-- Real-data surfaces (shown only when signed in) -->
+  <div id="ent-live" style="display:none">
+    <div class="ruleg" id="ent-kpis" data-view-section="kpis"></div>
+
+    <div class="card" data-view-section="detail" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <div id="ent-head"><div style="font-size:16px;font-weight:800">…</div></div>
+      <select id="ent-picker"></select>
+    </div>
+    <div class="card" data-view-section="detail-rows">
+      <div class="section-label">ENTITY DETAIL</div>
+      <table><tbody id="ent-detail-rows"></tbody></table>
+      <div class="small dim" style="margin-top:8px">“—” = not yet backed by the entities table (UNKNOWN). EIN is never faked.</div>
+    </div>
+
+    <div class="card" data-view-section="roster">
+      <div class="section-label">ALL ENTITIES</div>
+      <table><thead><tr><th>ENTITY</th><th>TYPE</th><th>PARENT</th><th>DOORS</th><th>BANK</th><th>ANNUAL REPORT</th><th></th></tr></thead>
+        <tbody id="ent-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="card ent-form" id="ent-add" data-view-section="add">
+      <div class="section-label">ADD AN ENTITY</div>
+      <div class="ent-grid">
+        <div class="ent-field"><span class="ent-lab">Code (natural key)</span>
+          <input class="ent-in" id="ent-code" placeholder="e.g. ECH_NEWCO — required"></div>
+        <div class="ent-field"><span class="ent-lab">Legal name</span>
+          <input class="ent-in" id="ent-name" placeholder="e.g. ECH NEWCO LLC — required"></div>
+        <div class="ent-field"><span class="ent-lab">Type</span>
+          <select class="ent-in" id="ent-legal"><option value="LLC">LLC</option><option value="Inc">Inc</option></select></div>
+        <div class="ent-field"><span class="ent-lab">Primary bank</span>
+          <input class="ent-in" id="ent-bank" value="Altra"></div>
+        <div class="ent-field full"><span class="ent-lab">Parent entity (optional)</span>
+          <select class="ent-in" id="ent-parent"><option value="">— top-level (no parent) —</option></select></div>
+      </div>
+      <div class="ent-hint" style="margin-top:8px">Code must be unique. New entities are created under your signed-in account and scoped by RLS.</div>
+      <button type="button" class="ent-save" id="ent-save">Save entity</button>
+      <div class="ent-msg" id="ent-msg"></div>
+    </div>
   </div>
 
-  <div class="card" data-view-section="roster">
-    <div class="section-label">ALL ENTITIES</div>
-    <table><thead><tr><th>ENTITY</th><th>ROLE</th><th>STATE</th><th>DOORS</th><th>BANK</th><th>ANNUAL REPORT</th></tr></thead>
-      <tbody id="ent-rows"></tbody>
-    </table>
-  </div>
-
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: shared entity record (sample). Real values arrive via the Secretary-of-State / records source in a later phase. Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260626a"></script>
 <script src="../../../shared/fl-scope-select.js"></script>
 <script>
   var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
   function scopedENTS(){ return SELE ? ENTS.filter(function(e){ return SELE.indexOf(e.id)>=0; }) : ENTS; }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  // dash(): honest UNKNOWN — a missing/blank value renders as "—" and is NEVER fabricated.
+  function dash(v){ return (v==null || v==='') ? '—' : esc(v); }
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function xref(label,id){ return '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(label)+'">'+esc(label)+'</button>'; }
+
+  // Map a real /api/entities row to the tile's view model. Real columns are populated;
+  // everything the entities table doesn't carry stays null -> renders as "—" (UNKNOWN), never faked.
+  function mapEntity(e){
+    return {
+      id: e.id, code: e.code, name: e.name,
+      type: e.legal_form || 'LLC',          // real
+      bank: e.primary_bank || null,          // real
+      parent_entity_id: e.parent_entity_id || null,   // real
+      created_at: e.created_at || null,      // real
+      // not yet backed by the entities table — honest unknowns:
+      role: null, role_tag: null, state: null, doors: null,
+      ein: null, formed: null, registered_agent: null, annual_report: null,
+      _sample: !!e._sample
+    };
+  }
+  function parentName(pid){
+    if(!pid) return null;
+    for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===pid) return ENTS[i].name; }
+    return null;
+  }
 
   function arStatus(ar){
     var s = (ar&&ar.status)||'';
@@ -59,35 +126,39 @@
   }
 
   function render(){
-    var e = ENTS[current]; if(!e) return;
+    var list = scopedENTS();
+    if(current>=ENTS.length) current = 0;
+    var e = ENTS[current];
+    if(!e){ document.getElementById('ent-head').innerHTML='<div class="muted">No entities yet — add one below.</div>'; document.getElementById('ent-detail-rows').innerHTML=''; document.getElementById('ent-rows').innerHTML=''; return; }
     document.getElementById('ent-head').innerHTML =
       '<div style="font-size:16px;font-weight:800">'+esc(e.name)+'</div>'+
-      '<div class="small muted">'+esc(e.role_tag||e.type)+' · '+esc(e.type)+' · '+esc(e.state)+' · '+esc(e.doors)+' door'+(e.doors===1?'':'s')+' '+xref('Financials','financials')+'</div>';
+      '<div class="small muted">'+esc(e.code)+' · '+esc(e.type)+' · '+dash(e.doors)+' door'+(e.doors===1?'':'s')+' '+xref('Financials','financials')+'</div>';
 
-    // detail rows cross-reference their source tiles (formation docs, doors, filing dates)
     var ar = arStatus(e.annual_report);
     var det = [
-      ['Role', esc(e.role)],
-      ['Type / State', esc(e.type)+' · '+esc(e.state)],
-      ['Formed', esc(e.formed)+' '+xref('Document Navigator','document-navigator')],
-      ['Registered agent', esc(e.registered_agent)],
-      ['EIN', esc(e.ein)],
-      ['Primary bank', esc(e.bank)],
-      ['Doors owned', esc(e.doors)+' '+xref('Property File','property-file')],
+      ['Code', esc(e.code)],
+      ['Type', esc(e.type)],
+      ['Parent', dash(parentName(e.parent_entity_id))],
+      ['Formed', dash(e.formed)+' '+xref('Document Navigator','document-navigator')],
+      ['Registered agent', dash(e.registered_agent)],
+      ['EIN', dash(e.ein)],
+      ['Primary bank', dash(e.bank)],
+      ['Doors owned', dash(e.doors)+' '+xref('Property File','property-file')],
       ['Annual report', '<span class="pill '+ar.cls+'">'+ar.txt+'</span> '+xref('Calendar','calendar')+' '+xref('Compliance','compliance')]
     ];
     document.getElementById('ent-detail-rows').innerHTML = det.map(function(r){
       return '<tr><td style="white-space:nowrap;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td></tr>';
     }).join('');
 
-    document.getElementById('ent-rows').innerHTML = scopedENTS().map(function(x){
+    document.getElementById('ent-rows').innerHTML = list.map(function(x){
       var a = arStatus(x.annual_report);
       return '<tr data-view-row="'+esc(x.id)+'"><td style="font-weight:700">'+esc(x.name)+'</td>'+
-        '<td class="small muted">'+esc(x.role_tag||'')+'</td>'+
-        '<td>'+esc(x.state)+'</td>'+
-        '<td>'+esc(x.doors)+'</td>'+
-        '<td>'+esc(x.bank)+'</td>'+
-        '<td><span class="pill '+a.cls+'">'+a.txt+'</span></td></tr>';
+        '<td>'+esc(x.type)+'</td>'+
+        '<td class="small muted">'+dash(parentName(x.parent_entity_id))+'</td>'+
+        '<td>'+dash(x.doors)+'</td>'+
+        '<td>'+dash(x.bank)+'</td>'+
+        '<td><span class="pill '+a.cls+'">'+a.txt+'</span></td>'+
+        '<td><button type="button" class="ent-del" data-del="'+esc(x.id)+'" title="Soft-delete this entity">🗑</button></td></tr>';
     }).join('');
     applyViewCfg(viewOps);
   }
@@ -95,21 +166,27 @@
   function renderKpis(){
     var E = scopedENTS();
     var total = E.length;
-    var doors = E.reduce(function(s,e){ return s+(Number(e.doors)||0); },0);
-    var flagged = E.filter(function(e){ var s=(e.annual_report&&e.annual_report.status)||''; return s==='due-soon'||s==='overdue'; }).length;
-    var bank = E.length ? (E[0].bank||'—') : '—';
-    var flagCls = flagged>0 ? 'ry' : 'rg';
+    // doors + filings are NOT in the entities table yet -> honest "—" (UNKNOWN), not a fabricated 0.
+    var bank = E.length ? dash(E[0].bank) : '—';
     document.getElementById('ent-kpis').innerHTML =
       '<div class="rule rg"><div class="rn">ENTITIES</div><div class="rv">'+total+'</div><div class="rt">companies</div></div>'+
-      '<div class="rule rg"><div class="rn">TOTAL DOORS</div><div class="rv">'+doors+'</div><div class="rt">across the stack</div></div>'+
-      '<div class="rule '+flagCls+'"><div class="rn">FILINGS DUE</div><div class="rv">'+flagged+'</div><div class="rt">annual reports</div></div>'+
-      '<div class="rule rg"><div class="rn">PRIMARY BANK</div><div class="rv">'+esc(bank)+'</div><div class="rt">all entities</div></div>';
+      '<div class="rule"><div class="rn">TOTAL DOORS</div><div class="rv">—</div><div class="rt">not yet wired</div></div>'+
+      '<div class="rule"><div class="rn">FILINGS DUE</div><div class="rv">—</div><div class="rt">not yet wired</div></div>'+
+      '<div class="rule rg"><div class="rn">PRIMARY BANK</div><div class="rv">'+bank+'</div><div class="rt">all entities</div></div>';
   }
 
   function buildPicker(){
     var sel = document.getElementById('ent-picker');
     sel.innerHTML = ENTS.map(function(e,i){ return '<option value="'+i+'">'+esc(e.name)+'</option>'; }).join('');
+    sel.value = current;
     sel.onchange = function(){ current = +sel.value; render(); };
+  }
+
+  function buildParentSelect(){
+    var sel = document.getElementById('ent-parent');
+    if(!sel) return;
+    sel.innerHTML = '<option value="">— top-level (no parent) —</option>' +
+      ENTS.map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>'; }).join('');
   }
 
   // In-tile view config from the core: show/hide sections + roster rows. Never touches data.
@@ -124,15 +201,138 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  fetch('../../../data/STUB_ENTITIES.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ ENTS = d.entities||[]; if(!ENTS.length) throw 0;
-      if(window.FLScope) scope=FLScope.create({ items:ENTS.map(function(e){ return {id:e.id, label:e.name, sub:(e.role_tag||e.type||'')+' · '+e.doors+' doors'}; }), unit:'entity', unitPlural:'entities', label:'🏢 Showing', persistKey:'tcc_entities_scope', host:'#scopebar', onChange:function(ids,isAll){ SELE=isAll?null:ids; renderKpis(); render(); } });
-      buildPicker(); renderKpis(); render();
-      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
-    .catch(function(){ document.getElementById('ent-head').innerHTML='<div class="muted">Awaiting entity record — shared source not reachable.</div>'; });
+  // (Re)build every surface from the current ENTS array. Called after load, create, and delete.
+  function boot(){
+    var sb = document.getElementById('scopebar'); if(sb) sb.innerHTML='';
+    scope = null;
+    if(window.FLScope && ENTS.length){
+      scope = FLScope.create({ items:ENTS.map(function(e){ return {id:e.id, label:e.name, sub:(e.type||'')+' · '+(e.code||'')}; }),
+        unit:'entity', unitPlural:'entities', label:'🏢 Showing', persistKey:'tcc_entities_scope', host:'#scopebar',
+        onChange:function(ids,isAll){ SELE=isAll?null:ids; renderKpis(); render(); } });
+    }
+    buildPicker(); buildParentSelect(); renderKpis(); render();
+  }
+
+  function showAuth(){
+    var expired = window.flApi && flApi.authExpired && flApi.authExpired();
+    var box = document.getElementById('ent-auth');
+    document.getElementById('ent-live').style.display='none';
+    box.style.display='block';
+    box.innerHTML = '<div class="section-label">'+(expired?'SESSION EXPIRED':'SIGN IN REQUIRED')+'</div>'+
+      '<div class="small">'+(expired
+        ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to view and manage your entities. <span class="muted">Your data is safe — this is only a re-login.</span>'
+        : 'Your entities are saved to your account (not this browser). <b>Sign in to the Command Center</b> to view and manage them. Admins and members see only what they\'re granted.')+'</div>';
+  }
+
+  function showLive(){
+    document.getElementById('ent-auth').style.display='none';
+    document.getElementById('ent-live').style.display='';
+  }
+
+  // ── CREATE ──────────────────────────────────────────────────────────
+  function saveEntity(){
+    var btn = document.getElementById('ent-save'), msg = document.getElementById('ent-msg');
+    var code = (document.getElementById('ent-code').value||'').trim();
+    var name = (document.getElementById('ent-name').value||'').trim();
+    if(!code || !name){ msg.innerHTML='<span class="err">Code and legal name are both required.</span>'; return; }
+    var payload = {
+      code: code, name: name,
+      legal_form: document.getElementById('ent-legal').value || 'LLC',
+      primary_bank: (document.getElementById('ent-bank').value||'').trim() || 'Altra'
+    };
+    var parent = document.getElementById('ent-parent').value;
+    if(parent) payload.parent_entity_id = parent;
+    btn.disabled = true; msg.innerHTML = 'Saving…';
+    window.flEntities.create(payload).then(function(res){
+      btn.disabled = false;
+      if(!res){
+        if(window.flApi && !flApi.authed()) msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then re-save — your entries are still here.';
+        else msg.innerHTML='<span class="err">Save failed.</span> The code may already exist, or you may not have create access. Try a different code.';
+        return;
+      }
+      msg.innerHTML='<span class="ok">✓ Saved.</span> '+esc(res.name||name)+' created.';
+      ENTS.unshift(mapEntity(res));
+      current = 0;
+      ['ent-code','ent-name','ent-bank'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=(id==='ent-bank'?'Altra':''); });
+      document.getElementById('ent-legal').selectedIndex=0;
+      boot();
+    });
+  }
+
+  // ── DELETE ──────────────────────────────────────────────────────────
+  function deleteEntity(id){
+    if(!id) return;
+    var msg = document.getElementById('ent-msg');
+    var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
+    if(!window.confirm('Soft-delete '+((ent&&ent.name)||'this entity')+'? It is removed from the active list (recoverable by an admin).')) return;
+    if(msg) msg.innerHTML='<span class="muted">Deleting…</span>';
+    window.flEntities.del(id).then(function(res){
+      if(!res){
+        if(msg){
+          if(window.flApi && !flApi.authed())
+            msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then retry — nothing was deleted.';
+          else
+            msg.innerHTML='<span class="err">Delete failed.</span> Only an admin can delete an entity, and an entity with active child entities needs a cascade. Check and retry.';
+        }
+        return;
+      }
+      for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ENTS.splice(i,1); break; } }
+      if(current>=ENTS.length) current = 0;
+      boot();
+      if(msg) msg.innerHTML='<span class="ok">✓ Deleted.</span> Removed from the active list.';
+    });
+  }
+
+  // Delete by event delegation so it survives every re-render of the roster.
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('.ent-del') : null;
+    if(b){ ev.preventDefault(); deleteEntity(b.getAttribute('data-del')); }
+  });
+
+  // ── BOOT ────────────────────────────────────────────────────────────
+  function start(){
+    var saveBtn = document.getElementById('ent-save');
+    if(saveBtn) saveBtn.addEventListener('click', saveEntity);
+
+    // Not signed in -> sign-in card (never a stub).
+    if(!(window.flApi && window.flApi.authed && window.flApi.authed())){ showAuth(); return; }
+
+    showLive();
+    window.flEntities.list().then(function(rows){
+      // Signed in but the call came back null: session may have just expired, else the API is unreachable.
+      if(rows == null){
+        if(window.flApi && !flApi.authed()){ showAuth(); return; }
+        loadSampleFallback();   // signed in + API unreachable -> clearly-labeled dev sample
+        return;
+      }
+      ENTS = rows.map(mapEntity);
+      boot();
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+    }).catch(function(){
+      if(window.flApi && !flApi.authed()) showAuth();
+      else loadSampleFallback();
+    });
+  }
+
+  // Explicit dev fallback ONLY for signed-in-but-API-unreachable. Loudly labeled SAMPLE — never
+  // presented as real, never shown to a signed-in user with a working API.
+  function loadSampleFallback(){
+    var banner = document.createElement('div');
+    banner.className = 'preview-banner';
+    banner.style.cssText = 'background:#7f1d1d;color:#fff;font-weight:700';
+    banner.innerHTML = '⚠ SAMPLE DATA — the entity service was unreachable. These rows are illustrative, not your real entities. Reload when the connection is back.';
+    var live = document.getElementById('ent-live');
+    live.insertBefore(banner, live.firstChild);
+    document.getElementById('ent-add').style.display='none';   // no creating against a dead API
+    fetch('../../../data/STUB_ENTITIES.json',{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ ENTS = (d.entities||[]).map(function(e){ e._sample=true; return mapEntity(Object.assign({legal_form:e.type, primary_bank:e.bank}, e)); }); boot(); })
+      .catch(function(){ document.getElementById('ent-head').innerHTML='<div class="muted">Entity service unreachable and no sample available — reload to retry.</div>'; });
+  }
+
+  start();
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
-<script>FLSettings.mount({tileId:'entities'});</script>
+<script>try{ FLSettings.mount({tileId:'entities'}); }catch(e){}</script>
 </body>
 </html>

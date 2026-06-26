@@ -118,6 +118,10 @@
     list: function () { return call('GET', '/api/entities'); },
     create: function (entity) { return call('POST', '/api/entities', entity); },
     update: function (id, patch) { return call('PATCH', '/api/entities/' + encodeURIComponent(id), patch); },
+    // Soft-delete one entity (admin-gated server-side; sets active=false + writes an audit row).
+    // Resolves to the {status:'soft-deleted',...} body on success, or null on no-session / 4xx
+    // (403 not-admin · 409 has active children unless ?cascade=true) so the caller keeps the row.
+    del: function (id) { return call('DELETE', '/api/entities/' + encodeURIComponent(id)); },
   };
 
   // Source-of-truth admin records (Phase 3 / spine §2b): personal_info | bank_account | loan |
