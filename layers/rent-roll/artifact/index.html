@@ -6,310 +6,101 @@
 <title>Rent Roll — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 <style>
-  .b-yellow{background:var(--yellowbg);color:var(--yellow);border:1px solid var(--yellowln)}
-  .b-red{background:var(--redbg);color:var(--red);border:1px solid var(--redln)}
-  .sublab{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--mut);margin:14px 0 6px}
-  .att{border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;border:1px solid var(--line);background:var(--surf)}
-  .att.late{border-color:var(--yellowln);background:var(--yellowbg)}
-  .att.red{border-color:var(--redln);background:var(--redbg)}
-  .att.exp{border-color:var(--purpleln,#5b4b8a);background:var(--purplebg,#1c1830)}
-  .att .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-  .att .addr{font-weight:700}
-  .att .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-  .catrow{display:flex;gap:10px;margin-bottom:12px}
-  .catbtn{flex:1;background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:14px;cursor:pointer;text-align:left}
-  .catbtn.on{border-color:var(--green);background:var(--greenbg)}
-  .catbtn .ct{font-size:16px;font-weight:800}.catbtn .cs{font-size:11px;color:var(--mut);margin-top:3px}
-  .catbtn .cm{font-size:11px;margin-top:3px}
-  .prop{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
-  .prop.lasso{border:2px solid var(--yellowln);box-shadow:0 0 0 2px var(--yellowbg)}
-  .prop .ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;cursor:pointer;background:var(--surf)}
-  .prop .ph:hover{background:var(--surf2)}
-  .prop .pname{font-weight:700}
-  .units{border-top:1px solid var(--line)}
-  .unit{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line)}
-  .unit:last-child{border-bottom:0}
-  .unit.late{background:var(--yellowbg)} .unit.red{background:var(--redbg)}
-  .unit .uname{font-weight:600}
-  .unit .acts{display:flex;gap:6px;flex-wrap:wrap}
-  .btn.sm{padding:6px 10px;font-size:11px}
-  .rrmodal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
-  .rrmodal.on{display:flex}
-  .rrcard{background:var(--bg,#0d0f14);border:1px solid var(--line);border-radius:var(--radius);max-width:460px;width:100%;padding:18px;max-height:85vh;overflow:auto}
-  .rrcard h3{margin:0 0 4px;font-size:16px}
-  .rrcard .x{float:right;cursor:pointer;color:var(--mut);font-size:20px;line-height:1;border:0;background:none}
-  .actbtn{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--surf2);border:1px solid var(--line);color:var(--fg,#e8e8ea);border-radius:var(--radius-sm);padding:11px 13px;margin-top:8px;cursor:pointer;font-size:14px;font-weight:600;text-decoration:none}
-  .actbtn:hover{border-color:var(--green)}
-  .actbtn .ico{font-size:17px}
-  .mob{font-size:10px;color:var(--mut);font-weight:600;margin-left:auto}
-  .draft{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px;margin-top:8px;font-size:13px;line-height:1.5;white-space:pre-wrap}
-  .draft .dh{font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--mut);margin-bottom:4px}
-  .setbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:12px;font-size:13px}
-  .empchip{display:inline-flex;align-items:center;gap:6px;font-weight:700}
-  .empav{width:22px;height:22px;border-radius:50%;background:var(--purplebg,#1c1830);border:1px solid var(--purpleln,#5b4b8a);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
-  .setq{margin-top:14px}
-  .setq label{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
-  .setin{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--fg,#e8e8ea);border-radius:var(--radius-sm);padding:10px 12px;font-size:15px;box-sizing:border-box}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
-  .seg button{background:var(--surf2);border:0;color:var(--mut);padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer}
-  .seg button.on{background:var(--green);color:#06150f}
-  .linkbtn{background:none;border:0;color:var(--green);font-weight:600;cursor:pointer;font-size:13px;padding:0}
-  .pick{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer}
-  .pick:hover{background:var(--surf2)} .pick.on{background:var(--greenbg);border-color:var(--greenln)}
-  .pick .ck{display:inline-block;width:16px;color:var(--green);font-weight:800}
+  .rr-prop{border:1px solid var(--line);border-radius:var(--radius,12px);margin-bottom:8px;padding:12px 14px}
+  .rr-prop .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  .rr-prop .addr{font-weight:700}
+  .rr-tenant{margin-top:6px;font-size:12.5px;color:var(--mut)}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
 </style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">🏠 Rent Roll</div>
 
-  <div id="setbar" class="setbar"></div>
-  <div id="scopebar" class="setbar"></div>
-
   <div class="preview-banner">
-    <b>PREVIEW — sample rent roll.</b> The live source (RentRedi) is not connected yet, so tenants, amounts, and contacts below are illustrative. Rent inflows reconcile to the operating account through the one accounts model (Plaid → Foundation Layer → entity map) once Plaid is in production.
-    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Pat</b> and say “add a late-fee column” or “drop the reconciliation section” — the employee reshapes this view and it sticks.</div>
+    <b>Your units — the real base.</b> Properties and door counts below are a <b>live read</b> from
+    <code>/api/properties</code>. <b>Tenants, rent amounts, payment status and late tracking connect
+    with RentRedi</b> (the connector phase) — they're shown as <b>“—” / not connected</b>, never faked.
+    Rent inflows reconcile through the accounts model (Plaid → Foundation Layer) once Plaid is in production.
   </div>
 
-  <div class="ruleg" id="summary"></div>
+  <div class="card" id="rr-auth" style="display:none"></div>
 
-  <div class="section-label">⚡ NEEDS ATTENTION</div>
-  <div id="attention"><div class="muted small">loading…</div></div>
+  <div id="rr-live" style="display:none">
+    <div class="ruleg" id="rr-summary"></div>
 
-  <div class="section-label" style="margin-top:16px">ALL UNITS — by property</div>
-  <div class="catrow" id="cats"></div>
-  <div id="proplist"></div>
+    <div class="card" style="margin-top:4px">
+      <div class="section-label">UNITS — by property (manual base)</div>
+      <div id="rr-loading" class="small muted" style="padding:6px 2px">Loading…</div>
+      <div id="rr-props"></div>
+      <div class="small dim" style="margin-top:8px">Add or edit properties in <button class="xref" type="button" onclick="flOpen('property-file')">Property File</button>.</div>
+    </div>
 
-  <div class="card" data-view-section="reconciliation" style="margin-top:14px">
-    <div class="section-label">RECONCILIATION (accounts contract) <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financials">Financials</button></div>
-    <div class="row-sb"><span class="muted small">Operating account for rent inflows</span><span class="tag b-gray" id="opacct">ECH MGMT · Altra · sandbox $0</span></div>
-    <div class="wire-note">Each tenant's expected rent reconciles against inflows on the operating account. Real inflows + balances arrive at Plaid production (gated on Nov compliance); until then this reads an honest sandbox $0 rather than a fabricated balance.</div>
+    <div class="card" data-view-section="reconciliation" style="margin-top:8px">
+      <div class="section-label">RENT DATA — connects with RentRedi</div>
+      <div class="small muted">Tenant names, lease terms, monthly rent, payment status and late-fee tracking live in <b>RentRedi</b>. They flow in at the connector phase (RentRedi API → hub), then reconcile against rent inflows on the operating account (Plaid → Foundation Layer → entity map). Until then this tile shows the real <b>property/unit base</b> and an honest empty rent state — no placeholder tenants.</div>
+      <div class="wire-note" style="margin-top:8px">Operating account: <b id="rr-opacct">ECH MGMT · Altra · sandbox $0</b> — real balances arrive at Plaid production (Nov compliance).</div>
+    </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: RentRedi rent roll (not yet wired). Names, amounts + contacts are placeholders. Leases file in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button>.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Property base: <code>/api/properties</code> (live). Rent/tenants: RentRedi (not yet wired). Leases file in <button class="xref" type="button" onclick="flOpen('document-navigator')">Document Navigator</button>.</div>
 </div>
 
-<div class="rrmodal" id="modal" onclick="if(event.target===this)closeModal()"><div class="rrcard" id="modalbody"></div></div>
-
-<script src="../../../shared/fl-tile-settings.js"></script>
-<script src="../../../shared/fl-scope-select.js"></script>
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260626b"></script>
 <script>
-  var DATA=null, OPENCAT=null, OPENPROP={}, TODAY=new Date();
-  var LATE_RED=10, EXP_SOON=60;   // driven by FLSettings effective params
-  var SELP=null;                  // selected property ids; null = all (driven by FLScope)
-  var settings=null, scope=null;  // shared building blocks (fl-tile-settings, fl-scope-select)
-  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  var PROPS=[];
+  function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-  function money(n){ if(n==null||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
-  function moneyK(n){ if(n>=1000 && n%1000===0) return '$'+(n/1000)+'K'; return money(n); }
-  function bb(u){ return (u.beds!=null?u.beds:'?')+'/'+(u.baths!=null?u.baths:'?'); }
-  function dParse(s){ var d=new Date(s); return isNaN(d.getTime())?null:d; }
-  function daysUntil(s){ var d=dParse(s); if(!d) return null; return Math.round((d-TODAY)/864e5); }
-  function daysSince(s){ var d=dParse(s); if(!d) return null; return Math.round((TODAY-d)/864e5); }
-  function fmtDate(s){ var d=dParse(s); return d?d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):esc(s); }
-  function lateDays(u){ return u.days_late||0; }
-  function isRed(u){ return u.status==='late' && lateDays(u)>=LATE_RED; }
-  function propLate(p){ return (p.units||[]).some(function(u){ return u.status==='late'; }); }
-  function unitLabel(p,u){ return p.address + (p.type==='multifamily'?(' · '+u.unit):''); }
+  function dash(v){ return (v==null||v==='')?'—':esc(v); }
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function xref(label,id){ return '<button class="xref" type="button" onclick="flOpen(\''+id+'\')">'+esc(label)+'</button>'; }
+  function isAuthed(){ return !!(window.flApi&&flApi.authed&&flApi.authed()); }
 
-  function scopeProps(){ var all=(DATA&&DATA.properties)||[]; if(!SELP||!SELP.length) return all; return all.filter(function(p){ return SELP.indexOf(p.id)>=0; }); }
-  function allUnits(){ var out=[]; scopeProps().forEach(function(p){ (p.units||[]).forEach(function(u,i){ out.push({p:p,u:u,i:i}); }); }); return out; }
-
-  // scope selection (SELP) is managed by the shared FLScope component, created on load.
-
-
-  function renderSummary(){
-    var us=allUnits(), total=us.length;
-    var vacant=us.filter(function(x){return x.u.status==='vacant';}).length;
-    var late=us.filter(function(x){return x.u.status==='late';}).length;
-    var occ=total?Math.round((total-vacant)/total*100):0;
-    var collected=us.filter(function(x){return x.u.status==='paid';}).reduce(function(a,x){return a+(+x.u.rent||0);},0);
-    var expected=us.filter(function(x){return x.u.status!=='vacant';}).reduce(function(a,x){return a+(+x.u.rent||0);},0);
-    document.getElementById('summary').innerHTML=
-      '<div class="rule '+(occ>=90?'rg':'ry')+'"><div class="rn">OCCUPANCY</div><div class="rv">'+occ+'%</div><div class="rt">'+(total-vacant)+' of '+total+' leased</div></div>'+
-      '<div class="rule '+(vacant?'ry':'rg')+'"><div class="rn">VACANT</div><div class="rv">'+vacant+'</div><div class="rt">empty units</div></div>'+
-      '<div class="rule rg"><div class="rn">COLLECTED</div><div class="rv">'+moneyK(collected)+'</div><div class="rt">of '+money(expected)+' due</div></div>'+
-      '<div class="rule '+(late?'ry':'rg')+'"><div class="rn">LATE</div><div class="rv">'+late+'</div><div class="rt">past due</div></div>';
+  function showAuth(){
+    var expired=window.flApi&&flApi.authExpired&&flApi.authExpired();
+    $('rr-live').style.display='none';
+    var box=$('rr-auth'); box.style.display='block';
+    box.innerHTML='<div class="section-label">'+(expired?'SESSION EXPIRED':'SIGN IN REQUIRED')+'</div>'+
+      '<div class="small">'+(expired?'Your session expired. <b>Sign in again</b> to view your rent roll.':'<b>Sign in to the Command Center</b> to view your properties and rent roll.')+'</div>';
   }
 
-  function renderAttention(){
-    var us=allUnits();
-    var empties=us.filter(function(x){return x.u.status==='vacant';}).sort(function(a,b){return (daysSince(b.u.vacant_since)||0)-(daysSince(a.u.vacant_since)||0);});
-    var lates=us.filter(function(x){return x.u.status==='late';}).sort(function(a,b){return lateDays(b.u)-lateDays(a.u);});
-    var exp=us.filter(function(x){ if(x.u.status==='vacant'||!x.u.lease) return false; var d=daysUntil(x.u.lease.expires); return d!=null && d<=EXP_SOON; }).sort(function(a,b){return daysUntil(a.u.lease.expires)-daysUntil(b.u.lease.expires);});
-    var html='';
-    if(!empties.length && !lates.length && !exp.length){ html='<div class="att" style="border-color:var(--greenln);background:var(--greenbg)"><b style="color:var(--green)">All units occupied, current, and not expiring soon.</b> Nothing needs immediate attention.</div>'; }
+  function render(){
+    $('rr-loading').style.display='none';
+    var n=PROPS.length;
+    var units=PROPS.reduce(function(s,p){ return s+(Number(p.units)||0); },0);
+    var occ=PROPS.filter(function(p){ return p.status==='occupied'; }).length;
+    var vac=PROPS.filter(function(p){ return p.status==='vacant'; }).length;
+    $('rr-summary').innerHTML=
+      '<div class="rule rg"><div class="rn">PROPERTIES</div><div class="rv">'+n+'</div><div class="rt">on file</div></div>'+
+      '<div class="rule rg"><div class="rn">UNITS</div><div class="rv">'+units+'</div><div class="rt">doors</div></div>'+
+      '<div class="rule rg"><div class="rn">OCCUPIED</div><div class="rv">'+occ+'</div><div class="rt">of '+n+'</div></div>'+
+      '<div class="rule '+(vac?'ry':'rg')+'"><div class="rn">VACANT</div><div class="rv">'+vac+'</div><div class="rt">properties</div></div>';
 
-    if(empties.length){ html+='<div class="sublab">🏚️ EMPTY — fill these</div>'; }
-    empties.forEach(function(x){
-      var dv=daysSince(x.u.vacant_since);
-      html+='<div class="att"><div class="top"><span class="addr">'+esc(unitLabel(x.p,x.u))+'</span><span class="tag b-gray">VACANT</span></div>'+
-        '<div class="small muted">'+bb(x.u)+' · asking '+money(x.u.rent)+'/mo · <b style="color:var(--yellow)">'+money(x.u.rent)+'/mo not collected</b>'+(dv!=null?' · '+dv+' days empty':'')+(x.u.note?' · '+esc(x.u.note):'')+'</div>'+
-        '<div class="acts"><button class="btn sm primary" onclick="flOpen(\'tenant-screening\')">Find a tenant ↗</button>'+
-        '<button class="btn sm" onclick="openProp(\''+x.p.id+'\',\''+x.p.type+'\')">View property</button></div></div>';
-    });
-
-    if(lates.length){ html+='<div class="sublab">⚠️ LATE — collect these (most overdue first)</div>'; }
-    lates.forEach(function(x){
-      var red=isRed(x.u);
-      html+='<div class="att '+(red?'red':'late')+'"><div class="top"><span class="addr">'+(red?'🔴 ':'⚠️ ')+esc(unitLabel(x.p,x.u))+'</span><span class="tag '+(red?'b-red':'b-yellow')+'">LATE '+lateDays(x.u)+'d</span></div>'+
-        '<div class="small muted">'+esc(x.u.tenant?x.u.tenant.name:'—')+' · '+money(x.u.rent)+'/mo'+(x.u.late_fee?' · late fee '+money(x.u.late_fee):'')+(red?' · <b style="color:var(--red)">needs a formal notice</b>':'')+'</div>'+
-        '<div class="acts"><button class="btn sm primary" onclick="openReminder(\''+x.p.id+'\','+x.i+')">📣 Send reminder</button>'+
-        contactBtn(x.p.id,x.i,'sm')+contractBtn(x.p.id,x.i,'sm')+
-        (red?'<button class="btn sm" onclick="flOpen(\'legal\')">Start late notice ↗</button>':'')+'</div></div>';
-    });
-
-    if(exp.length){ html+='<div class="sublab">📅 LEASES ENDING SOON — renew these (within '+EXP_SOON+' days)</div>'; }
-    exp.forEach(function(x){
-      var d=daysUntil(x.u.lease.expires);
-      html+='<div class="att exp"><div class="top"><span class="addr">📅 '+esc(unitLabel(x.p,x.u))+'</span><span class="tag b-gray">ENDS IN '+d+'d</span></div>'+
-        '<div class="small muted">'+esc(x.u.tenant?x.u.tenant.name:'—')+' · '+money(x.u.rent)+'/mo · lease ends '+fmtDate(x.u.lease.expires)+'</div>'+
-        '<div class="acts"><button class="btn sm primary" onclick="openRenew(\''+x.p.id+'\','+x.i+')">🔄 Start renewal</button>'+
-        contactBtn(x.p.id,x.i,'sm')+contractBtn(x.p.id,x.i,'sm')+'</div></div>';
-    });
-    document.getElementById('attention').innerHTML=html;
-  }
-
-  function renderCats(){
-    var props=scopeProps();
-    function agg(arr){ var c=0,l=0,u=0; arr.forEach(function(p){ (p.units||[]).forEach(function(un){ u++; if(un.status==='paid') c+=(+un.rent||0); if(un.status==='late') l+=(+un.rent||0); }); }); return {collected:c,late:l,units:u}; }
-    function card(type,icon,name){
-      var arr=props.filter(function(p){return p.type===type;}); var a=agg(arr);
-      return '<div class="catbtn'+(OPENCAT===type?' on':'')+'" onclick="toggleCat(\''+type+'\')"><div class="ct">'+icon+' '+name+'</div>'+
-        '<div class="cs">'+arr.length+' properties · '+a.units+' units</div>'+
-        '<div class="cm"><span style="color:var(--green)">'+money(a.collected)+' collected</span>'+(a.late?' · <span style="color:var(--yellow)">'+money(a.late)+' past due</span>':' · <span class="muted">$0 past due</span>')+'</div></div>';
-    }
-    document.getElementById('cats').innerHTML=card('single_family','🏠','Single Family')+card('multifamily','🏢','Multifamily');
-  }
-
-  function renderProps(){
-    var box=document.getElementById('proplist');
-    if(!OPENCAT){ box.innerHTML=''; return; }
-    var props=scopeProps().filter(function(p){return p.type===OPENCAT;});
-    box.innerHTML=props.map(function(p){
-      var late=propLate(p); var open=!!OPENPROP[p.id];
-      var sb=(p.units||[]).map(function(u){return u.status;});
-      var vac=sb.filter(function(s){return s==='vacant';}).length, lt=sb.filter(function(s){return s==='late';}).length;
-      var summ=(p.units.length)+' unit'+(p.units.length>1?'s':'')+(lt?' · '+lt+' late':'')+(vac?' · '+vac+' vacant':(lt?'':' · all current'));
-      var head='<div class="ph" onclick="toggleProp(\''+p.id+'\')"><div><div class="pname">'+(late?'🟡 ':'')+esc(p.address)+'</div><div class="small muted">'+esc(summ)+' · '+esc(p.entity)+'</div></div><div class="muted">'+(open?'▲':'▼')+'</div></div>';
-      var units='';
-      if(open){
-        units='<div class="units">'+p.units.map(function(u,i){
-          var red=isRed(u);
-          var tag=u.status==='paid'?'<span class="tag b-green">paid</span>':u.status==='late'?'<span class="tag '+(red?'b-red':'b-yellow')+'">late '+lateDays(u)+'d</span>':'<span class="tag b-gray">vacant</span>';
-          var who=u.tenant?esc(u.tenant.name):'—';
-          var acts;
-          if(u.status==='vacant'){ acts='<button class="btn sm" onclick="flOpen(\'tenant-screening\')">Find a tenant ↗</button>'; }
-          else { acts=(u.status==='late'?'<button class="btn sm primary" onclick="openReminder(\''+p.id+'\','+i+')">📣 Remind</button>':'')+contactBtn(p.id,i,'sm')+contractBtn(p.id,i,'sm'); }
-          return '<div class="unit'+(u.status==='late'?(red?' red':' late'):'')+'"><div><span class="uname">'+esc(u.unit)+'</span> · '+who+'<div class="small muted">'+bb(u)+' · '+money(u.rent)+'/mo</div></div><div class="acts">'+tag+acts+'</div></div>';
-        }).join('')+'</div>';
-      }
-      return '<div class="prop'+(late?' lasso':'')+'">'+head+units+'</div>';
+    if(!n){ $('rr-props').innerHTML='<div class="small muted" style="padding:6px 2px">No properties yet. Add them in '+xref('Property File','property-file')+'.</div>'; return; }
+    $('rr-props').innerHTML=PROPS.map(function(p){
+      var u=Number(p.units)||1;
+      return '<div class="rr-prop"><div class="top"><span class="addr">'+esc(p.address)+'</span>'+
+        '<span class="tag b-gray">'+dash(p.status)+'</span></div>'+
+        '<div class="small muted">'+(p.entity_code?esc(p.entity_code)+' · ':'')+u+' unit'+(u===1?'':'s')+'</div>'+
+        '<div class="rr-tenant">👤 Tenants &amp; rent: <b>— not connected</b> (RentRedi) · '+xref('Property File','property-file')+'</div></div>';
     }).join('');
   }
 
-  function contractBtn(pid,i,sz){ return '<button class="btn '+(sz||'')+'" onclick="openContract(\''+pid+'\','+i+')">📄 Contract</button>'; }
-  function contactBtn(pid,i,sz){ return '<button class="btn '+(sz||'')+'" onclick="openContact(\''+pid+'\','+i+')">✉️ Contact</button>'; }
-  function findUnit(pid,i){ var p=(DATA.properties||[]).filter(function(x){return x.id===pid;})[0]; return p?{p:p,u:p.units[i],i:i}:null; }
-
-  function openContract(pid,i){
-    var x=findUnit(pid,i); if(!x) return; var u=x.u, L=u.lease;
-    var body='<button class="x" onclick="closeModal()">×</button><h3>📄 Lease — '+esc(unitLabel(x.p,u))+'</h3>'+
-      '<div class="small muted" style="margin-bottom:10px">'+(u.tenant?esc(u.tenant.name)+' · ':'')+(L?('expires '+fmtDate(L.expires)+' · '+esc(L.doc)):'no active lease')+'</div>';
-    if(L){
-      body+='<a class="actbtn" href="javascript:void(0)" onclick="docNote()"><span class="ico">👁️</span> View lease <span class="mob">opens the PDF</span></a>'+
-        '<a class="actbtn" href="javascript:void(0)" onclick="docNote()"><span class="ico">⬇️</span> Download <span class="mob">saves a copy</span></a>'+
-        '<a class="actbtn" href="javascript:void(0)" onclick="docNote()"><span class="ico">📧</span> Email lease <span class="mob">attach + send</span></a>'+
-        '<div class="wire-note" id="docnote" style="margin-top:10px">The lease lives in <b>Document Navigator</b> (Leases). View/Download/Email wire to the stored PDF at the connector phase — honest sample, no file is stored in this preview.</div>'+
-        '<div style="margin-top:8px"><button class="btn" onclick="flOpen(\'document-navigator\');closeModal()">Open in Document Navigator ↗</button></div>';
-    }
-    showModal(body);
+  function start(){
+    if(!isAuthed()){ showAuth(); return; }
+    $('rr-auth').style.display='none'; $('rr-live').style.display='';
+    window.flProperties.list().then(function(rows){
+      if(rows==null && window.flApi && !flApi.authed()){ showAuth(); return; }
+      PROPS=rows||[]; render();
+    }).catch(function(){
+      if(window.flApi && !flApi.authed()) showAuth();
+      else { $('rr-loading').style.display='none'; $('rr-props').innerHTML='<div class="small err">Could not load properties — reload to retry.</div>'; }
+    });
   }
-  function docNote(){ var n=document.getElementById('docnote'); if(n){ n.style.borderColor='var(--yellowln)'; n.innerHTML='<b>Preview:</b> this action wires to the stored lease PDF in Document Navigator once the document source is connected. Nothing is sent or downloaded in this public preview.'; } }
-
-  function openContact(pid,i){
-    var x=findUnit(pid,i); if(!x||!x.u.tenant) return; var t=x.u.tenant; var tel=(t.phone||'').replace(/[^+\d]/g,'');
-    var body='<button class="x" onclick="closeModal()">×</button><h3>✉️ Contact — '+esc(t.name)+'</h3>'+
-      '<div class="small muted" style="margin-bottom:10px">'+esc(unitLabel(x.p,x.u))+'</div>'+
-      (t.email?'<a class="actbtn" href="mailto:'+esc(t.email)+'"><span class="ico">📧</span> Email <span class="mob">'+esc(t.email)+'</span></a>':'')+
-      (tel?'<a class="actbtn" href="sms:'+esc(tel)+'"><span class="ico">💬</span> Text <span class="mob">'+esc(t.phone)+'</span></a>':'')+
-      (tel?'<a class="actbtn" href="tel:'+esc(tel)+'"><span class="ico">📞</span> Call <span class="mob">mobile · '+esc(t.phone)+'</span></a>':'')+
-      '<div class="wire-note" style="margin-top:10px">Email opens your mail app; Text + Call use your device (Call works on mobile). Tenant-facing sends also route through the TARS SMS lane (Rule 27) when wired. Sample contact info.</div>';
-    showModal(body);
-  }
-
-  function openReminder(pid,i){
-    var x=findUnit(pid,i); if(!x||!x.u.tenant) return; var u=x.u, t=u.tenant;
-    var owe=money(u.rent)+(u.late_fee?(' + '+money(u.late_fee)+' late fee'):'');
-    var sms='Hi '+t.name+' — friendly reminder from ECH Management: rent of '+money(u.rent)+' for '+unitLabel(x.p,u)+' is '+lateDays(u)+' days past due'+(u.late_fee?(' (late fee '+money(u.late_fee)+')'):'')+'. Please pay or reply here and we’ll help. Thank you.';
-    var email='Subject: Rent past due — '+unitLabel(x.p,u)+'\n\nHi '+t.name+',\n\nOur records show rent of '+owe+' for '+unitLabel(x.p,u)+' is currently '+lateDays(u)+' days past due. Please submit payment at your earliest convenience, or reply to this email so we can work out a plan.\n\nThank you,\nECH Management';
-    var body='<button class="x" onclick="closeModal()">×</button><h3>📣 Payment reminder — '+esc(t.name)+'</h3>'+
-      '<div class="small muted" style="margin-bottom:6px">'+esc(unitLabel(x.p,u))+' · '+lateDays(u)+' days past due · '+esc(owe)+'</div>'+
-      '<div class="draft"><div class="dh">TEXT (Rule 27 SMS lane → '+esc(t.phone||'—')+')</div>'+esc(sms)+'</div>'+
-      '<div class="draft"><div class="dh">EMAIL (→ '+esc(t.email||'—')+')</div>'+esc(email)+'</div>'+
-      '<button class="actbtn" onclick="sendHeld()"><span class="ico">✅</span> Approve &amp; send both <span class="mob">held for you</span></button>'+
-      (isRed(u)?'<button class="actbtn" onclick="flOpen(\'legal\');closeModal()"><span class="ico">⚖️</span> Escalate to a formal late notice <span class="mob">Legal ↗</span></button>':'')+
-      '<div class="wire-note" id="sendnote" style="margin-top:10px">Drafts are <b>held for your approval</b> (Draft mode). On send they go out the TARS SMS lane (Rule 27) + email pipeline once wired — nothing sends in this public preview.</div>';
-    showModal(body);
-  }
-  function sendHeld(){ var n=document.getElementById('sendnote'); if(n){ n.style.borderColor='var(--greenln)'; n.innerHTML='<b>Held ✓</b> — the text + email are queued for your approval. They send via the Rule 27 SMS lane + email pipeline at the connector phase. Nothing leaves in this preview.'; } }
-
-  function openRenew(pid,i){
-    var x=findUnit(pid,i); if(!x||!x.u.tenant) return; var u=x.u, t=u.tenant; var d=daysUntil(u.lease.expires);
-    var offer='Hi '+t.name+' — your lease for '+unitLabel(x.p,u)+' ends '+fmtDate(u.lease.expires)+' (in '+d+' days). We’d love to have you stay. We can offer a renewal at '+money(u.rent)+'/mo (current) — reply and we’ll send the renewal to sign. Thank you, ECH Management.';
-    var body='<button class="x" onclick="closeModal()">×</button><h3>🔄 Lease renewal — '+esc(t.name)+'</h3>'+
-      '<div class="small muted" style="margin-bottom:6px">'+esc(unitLabel(x.p,u))+' · lease ends '+fmtDate(u.lease.expires)+' (in '+d+' days)</div>'+
-      '<div class="draft"><div class="dh">RENEWAL OFFER (text + email draft)</div>'+esc(offer)+'</div>'+
-      '<button class="actbtn" onclick="sendHeld()"><span class="ico">✅</span> Approve &amp; send offer <span class="mob">held for you</span></button>'+
-      '<button class="actbtn" onclick="flOpen(\'legal\');closeModal()"><span class="ico">📝</span> Draft the renewal in Legal <span class="mob">Legal ↗</span></button>'+
-      '<button class="actbtn" onclick="flOpen(\'sign\');closeModal()"><span class="ico">🖋️</span> Send to Sign when ready <span class="mob">Sign ↗</span></button>'+
-      '<div class="wire-note" id="sendnote" style="margin-top:10px">Renewal terms are a starting point — confirm rent + dates before sending. Drafts are held for your approval; they send via the Rule 27 lane + email and the lease drafts in Legal once wired.</div>';
-    showModal(body);
-  }
-
-  // tile settings (per-owner, employee-or-manual) are managed by the shared FLSettings component, mounted on load.
-
-  function showModal(html){ document.getElementById('modalbody').innerHTML=html; document.getElementById('modal').className='rrmodal on'; }
-  function closeModal(){ document.getElementById('modal').className='rrmodal'; }
-  function toggleCat(c){ OPENCAT=(OPENCAT===c?null:c); OPENPROP={}; renderCats(); renderProps(); }
-  function openProp(pid,type){ OPENCAT=type; OPENPROP={}; OPENPROP[pid]=true; renderCats(); renderProps(); document.getElementById('proplist').scrollIntoView({behavior:'smooth',block:'start'}); }
-  function toggleProp(pid){ OPENPROP[pid]=!OPENPROP[pid]; renderProps(); }
-  function renderAll(){ renderSummary(); renderAttention(); renderCats(); renderProps(); }
-
-  // Load the rent roll; the shared building blocks own settings + scope.
-  fetch('../../../data/STUB_RENT_ROLL.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){
-      DATA=d;
-      if(DATA.generated_at){ var t=dParse(DATA.generated_at); if(t) TODAY=t; }
-      if(DATA.operating_account) document.getElementById('opacct').textContent=DATA.operating_account;
-      var props=DATA.properties||[];
-      var ents=[]; props.forEach(function(p){ if(ents.indexOf(p.entity)<0) ents.push(p.entity); });
-      // shared property-scope selector (bar + modal, persisted) — drives SELP
-      scope=FLScope.create({
-        items: props.map(function(p){ return {id:p.id,label:p.address,sub:p.entity+' · '+p.units.length+' unit'+(p.units.length>1?'s':''),type:p.type,entity:p.entity}; }),
-        unit:'property', unitPlural:'properties', label:'📋 Rent roll for', persistKey:'tcc_rr_scope',
-        quickPicks: ents.map(function(e){ return {label:e, ids:props.filter(function(p){return p.entity===e;}).map(function(p){return p.id;})}; }),
-        groups: [{label:'🏠 SINGLE FAMILY', match:function(it){return it.type==='single_family';}},{label:'🏢 MULTIFAMILY', match:function(it){return it.type==='multifamily';}}],
-        host:'#scopebar',
-        onChange: function(ids, isAll){ SELP=isAll?null:ids; renderSummary(); renderAttention(); renderCats(); renderProps(); }
-      });
-      // shared per-owner settings + employee-first setup — drives LATE_RED / EXP_SOON
-      settings=FLSettings.mount({
-        tileId:'rent-roll', host:'#setbar', title:'Rent Roll',
-        onChange: function(eff){ LATE_RED=+eff.late_red_days||10; EXP_SOON=+eff.expiring_soon_days||60; renderAll(); }
-      });
-      renderAll();
-    })
-    .catch(function(){ document.getElementById('attention').innerHTML='<div class="att">⚠ Rent roll data unavailable.</div>'; });
-
-  function applyViewCfg(ops){
-    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
-    (ops||[]).forEach(function(op){ if(op.target_type==='section'){ document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; }); } });
-  }
-  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
-  window.addEventListener('keydown', function(e){ if(e.key==='Escape') closeModal(); });
-  try { if(window.parent && window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'}, '*'); } catch(err){}
+  start();
 </script>
+<script src="../../../shared/fl-tile-settings.js"></script>
+<script>try{ FLSettings.mount({tileId:'rent-roll'}); }catch(e){}</script>
 </body>
 </html>

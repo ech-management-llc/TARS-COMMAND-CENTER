@@ -5,113 +5,235 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Property File — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .pf-form{margin:12px 0}
+  .pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:10px}
+  .pf-field{display:flex;flex-direction:column}.pf-field.full{grid-column:1/-1}
+  .pf-lab{font-size:11.5px;font-weight:600;color:var(--dim,#8a8a93);margin-bottom:4px}
+  .pf-in{width:100%;background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a}
+  .pf-in:focus{outline:none;border-color:#6366f1}
+  .pf-save{margin-top:12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+  .pf-save:hover{filter:brightness(1.06)}.pf-save:disabled{opacity:.6;cursor:default}
+  .pf-msg{font-size:12px;margin-top:8px;min-height:16px}
+  .pf-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .pf-del:hover{background:#fee2e2;border-color:#f87171}
+  .pf-apply{background:#10211b;border:1.5px solid #1c4d3e;color:#34d399;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+  .pf-apply:hover{filter:brightness(1.1)}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+</style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">🏡 Property File</div>
 
   <div class="preview-banner">
-    <b>One page per property — the hub.</b> Every row below is a <b>live read</b> from the shared
-    property record (<code>data/STUB_PROPERTIES.json</code>) — the same source the other property
-    tiles use, so a change there changes here. Values are honest SAMPLE data until the source layers
-    go live (RentRedi rent, Plaid cash flow, DealCheck value, lender LTV).
-    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Quinn</b> and say “remove the documents row” or “add a notes section” — the employee reshapes this view and it sticks.</div>
+    <b>One page per property — the hub.</b> Every row is a <b>live read</b> from your account
+    (<code>/api/properties</code>, RLS-scoped). Address, entity, status, units, value and purchase
+    are <b>real</b>. Rent, cash flow and lender LTV come from other sources (RentRedi / Plaid /
+    lender) and show <b>“—” (UNKNOWN)</b> until those are wired — never faked.
   </div>
 
-  <div class="card" data-view-section="header" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-    <div id="prop-head"><div style="font-size:16px;font-weight:800">…</div></div>
-    <select id="prop-picker"></select>
+  <!-- Sign-in required -->
+  <div class="card" id="pf-auth" style="display:none"></div>
+
+  <div id="pf-live" style="display:none">
+    <div class="ruleg" id="pf-kpis"></div>
+
+    <div class="card">
+      <div class="section-label">ALL PROPERTIES</div>
+      <div id="pf-loading" class="small muted" style="padding:6px 2px">Loading…</div>
+      <table><thead><tr><th>ADDRESS</th><th>ENTITY</th><th>STATUS</th><th>UNITS</th><th>VALUE</th><th>RENT</th><th></th></tr></thead>
+        <tbody id="pf-rows"></tbody>
+      </table>
+      <div class="small dim" style="margin-top:8px">RENT/cash-flow/LTV come from Rent Roll / Financials / Lender (cross-source) — “—” until wired.</div>
+    </div>
+
+    <!-- Roll up to Portfolio Facts (operator confirms; never auto-overwrites manual facts) -->
+    <div class="card" id="pf-rollup" style="display:none">
+      <div class="section-label">↗ ROLL UP TO PORTFOLIO FACTS</div>
+      <div class="small muted" style="margin-bottom:8px">Suggested from your properties: <b>door_count = Σ units</b>, <b>asset_value = Σ market value</b> per entity. This <b>suggests</b> — it never overwrites a value you typed (loan balance is left untouched). Review, then apply per entity.</div>
+      <div id="pf-rollup-rows"></div>
+      <div class="pf-msg" id="pf-rollup-msg"></div>
+    </div>
+
+    <div class="card pf-form">
+      <div class="section-label">ADD A PROPERTY</div>
+      <div class="pf-grid">
+        <div class="pf-field full"><span class="pf-lab">Address *</span><input class="pf-in" id="pf_address" placeholder="required"></div>
+        <div class="pf-field"><span class="pf-lab">Owning entity</span><select class="pf-in" id="pf_entity"><option value="">— unassigned —</option></select></div>
+        <div class="pf-field"><span class="pf-lab">Status</span><select class="pf-in" id="pf_status"><option value="">—</option><option value="occupied">occupied</option><option value="vacant">vacant</option><option value="rehab">rehab</option><option value="listed">listed</option></select></div>
+        <div class="pf-field"><span class="pf-lab">Units / doors</span><input class="pf-in" id="pf_units" inputmode="numeric" placeholder="default 1"></div>
+        <div class="pf-field"><span class="pf-lab">Market value ($)</span><input class="pf-in" id="pf_value" inputmode="decimal" placeholder="blank = unknown"></div>
+        <div class="pf-field"><span class="pf-lab">Purchase price ($)</span><input class="pf-in" id="pf_price" inputmode="decimal" placeholder="blank = unknown"></div>
+        <div class="pf-field"><span class="pf-lab">Purchase date</span><input class="pf-in" id="pf_pdate" type="date"></div>
+        <div class="pf-field"><span class="pf-lab">Beds</span><input class="pf-in" id="pf_beds" inputmode="decimal" placeholder=""></div>
+        <div class="pf-field"><span class="pf-lab">Baths</span><input class="pf-in" id="pf_baths" inputmode="decimal" placeholder=""></div>
+        <div class="pf-field"><span class="pf-lab">Sqft</span><input class="pf-in" id="pf_sqft" inputmode="numeric" placeholder=""></div>
+      </div>
+      <button type="button" class="pf-save" id="pf-savebtn">Save property</button>
+      <div class="pf-msg" id="pf-msg"></div>
+    </div>
   </div>
 
-  <div class="ruleg" id="prop-kpis" data-view-section="kpis"></div>
-
-  <div class="card" data-view-section="everything">
-    <div class="section-label">EVERYTHING ON THIS PROPERTY — pulled from every layer</div>
-    <table><thead><tr><th>AREA</th><th>STATUS</th><th>FROM</th></tr></thead>
-      <tbody id="prop-rows"></tbody>
-    </table>
-    <div class="small dim" style="margin-top:8px">One page per property. Every number is the live value from its source layer — change it there, it changes here. Sample data.</div>
-  </div>
-
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: shared property record (sample). Real values arrive via RentRedi / Plaid / DealCheck / lender in later phases.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/properties</code> (live, RLS-scoped). Rent/tenants arrive via RentRedi; cash flow via Plaid; LTV via lender — later phases.</div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260626b"></script>
 <script>
-  var PROPS = [], current = 0, viewOps = [], WO_OPEN = null;
+  var PROPS = [], ENTITIES = [], FACTS = [];
+  function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-  // open work-order count: live-derived from the shared WO source once loaded; stored field until then
-  function woCount(p){ if(!WO_OPEN) return p.open_work_orders; var n = WO_OPEN[p.address]; return n==null?0:n; }
-  function money(n){ if(n==null||isNaN(n)) return '—'; n=Number(n); return (n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US'); }
-  // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
+  function dash(v){ return (v==null||v==='') ? '—' : esc(v); }
+  function money(n){ if(n==null||n===''||isNaN(n)) return '—'; n=Number(n); return '$'+n.toLocaleString('en-US'); }
+  function txt(id){ var v=(($(id)&&$(id).value)||'').trim(); return v===''?undefined:v; }
+  function num(id){ var v=(($(id)&&$(id).value)||'').trim(); if(v==='') return undefined; var n=+v; return isFinite(n)?n:undefined; }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function xref(label,id){ return '<button class="xref" type="button" onclick="flOpen(\''+id+'\')" title="Open '+esc(label)+'">'+esc(label)+'</button>'; }
+  function isAuthed(){ return !!(window.flApi&&flApi.authed&&flApi.authed()); }
+  function entName(code){ for(var i=0;i<ENTITIES.length;i++){ if(ENTITIES[i].code===code) return ENTITIES[i].name; } return code; }
 
-  function render(){
-    var p = PROPS[current]; if(!p) return;
-    document.getElementById('prop-head').innerHTML =
-      '<div style="font-size:16px;font-weight:800">'+esc(p.address)+'</div>'+
-      '<div class="small muted">'+esc(p.beds)+' bed / '+esc(p.baths)+' bath · '+esc(p.sqft)+' sqft · '+esc(p.entity)+' · '+esc(p.status)+'</div>';
+  function showAuth(){
+    var expired = window.flApi && flApi.authExpired && flApi.authExpired();
+    $('pf-live').style.display='none';
+    var box=$('pf-auth'); box.style.display='block';
+    box.innerHTML='<div class="section-label">'+(expired?'SESSION EXPIRED':'SIGN IN REQUIRED')+'</div>'+
+      '<div class="small">'+(expired
+        ? 'Your session expired. <b>Sign in to the Command Center again</b> to view and manage your properties.'
+        : 'Your properties are saved to your account. <b>Sign in to the Command Center</b> to view and manage them.')+'</div>';
+  }
 
-    var ltvCls = (p.ltv_pct>65)?'rr':((p.ltv_pct<=50)?'rg':'ry'); // Capital Rules: >65 RED / 55-65 YELLOW / <=50 GREEN
-    var cfCls = (p.cash_flow_monthly>0)?'rg':'ry';
-    // each KPI card click-through opens its source tile (front-end cross-reference)
-    var kpiClick = function(id,label){ return ' onclick="flOpen(\''+id+'\')" style="cursor:pointer" title="Open '+label+'"'; };
-    document.getElementById('prop-kpis').innerHTML =
-      '<div class="rule rg"'+kpiClick('rent-roll','Rent Roll')+'><div class="rn">RENT</div><div class="rv">'+money(p.rent)+'</div><div class="rt">Rent Roll ↗</div></div>'+
-      '<div class="rule '+cfCls+'"'+kpiClick('financials','Financial Dashboard')+'><div class="rn">CASH FLOW</div><div class="rv">'+(p.cash_flow_monthly>0?'+':'')+money(p.cash_flow_monthly)+'</div><div class="rt">Financial · /mo ↗</div></div>'+
-      '<div class="rule '+ltvCls+'"'+kpiClick('lender-packet','Lender Packet')+'><div class="rn">VALUE / LTV</div><div class="rv">'+money(p.value)+'</div><div class="rt">'+esc(p.ltv_pct)+'% · Lender ↗</div></div>'+
-      '<div class="rule rg"'+kpiClick('deal-analyzer','Deal Analyzer')+'><div class="rn">RANK</div><div class="rv">'+esc(p.rank||'—')+'</div><div class="rt">Deal Analyzer ↗</div></div>';
+  function renderKpis(){
+    var n=PROPS.length;
+    var units=PROPS.reduce(function(s,p){ return s+(Number(p.units)||0); },0);
+    var occ=PROPS.filter(function(p){ return p.status==='occupied'; }).length;
+    var val=PROPS.reduce(function(s,p){ return s+(Number(p.market_value)||0); },0);
+    var hasVal=PROPS.some(function(p){ return p.market_value!=null; });
+    $('pf-kpis').innerHTML=
+      '<div class="rule rg"><div class="rn">PROPERTIES</div><div class="rv">'+n+'</div><div class="rt">on file</div></div>'+
+      '<div class="rule rg"><div class="rn">TOTAL UNITS</div><div class="rv">'+units+'</div><div class="rt">doors</div></div>'+
+      '<div class="rule rg"><div class="rn">OCCUPIED</div><div class="rv">'+occ+'</div><div class="rt">of '+n+'</div></div>'+
+      '<div class="rule rg"><div class="rn">PORTFOLIO VALUE</div><div class="rv">'+(hasVal?money(val):'—')+'</div><div class="rt">Σ market value</div></div>';
+  }
 
-    // FROM column = cross-reference chips that open the source tile
-    var rows = [];
-    var lease = p.lease&&p.lease.tenant ? esc(p.lease.tenant)+' · exp '+esc(p.lease.expires) : 'vacant';
-    rows.push(['lease','Lease',lease,[['Rent Roll','rent-roll'],['Legal','legal']]]);
-    if(p.insurance) rows.push(['insurance','Insurance',esc(p.insurance.carrier)+' '+esc(p.insurance.form)+' · renews '+esc(p.insurance.renews),[['Insurance','insurance']]]);
-    if(p.property_tax) rows.push(['tax','Property tax',money(p.property_tax.amount)+' due '+esc(p.property_tax.due)+' ('+esc(p.property_tax.county)+')',[['Taxes','taxes']]]);
-    rows.push(['workorders','Open work orders',String(woCount(p)),[['Maintenance','maintenance']]]);
-    rows.push(['documents','Documents',esc(p.documents)+' files (deed, lease, policy…)',[['Document Navigator','document-navigator']]]);
-    var bills = (p.bills&&p.bills.length) ? p.bills.map(function(b){return esc(b.vendor)+' '+money(b.amount)+' due '+esc(b.due);}).join('; ') : 'none due';
-    rows.push(['bills','Bills',bills,[['Vendors & Payables','vendors-payables']]]);
-
-    document.getElementById('prop-rows').innerHTML = rows.map(function(r){
-      var from = r[3].map(function(f){ return xref(f[0],f[1]); }).join(' ');
-      return '<tr data-view-row="'+r[0]+'"><td>'+r[1]+'</td><td>'+r[2]+'</td><td class="small">'+from+'</td></tr>';
+  function renderRows(){
+    $('pf-loading').style.display='none';
+    if(!PROPS.length){ $('pf-rows').innerHTML='<tr><td colspan="7" class="small muted" style="padding:8px 2px">No properties yet. Add one below.</td></tr>'; return; }
+    $('pf-rows').innerHTML=PROPS.map(function(p){
+      return '<tr><td style="font-weight:700">'+esc(p.address)+'</td>'+
+        '<td class="small muted">'+dash(p.entity_code)+'</td>'+
+        '<td>'+dash(p.status)+'</td>'+
+        '<td>'+dash(p.units)+'</td>'+
+        '<td>'+money(p.market_value)+'</td>'+
+        '<td>'+xref('—','rent-roll')+'</td>'+
+        '<td><button type="button" class="pf-del" data-del="'+esc(p.id)+'" title="Delete">🗑</button></td></tr>';
     }).join('');
-    applyViewCfg(viewOps);
   }
 
-  function buildPicker(){
-    var sel = document.getElementById('prop-picker');
-    sel.innerHTML = PROPS.map(function(p,i){ return '<option value="'+i+'">'+esc(p.address.split(' · ')[0])+'</option>'; }).join('');
-    sel.onchange = function(){ current = +sel.value; render(); };
+  function renderRollup(){
+    // group properties by entity_code; suggest door_count=Σunits, asset_value=Σmarket_value
+    var byEnt={};
+    PROPS.forEach(function(p){ if(!p.entity_code) return; var g=byEnt[p.entity_code]||(byEnt[p.entity_code]={units:0,val:0,hasVal:false}); g.units+=(Number(p.units)||0); if(p.market_value!=null){ g.val+=Number(p.market_value); g.hasVal=true; } });
+    var codes=Object.keys(byEnt);
+    if(!codes.length){ $('pf-rollup').style.display='none'; return; }
+    $('pf-rollup').style.display='block';
+    $('pf-rollup-rows').innerHTML=codes.map(function(code){
+      var g=byEnt[code];
+      var cur=null; for(var i=0;i<FACTS.length;i++){ if(FACTS[i].entity_code===code){ cur=FACTS[i]; break; } }
+      var curTxt = cur ? ('current: doors '+(cur.door_count==null?'—':cur.door_count)+' · value '+(cur.asset_value==null?'—':money(cur.asset_value))) : 'no facts row yet';
+      return '<div class="rec-dl" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dotted var(--line,#e2e8f0)">'+
+        '<div><b>'+esc(entName(code))+'</b> <span class="small muted">('+esc(code)+')</span>'+
+        '<div class="small muted">suggest: doors <b>'+g.units+'</b> · value <b>'+(g.hasVal?money(g.val):'—')+'</b> · <span style="opacity:.8">'+esc(curTxt)+'</span></div></div>'+
+        '<button type="button" class="pf-apply" data-rollup="'+esc(code)+'" data-units="'+g.units+'" data-val="'+(g.hasVal?g.val:'')+'">Apply</button></div>';
+    }).join('');
   }
 
-  // In-tile view config from the core: show/hide sections + table rows. Never touches data.
-  function applyViewCfg(ops){
-    viewOps = ops||[];
-    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
-    document.querySelectorAll('[data-view-row]').forEach(function(el){ el.style.display=''; });
-    viewOps.forEach(function(op){
-      var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
-      document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
+  function boot(){
+    fillSelects();
+    renderKpis(); renderRows(); renderRollup();
+  }
+  function fillSelects(){
+    var opts='<option value="">— unassigned —</option>'+ENTITIES.map(function(e){ return '<option value="'+esc(e.code)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>'; }).join('');
+    if($('pf_entity')) $('pf_entity').innerHTML=opts;
+  }
+
+  function save(){
+    if(!isAuthed()){ $('pf-msg').innerHTML='<span class="err">Please sign in first.</span>'; return; }
+    var address=txt('pf_address');
+    if(!address){ $('pf-msg').innerHTML='<span class="err">Address is required.</span>'; return; }
+    var payload={ address:address };
+    var ec=$('pf_entity').value; if(ec) payload.entity_code=ec;
+    var st=$('pf_status').value; if(st) payload.status=st;
+    [['units','pf_units'],['market_value','pf_value'],['purchase_price','pf_price'],['beds','pf_beds'],['baths','pf_baths'],['sqft','pf_sqft']].forEach(function(p){ var v=num(p[1]); if(v!==undefined) payload[p[0]]=v; });
+    var pd=txt('pf_pdate'); if(pd) payload.purchase_date=pd;
+    var btn=$('pf-savebtn'); btn.disabled=true; $('pf-msg').innerHTML='Saving…';
+    window.flProperties.create(payload).then(function(res){
+      btn.disabled=false;
+      if(!res){ $('pf-msg').innerHTML='<span class="err">'+((window.flApi&&!flApi.authed())?'Session expired — sign in again, then retry.':'Save failed — confirm your access scope, then retry.')+'</span>'; return; }
+      $('pf-msg').innerHTML='<span class="ok">✓ Saved.</span> '+esc(res.address)+' added.';
+      PROPS.unshift(res);
+      ['pf_address','pf_units','pf_value','pf_price','pf_pdate','pf_beds','pf_baths','pf_sqft'].forEach(function(id){ if($(id)) $(id).value=''; });
+      $('pf_status').selectedIndex=0; $('pf_entity').selectedIndex=0;
+      renderKpis(); renderRows(); renderRollup();
     });
   }
-  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  fetch('../../../data/STUB_PROPERTIES.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ PROPS = d.properties||[]; if(!PROPS.length) throw 0; buildPicker(); render();
-      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
-    .catch(function(){ document.getElementById('prop-head').innerHTML='<div class="muted">Awaiting property record — shared source not reachable.</div>'; });
+  function del(id){
+    if(!id) return;
+    var p=null; for(var i=0;i<PROPS.length;i++){ if(PROPS[i].id===id){ p=PROPS[i]; break; } }
+    if(!window.confirm('Delete '+((p&&p.address)||'this property')+'? This removes it from your account.')) return;
+    window.flProperties.del(id).then(function(res){
+      if(!res){ $('pf-msg').innerHTML='<span class="err">'+((window.flApi&&!flApi.authed())?'Session expired — nothing was deleted.':'Delete failed — only the creator or an admin can delete it.')+'</span>'; return; }
+      PROPS=PROPS.filter(function(x){ return x.id!==id; });
+      renderKpis(); renderRows(); renderRollup();
+      $('pf-msg').innerHTML='<span class="ok">✓ Deleted.</span>';
+    });
+  }
 
-  // live-derive open work-order counts from the shared WO source ("change it there, it changes here");
-  // on any failure the stored open_work_orders field stands — honest fallback, no error surface
-  fetch('../../../data/STUB_WORKORDERS.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){ WO_OPEN = {}; (d.work_orders||[]).forEach(function(w){ if(w.status!=='done'&&w.status!=='closed'&&w.status!=='draft') WO_OPEN[w.property]=(WO_OPEN[w.property]||0)+1; }); if(PROPS.length) render(); })
-    .catch(function(){ WO_OPEN = null; });
+  function applyRollup(code,units,val){
+    var msg=$('pf-rollup-msg');
+    var cur=null; for(var i=0;i<FACTS.length;i++){ if(FACTS[i].entity_code===code){ cur=FACTS[i]; break; } }
+    var patch={ door_count:units };
+    if(val!=='') patch.asset_value=Number(val);
+    if(!window.confirm('Set '+code+' portfolio facts to doors '+units+(val!==''?(' · value $'+Number(val).toLocaleString('en-US')):'')+'?\n\n(Your loan balance is left untouched.)')) return;
+    msg.innerHTML='Applying…';
+    // PATCH if a row exists (preserves loan_balance); else create one with just these fields.
+    var p = cur ? window.flPortfolioFacts.update(code, patch)
+                : window.flPortfolioFacts.upsert(Object.assign({entity_code:code, source:'property-rollup'}, patch));
+    p.then(function(res){
+      if(!res){ msg.innerHTML='<span class="err">'+((window.flApi&&!flApi.authed())?'Session expired — nothing changed.':'Apply failed — confirm entity access, then retry.')+'</span>'; return; }
+      // refresh facts cache so the "current" line updates
+      window.flPortfolioFacts.list().then(function(rows){ FACTS=rows||[]; renderRollup(); });
+      msg.innerHTML='<span class="ok">✓ Applied to '+esc(code)+'.</span> LTV/per-door recompute on the dashboard.';
+    });
+  }
+
+  document.addEventListener('click', function(ev){
+    var t=ev.target; if(!t||!t.closest) return;
+    var d=t.closest('[data-del]'); if(d){ ev.preventDefault(); del(d.getAttribute('data-del')); return; }
+    var r=t.closest('[data-rollup]'); if(r){ ev.preventDefault(); applyRollup(r.getAttribute('data-rollup'), +r.getAttribute('data-units'), r.getAttribute('data-val')); }
+  });
+
+  function start(){
+    var sb=$('pf-savebtn'); if(sb) sb.addEventListener('click', save);
+    if(!isAuthed()){ showAuth(); return; }
+    $('pf-auth').style.display='none'; $('pf-live').style.display='';
+    Promise.all([
+      window.flProperties.list(),
+      window.flEntities ? window.flEntities.list() : Promise.resolve([]),
+      window.flPortfolioFacts ? window.flPortfolioFacts.list() : Promise.resolve([])
+    ]).then(function(out){
+      if(out[0]==null && window.flApi && !flApi.authed()){ showAuth(); return; }
+      PROPS=out[0]||[]; ENTITIES=out[1]||[]; FACTS=out[2]||[];
+      boot();
+    }).catch(function(){
+      if(window.flApi && !flApi.authed()) showAuth();
+      else { $('pf-loading').style.display='none'; $('pf-rows').innerHTML='<tr><td colspan="7" class="small err">Could not load properties — reload to retry.</td></tr>'; }
+    });
+  }
+  start();
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
-<script>FLSettings.mount({tileId:'property-file'});</script>
+<script>try{ FLSettings.mount({tileId:'property-file'}); }catch(e){}</script>
 </body>
 </html>

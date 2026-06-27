@@ -109,6 +109,19 @@
     get: function (code) { return call('GET', '/api/portfolio-facts/' + encodeURIComponent(code)); },
     upsert: function (facts) { return call('POST', '/api/portfolio-facts', facts); },
     update: function (code, patch) { return call('PATCH', '/api/portfolio-facts/' + encodeURIComponent(code), patch); },
+    // Remove one entity's facts (TD-111) — LTV/per-door revert to UNKNOWN for that entity.
+    del: function (code) { return call('DELETE', '/api/portfolio-facts/' + encodeURIComponent(code)); },
+  };
+
+  // Properties (Lane-2 ops keystone). Per-property records behind Property File + the manual base
+  // for Rent Roll. Promoted columns + JSONB details; creator-owned, optional entity_code, RLS-scoped.
+  // No localStorage fallback — server is the source of truth (signed-in JWT required, else null).
+  window.flProperties = {
+    list: function () { return call('GET', '/api/properties'); },
+    get: function (id) { return call('GET', '/api/properties/' + encodeURIComponent(id)); },
+    create: function (p) { return call('POST', '/api/properties', p); },
+    update: function (id, patch) { return call('PATCH', '/api/properties/' + encodeURIComponent(id), patch); },
+    del: function (id) { return call('DELETE', '/api/properties/' + encodeURIComponent(id)); },
   };
 
   // Entities (Phase 3 setup). The setup flow creates the LLC rows here, as the SIGNED-IN USER —
