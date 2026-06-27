@@ -5,100 +5,170 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Recurring — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .rc-form{margin:12px 0}
+  .rc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:10px}
+  .rc-field{display:flex;flex-direction:column}.rc-field.full{grid-column:1/-1}
+  .rc-lab{font-size:11.5px;font-weight:600;color:var(--dim,#8a8a93);margin-bottom:4px}
+  .rc-in{width:100%;background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a}
+  .rc-in:focus{outline:none;border-color:#6366f1}
+  .rc-chk{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--mut);margin-top:6px}
+  .rc-save{margin-top:12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+  .rc-save:hover{filter:brightness(1.06)}.rc-save:disabled{opacity:.6;cursor:default}
+  .rc-msg{font-size:12px;margin-top:8px;min-height:16px}
+  .rc-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .rc-del:hover{background:#fee2e2;border-color:#f87171}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+</style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">⏰ Recurring</div>
 
   <div class="preview-banner">
-    <b>What repeats, and when it hits next.</b> Live read of the shared recurring schedule (<code>data/STUB_RECURRING.json</code>). The Calendar shows an ⏰ on any day a recurring item lands — clicking it opens this tile. Honest sample until the source accounts wire.
-    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Bell</b> and say "add a quarterly gutter clean" — Bell schedules it and the ⏰ markers follow.</div>
+    <b>What repeats, and how often.</b> Every row is a <b>live read</b> from your account
+    (<code>/api/recurring</code>, RLS-scoped). Each item also surfaces on the <button class="xref" type="button" onclick="flOpen('calendar')">Calendar</button>'s unified view. Autopay/account linking wires at the connector phase — no passwords stored here.
   </div>
 
-  <div class="card flush" data-view-section="schedule">
-    <table>
-      <thead><tr><th>EVERY</th><th>ITEM</th><th>NEXT</th><th></th></tr></thead>
-      <tbody id="rec-rows"></tbody>
-    </table>
+  <div class="card" id="rc-auth" style="display:none"></div>
+
+  <div id="rc-live" style="display:none">
+    <div class="card flush">
+      <div class="section-label">RECURRING SCHEDULE</div>
+      <div id="rc-loading" class="small muted" style="padding:6px 2px">Loading…</div>
+      <table><thead><tr><th>EVERY</th><th>ITEM</th><th>ENTITY</th><th>FLAGS</th><th></th></tr></thead>
+        <tbody id="rc-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="card rc-form">
+      <div class="section-label">ADD A RECURRING ITEM</div>
+      <div class="rc-grid">
+        <div class="rc-field full"><span class="rc-lab">Item *</span><input class="rc-in" id="rc_item" placeholder="e.g. Rent · 415 Skiles / Quarterly gutter clean"></div>
+        <div class="rc-field"><span class="rc-lab">Cadence</span><select class="rc-in" id="rc_cadence"><option value="">—</option><option value="weekly">weekly</option><option value="monthly">monthly</option><option value="quarterly">quarterly</option><option value="annual">annual</option></select></div>
+        <div class="rc-field"><span class="rc-lab">Day (of month/week)</span><input class="rc-in" id="rc_day" inputmode="numeric" placeholder="e.g. 1"></div>
+        <div class="rc-field"><span class="rc-lab">Type</span><input class="rc-in" id="rc_type" placeholder="payment / task / filing"></div>
+        <div class="rc-field"><span class="rc-lab">Owning entity</span><select class="rc-in" id="rc_entity"><option value="">— not entity-specific —</option></select></div>
+        <div class="rc-field full"><span class="rc-lab">Linked account (optional)</span><input class="rc-in" id="rc_acct" placeholder="account label — no passwords"></div>
+      </div>
+      <label class="rc-chk"><input type="checkbox" id="rc_autopay"> Autopay</label>
+      <label class="rc-chk"><input type="checkbox" id="rc_hard"> Hard (must-not-miss)</label>
+      <button type="button" class="rc-save" id="rc-savebtn">Save recurring item</button>
+      <div class="rc-msg" id="rc-msg"></div>
+    </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Payments draft from their linked accounts (🔐 passkey model — no passwords here). Task-type items create work orders in <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance">Maintenance</button>. Every occurrence lands on the <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar">Calendar</button> as an ⏰ day marker.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/recurring</code> (live, RLS-scoped). Autopay drafting + task→work-order creation wire at the connector phase.</div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260626d"></script>
 <script>
+  var RECS=[], ENTITIES=[];
+  function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function dash(v){ return (v==null||v==='')?'—':esc(v); }
+  function txt(id){ var v=(($(id)&&$(id).value)||'').trim(); return v===''?undefined:v; }
+  function num(id){ var v=(($(id)&&$(id).value)||'').trim(); if(v==='') return undefined; var n=+v; return isFinite(n)?n:undefined; }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  function fmtDs(ds){ var d=new Date(ds+'T00:00:00'); return isNaN(d)?esc(ds):d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
-  function pad(n){ return String(n).padStart(2,'0'); }
+  function isAuthed(){ return !!(window.flApi&&flApi.authed&&flApi.authed()); }
 
-  // next occurrence on/after today (same expansion the Calendar uses for its ⏰ markers)
-  function nextOccurrence(r, from){
-    var t = from || new Date(); t = new Date(t.getFullYear(), t.getMonth(), t.getDate());
-    if(r.cadence==='monthly'){
-      var d = new Date(t.getFullYear(), t.getMonth(), r.day);
-      if(d < t) d = new Date(t.getFullYear(), t.getMonth()+1, r.day);
-      return d;
-    }
-    if(r.cadence==='quarterly'){
-      var a = new Date(r.anchor+'T00:00:00');
-      while(a < t) a = new Date(a.getFullYear(), a.getMonth()+3, a.getDate());
-      return a;
-    }
-    if(r.cadence==='yearly'){
-      var y = new Date(t.getFullYear(), r.month-1, r.day);
-      if(y < t) y = new Date(t.getFullYear()+1, r.month-1, r.day);
-      return y;
-    }
-    return null;
+  function showAuth(){
+    var expired=window.flApi&&flApi.authExpired&&flApi.authExpired();
+    $('rc-live').style.display='none';
+    var box=$('rc-auth'); box.style.display='block';
+    box.innerHTML='<div class="section-label">'+(expired?'SESSION EXPIRED':'SIGN IN REQUIRED')+'</div>'+
+      '<div class="small">'+(expired?'Your session expired. <b>Sign in again</b> to view your recurring schedule.':'<b>Sign in to the Command Center</b> to view and manage your recurring items.')+'</div>';
   }
-  function cadenceLabel(r){
-    if(r.cadence==='monthly') return 'Month · '+r.day+(r.day===1?'st':(r.day===15?'th':'th'));
-    if(r.cadence==='quarterly') return 'Quarter';
-    if(r.cadence==='yearly') return 'Year · '+new Date(2000,r.month-1,r.day).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  function cadLabel(r){
+    if(!r.cadence) return '—';
+    if(r.day!=null && r.day!=='') return esc(r.cadence)+' · '+esc(r.day);
     return esc(r.cadence);
   }
-
-  function render(recs, focus){
-    document.getElementById('rec-rows').innerHTML = recs.map(function(r){
-      var nx = nextOccurrence(r);
-      var nxDs = nx ? nx.getFullYear()+'-'+pad(nx.getMonth()+1)+'-'+pad(nx.getDate()) : null;
-      var isFocus = focus && nxDs===focus;
-      var flag = r.autopay ? '<span class="pill rg">AUTOPAY</span>'
-        : r.hard ? '<span class="pill rr">HARD</span>'
-        : r.ties ? '<button class="xref" type="button" onclick="flOpen(\''+esc(r.ties)+'\')" title="Open Maintenance — creates the WOs">Maintenance</button>'
-        : '<span class="pill">soft</span>';
-      return '<tr data-view-row="'+esc(r.id)+'"'+(isFocus?' style="background:var(--surf2)"':'')+'>'+
-        '<td>'+cadenceLabel(r)+'</td><td>'+esc(r.item)+(isFocus?' <span class="pill pp">lands this day</span>':'')+'</td>'+
-        '<td>'+(nx?fmtDs(nxDs):'—')+'</td><td>'+flag+'</td></tr>';
-    }).join('');
-    applyViewCfg(viewOps);
+  function flags(r){
+    var out=[];
+    if(r.autopay) out.push('<span class="pill rg">AUTOPAY</span>');
+    if(r.hard) out.push('<span class="pill rr">HARD</span>');
+    if(r.type) out.push('<span class="pill">'+esc(r.type)+'</span>');
+    return out.join(' ')||'<span class="pill">soft</span>';
   }
 
-  // In-tile view config from the core: show/hide sections + rows. Never touches data.
-  var viewOps=[];
-  function applyViewCfg(ops){
-    viewOps=ops||[];
-    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
-    document.querySelectorAll('[data-view-row]').forEach(function(el){ el.style.display=''; });
-    viewOps.forEach(function(op){
-      var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
-      document.querySelectorAll(sel).forEach(function(el){ el.style.display=(op.type==='remove')?'none':''; });
+  function renderRows(){
+    $('rc-loading').style.display='none';
+    if(!RECS.length){ $('rc-rows').innerHTML='<tr><td colspan="5" class="small muted" style="padding:8px 2px">No recurring items yet. Add one below.</td></tr>'; return; }
+    $('rc-rows').innerHTML=RECS.map(function(r){
+      return '<tr><td>'+cadLabel(r)+'</td><td style="font-weight:700">'+esc(r.item)+'</td>'+
+        '<td class="small muted">'+dash(r.entity_code)+'</td>'+
+        '<td>'+flags(r)+'</td>'+
+        '<td><button type="button" class="rc-del" data-del="'+esc(r.id)+'" title="Delete">🗑</button></td></tr>';
+    }).join('');
+  }
+
+  function fillEntities(){
+    if($('rc_entity')) $('rc_entity').innerHTML='<option value="">— not entity-specific —</option>'+ENTITIES.map(function(e){ return '<option value="'+esc(e.code)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>'; }).join('');
+  }
+
+  function save(){
+    if(!isAuthed()){ $('rc-msg').innerHTML='<span class="err">Please sign in first.</span>'; return; }
+    var item=txt('rc_item');
+    if(!item){ $('rc-msg').innerHTML='<span class="err">An item name is required.</span>'; return; }
+    var payload={ item:item };
+    var cad=$('rc_cadence').value; if(cad) payload.cadence=cad;
+    var day=num('rc_day'); if(day!==undefined) payload.day=day;   // keeps a typed 0
+    var ty=txt('rc_type'); if(ty) payload.type=ty;
+    var ec=$('rc_entity').value; if(ec) payload.entity_code=ec;
+    if($('rc_autopay').checked) payload.autopay=true;
+    if($('rc_hard').checked) payload.hard=true;
+    var acct=txt('rc_acct'); if(acct) payload.details={acct:acct};
+    var btn=$('rc-savebtn'); btn.disabled=true; $('rc-msg').innerHTML='Saving…';
+    window.flRecurring.create(payload).then(function(res){
+      btn.disabled=false;
+      if(!res){ $('rc-msg').innerHTML='<span class="err">'+((window.flApi&&!flApi.authed())?'Session expired — sign in again, then retry.':'Save failed — confirm your access scope, then retry.')+'</span>'; return; }
+      $('rc-msg').innerHTML='<span class="ok">✓ Saved.</span> Recurring item added.';
+      RECS.unshift(res);
+      ['rc_item','rc_day','rc_type','rc_acct'].forEach(function(id){ if($(id)) $(id).value=''; });
+      $('rc_cadence').selectedIndex=0; $('rc_entity').selectedIndex=0; $('rc_autopay').checked=false; $('rc_hard').checked=false;
+      renderRows();
     });
   }
-  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  fetch('../../../data/STUB_RECURRING.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){
-      var recs = d.recurring||[]; if(!recs.length) throw 0;
-      // the Calendar's ⏰ click sets a focus date before opening this tile (cheap ?d= equivalent)
-      var focus = null; try{ focus = localStorage.getItem('fl_recurring_focus'); localStorage.removeItem('fl_recurring_focus'); }catch(e){}
-      render(recs, focus);
-      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
-    })
-    .catch(function(){ document.getElementById('rec-rows').innerHTML='<tr><td colspan="4" class="muted">Awaiting recurring schedule — shared source not reachable.</td></tr>'; });
+  function del(id){
+    if(!id) return;
+    var r=null; for(var i=0;i<RECS.length;i++){ if(RECS[i].id===id){ r=RECS[i]; break; } }
+    if(!window.confirm('Delete "'+((r&&r.item)||'this item')+'"? This removes it from your account.')) return;
+    window.flRecurring.del(id).then(function(res){
+      if(!res){ $('rc-msg').innerHTML='<span class="err">'+((window.flApi&&!flApi.authed())?'Session expired — nothing was deleted.':'Delete failed — only the creator or an admin can delete it.')+'</span>'; return; }
+      RECS=RECS.filter(function(x){ return x.id!==id; });
+      renderRows();
+      $('rc-msg').innerHTML='<span class="ok">✓ Deleted.</span>';
+    });
+  }
+
+  document.addEventListener('click', function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('[data-del]'):null;
+    if(b){ ev.preventDefault(); del(b.getAttribute('data-del')); }
+  });
+
+  function start(){
+    var sb=$('rc-savebtn'); if(sb) sb.addEventListener('click', save);
+    if(!isAuthed()){ showAuth(); return; }
+    $('rc-auth').style.display='none'; $('rc-live').style.display='';
+    Promise.all([
+      window.flRecurring.list(),
+      window.flEntities ? window.flEntities.list() : Promise.resolve([])
+    ]).then(function(out){
+      if(out[0]==null && window.flApi && !flApi.authed()){ showAuth(); return; }
+      RECS=out[0]||[]; ENTITIES=out[1]||[];
+      fillEntities(); renderRows();
+    }).catch(function(){
+      if(window.flApi && !flApi.authed()) showAuth();
+      else { $('rc-loading').style.display='none'; $('rc-rows').innerHTML='<tr><td colspan="5" class="small err">Could not load recurring items — reload to retry.</td></tr>'; }
+    });
+  }
+  start();
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
-<script>FLSettings.mount({tileId:'recurring'});</script>
+<script>try{ FLSettings.mount({tileId:'recurring'}); }catch(e){}</script>
 </body>
 </html>

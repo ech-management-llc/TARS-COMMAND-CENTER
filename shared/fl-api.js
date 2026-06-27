@@ -135,6 +135,26 @@
     del: function (id) { return call('DELETE', '/api/work-orders/' + encodeURIComponent(id)); },
   };
 
+  // Deadlines (Lane-2 ops, 2C). One-off dated items behind the Calendar tile. Promoted columns +
+  // JSONB details; creator-owned, optional entity/property linkage, RLS-scoped.
+  window.flDeadlines = {
+    list: function () { return call('GET', '/api/deadlines'); },
+    get: function (id) { return call('GET', '/api/deadlines/' + encodeURIComponent(id)); },
+    create: function (d) { return call('POST', '/api/deadlines', d); },
+    update: function (id, patch) { return call('PATCH', '/api/deadlines/' + encodeURIComponent(id), patch); },
+    del: function (id) { return call('DELETE', '/api/deadlines/' + encodeURIComponent(id)); },
+  };
+
+  // Recurring (Lane-2 ops, 2C). Repeating items behind the Recurring tile. Promoted columns +
+  // JSONB details; creator-owned, optional entity linkage, RLS-scoped.
+  window.flRecurring = {
+    list: function () { return call('GET', '/api/recurring'); },
+    get: function (id) { return call('GET', '/api/recurring/' + encodeURIComponent(id)); },
+    create: function (r) { return call('POST', '/api/recurring', r); },
+    update: function (id, patch) { return call('PATCH', '/api/recurring/' + encodeURIComponent(id), patch); },
+    del: function (id) { return call('DELETE', '/api/recurring/' + encodeURIComponent(id)); },
+  };
+
   // Entities (Phase 3 setup). The setup flow creates the LLC rows here, as the SIGNED-IN USER —
   // TARS guides/asks, the app writes (this is NOT the autonomous agent). create() -> the new row,
   // or null on no-session / error (caller surfaces an honest "sign in to persist").
