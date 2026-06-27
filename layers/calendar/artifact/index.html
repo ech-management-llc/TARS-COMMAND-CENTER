@@ -71,7 +71,6 @@
 
     <div class="card">
       <div class="section-label">🔌 CONNECTS WHEN WIRED</div>
-      <div class="stubrow">🛡️ Insurance renewals <span class="pend">arrives with Insurance (2D)</span></div>
       <div class="stubrow">🏛️ Entity annual-report dates <span class="pend">needs Secretary-of-State source (TD-109)</span></div>
       <div class="stubrow">🏠 Lease start/end dates <span class="pend">needs the rent table / RentRedi</span></div>
       <div class="stubrow">🗓️ Google Calendar two-way sync <span class="pend">Phase 4 connector</span></div>
@@ -83,9 +82,9 @@
 </div>
 
 <script src="../../../shared/fl-auth.js?v=20260622d"></script>
-<script src="../../../shared/fl-api.js?v=20260626d"></script>
+<script src="../../../shared/fl-api.js?v=20260626e"></script>
 <script>
-  var DEADLINES=[], RECS=[], LOANS=[], ENTITIES=[], PROPS=[];
+  var DEADLINES=[], RECS=[], LOANS=[], POLICIES=[], ENTITIES=[], PROPS=[];
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function txt(id){ var v=(($(id)&&$(id).value)||'').trim(); return v===''?undefined:v; }
@@ -117,6 +116,7 @@
     var today=todayStr(), out=[];
     DEADLINES.forEach(function(d){ if(d.due_date>=today) out.push({date:d.due_date, item:d.item, sub:(d.type?d.type:'deadline')+(d.entity_code?(' · '+d.entity_code):''), hard:!!d.hard, kind:'deadline', id:d.id}); });
     LOANS.forEach(function(l){ var m=l.details&&l.details.maturity_date; if(m && m>=today) out.push({date:m, item:'Loan maturity — '+(l.label||'(lender)'), sub:'from Loans & Lenders', src:'loans-lenders', kind:'loan'}); });
+    POLICIES.forEach(function(p){ if(p.renewal_date && p.renewal_date>=today) out.push({date:p.renewal_date, item:'Insurance renewal — '+(p.carrier||'(carrier)'), sub:'from Insurance'+(p.coverage_type?(' · '+p.coverage_type):''), src:'insurance', kind:'insurance'}); });
     RECS.forEach(function(r){ var nx=nextMonthly(r); if(nx) out.push({date:nx, item:r.item, sub:'recurring · monthly'+(r.entity_code?(' · '+r.entity_code):''), src:'recurring', kind:'recurring'}); });
     out.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
     return out;
@@ -205,11 +205,12 @@
       window.flDeadlines.list(),
       window.flRecurring.list(),
       window.flRecords ? window.flRecords.list('loan') : Promise.resolve([]),
+      window.flInsurance ? window.flInsurance.list() : Promise.resolve([]),
       window.flEntities ? window.flEntities.list() : Promise.resolve([]),
       window.flProperties ? window.flProperties.list() : Promise.resolve([])
     ]).then(function(out){
       if(out[0]==null && window.flApi && !flApi.authed()){ showAuth(); return; }
-      DEADLINES=out[0]||[]; RECS=out[1]||[]; LOANS=out[2]||[]; ENTITIES=out[3]||[]; PROPS=out[4]||[];
+      DEADLINES=out[0]||[]; RECS=out[1]||[]; LOANS=out[2]||[]; POLICIES=out[3]||[]; ENTITIES=out[4]||[]; PROPS=out[5]||[];
       fillSelects(); renderUpcoming(); renderRepeating();
     }).catch(function(){
       if(window.flApi && !flApi.authed()) showAuth();
