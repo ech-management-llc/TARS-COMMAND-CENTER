@@ -124,6 +124,17 @@
     del: function (id) { return call('DELETE', '/api/properties/' + encodeURIComponent(id)); },
   };
 
+  // Work orders (Lane-2 ops). Maintenance jobs behind the Maintenance tile. Promoted columns +
+  // JSONB details; linked to a property + optional entity, creator-owned, RLS-scoped. Server is the
+  // source of truth (signed-in JWT required, else null).
+  window.flWorkOrders = {
+    list: function () { return call('GET', '/api/work-orders'); },
+    get: function (id) { return call('GET', '/api/work-orders/' + encodeURIComponent(id)); },
+    create: function (w) { return call('POST', '/api/work-orders', w); },
+    update: function (id, patch) { return call('PATCH', '/api/work-orders/' + encodeURIComponent(id), patch); },
+    del: function (id) { return call('DELETE', '/api/work-orders/' + encodeURIComponent(id)); },
+  };
+
   // Entities (Phase 3 setup). The setup flow creates the LLC rows here, as the SIGNED-IN USER —
   // TARS guides/asks, the app writes (this is NOT the autonomous agent). create() -> the new row,
   // or null on no-session / error (caller surfaces an honest "sign in to persist").
