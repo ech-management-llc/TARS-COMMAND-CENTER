@@ -8,13 +8,13 @@
   :root{
     --bg:#0a0a0b;--surf:#161618;--surf2:#1d1d20;--line:#2a2a2e;--txt:#f4f4f5;--mut:#9a9aa2;--dim:#6b6b73;
     --green:#10b981;--greenbg:#0e2a22;--greenln:#1c4d3e;--purple:#8b7ff0;--purplebg:#1a1730;--purpleln:#322c63;
-    --yellow:#eab308;--radius:14px;--radius-sm:10px;
+    --red:#f87171;--redbg:#2a1414;--redln:#5a2330;--yellow:#eab308;--radius:14px;--radius-sm:10px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
   .wrap{max-width:620px;margin:0 auto;padding:22px 16px 60px}
-  .demorib{background:var(--purplebg);border:1px solid var(--purpleln);color:#c9c2ff;font-size:12px;text-align:center;padding:7px 12px;border-radius:var(--radius-sm);margin-bottom:18px}
-  .prog{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .demorib{background:var(--greenbg);border:1px solid var(--greenln);color:#cdeede;font-size:12px;text-align:center;padding:7px 12px;border-radius:var(--radius-sm);margin-bottom:18px}
+  .prog{display:flex;align-items:center;gap:5px;margin-bottom:8px}
   .prog .seg{flex:1;height:4px;border-radius:3px;background:var(--surf2)}
   .prog .seg.on{background:var(--purple)}
   .steplbl{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--dim);margin-bottom:18px}
@@ -22,11 +22,12 @@
   .tarsav{width:46px;height:46px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .bubble{background:var(--purplebg);border:1px solid var(--purpleln);border-radius:14px;padding:12px 15px;font-size:14.5px;color:#e0ddf5}
   h2{font-size:20px;font-weight:700;margin:0 0 4px}
-  .sub{color:var(--mut);font-size:13.5px;margin-bottom:18px}
+  .sub{color:var(--mut);font-size:13.5px;margin-bottom:6px}
   label{display:block;font-size:12px;font-weight:700;color:var(--mut);margin:14px 0 5px;letter-spacing:.3px}
-  input,select{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:11px 13px;font:inherit;font-size:15px}
-  input:focus,select:focus{outline:none;border-color:var(--purple)}
+  input,select,textarea{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:11px 13px;font:inherit;font-size:15px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--purple)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .hint{font-size:11px;color:var(--dim);margin-top:4px}
   .seg{display:flex;gap:8px;margin-top:2px}
   .segbtn{flex:1;background:var(--surf2);border:1px solid var(--line);color:var(--mut);font:inherit;font-size:14px;font-weight:700;padding:11px;border-radius:9px;cursor:pointer}
   .segbtn.on{background:#10211b;border-color:var(--greenln);color:var(--green)}
@@ -50,11 +51,26 @@
   .toggle .knob{position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;background:var(--dim);transition:.15s}
   .toggle.on{background:var(--greenbg);border-color:var(--greenln)}
   .toggle.on .knob{left:21px;background:var(--green)}
+  /* honest connector status rows (no fake toggles) */
   .conn{display:flex;align-items:center;justify-content:space-between;background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:9px}
   .conn .l{display:flex;align-items:center;gap:11px}.conn .ic{font-size:20px}
   .conn .nm{font-size:14px;font-weight:700}.conn .ds{font-size:11.5px;color:var(--mut)}
-  .cbtn{background:var(--surf2);border:1px solid var(--purpleln);color:#c9c2ff;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer}
-  .cbtn.done{background:var(--greenbg);border-color:var(--greenln);color:var(--green)}
+  .statuspill{font-size:11px;font-weight:800;letter-spacing:.4px;padding:4px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--line);color:var(--dim)}
+  .statuspill.soon{background:#1a1730;border-color:var(--purpleln);color:#c9c2ff}
+  .statuspill.live{background:var(--greenbg);border-color:var(--greenln);color:var(--green)}
+  /* add-record form + on-file read-back */
+  .card{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius);padding:15px;margin-bottom:12px}
+  .card .ttl{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--dim);margin-bottom:8px}
+  .onfile{margin:4px 0 12px}
+  .ofitem{display:flex;align-items:flex-start;gap:8px;background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:7px;font-size:13px}
+  .ofitem .nm{font-weight:700}
+  .ofitem .meta{color:var(--mut);font-size:11.5px;margin-top:1px}
+  .ofbadge{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.3px;color:var(--green);background:var(--greenbg);border:1px solid var(--greenln);border-radius:9px;padding:1px 7px;white-space:nowrap}
+  .empty{font-size:12.5px;color:var(--dim);padding:4px 2px}
+  .savebtn{margin-top:12px;background:var(--purple);color:#0a0a0b;border:none;border-radius:9px;padding:11px 18px;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
+  .savebtn:hover{filter:brightness(1.06)}.savebtn:disabled{opacity:.6;cursor:default}
+  .msg{font-size:12.5px;margin-top:9px;min-height:16px}
+  .ok{color:var(--green);font-weight:700}.err{color:var(--red);font-weight:700}
   .totalbar{display:flex;align-items:center;justify-content:space-between;background:var(--purplebg);border:1px solid var(--purpleln);border-radius:var(--radius-sm);padding:12px 15px;margin-top:16px}
   .totalbar .t{font-size:12px;color:#c9c2ff;font-weight:700;letter-spacing:.5px}
   .totalbar .v{font-size:20px;font-weight:800}
@@ -70,13 +86,16 @@
   .hero p{font-size:15px;color:#d4d4d8;margin:0 0 13px;line-height:1.65}
   .hero .lingo{color:var(--mut);font-style:italic}
   .hero .founder{background:var(--surf);border:1px solid var(--line);border-left:3px solid var(--green);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:13px 15px;font-size:14px;color:#d4d4d8;margin:4px 0 20px;line-height:1.6}
+  .deferbox{background:var(--surf);border:1px dashed var(--line);border-radius:var(--radius-sm);padding:13px 15px;margin-bottom:10px;font-size:13px;color:var(--mut)}
+  .deferbox b{color:var(--txt)}
   .hidden{display:none}
   .pricenote{font-size:11px;color:var(--dim);text-align:center;margin-top:8px}
+  code{background:var(--surf2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="demorib">SETUP — real flow, stubbed: nothing is charged or connected for real yet. Finishing lands you in your command center.</div>
+  <div class="demorib" id="demorib">Real setup — everything you enter is saved to your account through the secure hub (<code>api.foundationlayerhq.com</code>). Sign in to begin.</div>
 
   <!-- STEP 0 — WELCOME -->
   <section id="s0" class="hero">
@@ -93,208 +112,630 @@
 
   <div id="chrome" class="hidden">
     <div class="prog" id="prog"></div>
-    <div class="steplbl" id="steplbl">STEP 1 OF 6</div>
+    <div class="steplbl" id="steplbl">STEP 1</div>
   </div>
 
-  <!-- STEP 1 — NAME -->
+  <!-- STEP 1 — IDENTITY & SIGN IN (Intake A) -->
   <section id="s1" class="hidden">
     <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
-      <div class="bubble">Soooo… first things first — how about you give me a name? And what should I call you?</div></div>
-    <label>Give me a name</label>
-    <input id="tarsName" value="TARS" oninput="sync()">
-    <label>And what should I call you?</label>
-    <input id="ownerName" placeholder="your first name" oninput="sync()">
-    <p class="sub" style="margin-top:10px">No pressure — a lot of folks just keep "TARS," but I'm yours. Call me whatever feels right.</p>
-    <div class="nav"><button class="btn prim" onclick="go(2)">Let's go →</button></div>
+      <div class="bubble">Soooo… first, let's get you signed in — that way everything we set up actually saves to <i>your</i> account, not just this browser. Then give me a name.</div></div>
+
+    <div id="signedOut">
+      <h2>Sign in</h2>
+      <p class="sub">Your operator account at the Command Center. Saved data lives in the hub, scoped to you.</p>
+      <label>Email</label>
+      <input id="signinEmail" type="email" placeholder="you@yourcompany.com" autocomplete="username">
+      <label>Password</label>
+      <input id="signinPass" type="password" placeholder="your password" autocomplete="current-password">
+      <button class="savebtn" id="signinBtn" onclick="doSignIn()">Sign in</button>
+      <div class="msg" id="signinMsg"></div>
+      <p class="hint">Magic-link / SMS sign-in arrives in the auth phase. Password is the operator path today.</p>
+    </div>
+
+    <div id="signedIn" class="hidden">
+      <div class="baseline">✅ Signed in as <b id="whoami">—</b>. Everything from here saves to your account.</div>
+      <label>Give me a name</label>
+      <input id="tarsName" value="TARS">
+      <label>And what should I call you?</label>
+      <input id="ownerName" placeholder="your first name">
+      <p class="hint">Cosmetic for now (stored on this device). Your legal name + contact get captured on the next step.</p>
+      <div class="nav"><button class="btn prim" onclick="go(2)">Let's go →</button></div>
+    </div>
   </section>
 
-  <!-- STEP 2 — WHERE YOU'RE AT (real estate only) -->
+  <!-- STEP 2 — OWNER PROFILE (Intake B → personal_info) -->
   <section id="s2" class="hidden">
     <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
-      <div class="bubble" id="b2">Alright — tell me a bit about where you're at. No wrong answers here.</div></div>
-    <label>Do you already have a business set up?</label>
-    <div class="seg">
-      <button class="segbtn" onclick="setBiz(true,this)">Yes, it's established</button>
-      <button class="segbtn on" onclick="setBiz(false,this)">Not yet</button>
-    </div>
-    <div id="bizFields" class="hidden">
-      <label>Business name</label><input id="bizName" placeholder="e.g. ECH Property Management">
-      <label>Business type</label>
-      <select id="bizEntity"><option>LLC</option><option>S-Corp</option><option>Partnership</option><option>Sole proprietor</option><option>Not sure yet</option></select>
+      <div class="bubble">Let's get the basics on file — who you are, how to reach you. Anything you leave blank just stays unknown; nothing's invented.</div></div>
+    <div class="onfile" id="profileOnfile"></div>
+    <div class="card">
+      <div class="ttl">ADD OWNER PROFILE</div>
+      <label>Full legal name *</label>
+      <input id="pi_label" placeholder="required">
       <div class="grid2">
-        <div><label>Locations / markets</label><input id="bizLoc" value="1" type="number" min="1"></div>
-        <div><label>Team size</label><input id="bizTeam" value="just me"></div>
+        <div><label>Email</label><input id="pi_email" type="email" placeholder="blank = unknown"></div>
+        <div><label>Phone</label><input id="pi_phone" placeholder="blank = unknown"></div>
       </div>
+      <label>Mailing address</label>
+      <input id="pi_address" placeholder="blank = unknown">
+      <div class="grid2">
+        <div><label>Role</label><input id="pi_role" placeholder="Owner / Manager / Member"></div>
+        <div><label>SSN/ITIN last 4 (optional)</label><input id="pi_ssn4" maxlength="4" inputmode="numeric" placeholder="last 4 only — never stored in full"></div>
+      </div>
+      <label>Emergency contact (name + phone)</label>
+      <input id="pi_emergency" placeholder="optional">
+      <button class="savebtn" onclick="saveProfile()">Save to my account</button>
+      <div class="msg" id="pi_msg"></div>
     </div>
-
-    <label style="margin-top:20px">Do you already own real estate?</label>
-    <div class="seg">
-      <button class="segbtn" onclick="setRe(true,this)">Yes, I own some</button>
-      <button class="segbtn on" onclick="setRe(false,this)">Just getting started</button>
-    </div>
-    <div id="propField" class="hidden">
-      <label>How many properties?</label><input id="propCount" value="1" type="number" min="1">
-    </div>
-    <p class="sub" id="reNote" style="margin-top:10px">Just starting is exactly who this is built for — we'll take it one step at a time.</p>
-
     <div class="nav"><button class="btn ghost" onclick="go(1)">Back</button><button class="btn prim" onclick="go(3)">Next →</button></div>
   </section>
 
-  <!-- STEP 3 — TILES -->
+  <!-- STEP 3 — ENTITIES (Intake C → /api/entities) -->
   <section id="s3" class="hidden">
     <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
-      <div class="bubble" id="b3">Okay — for your first deal, start simple. I've pre-picked the four that take you from <i>find it → know if it's good → plan the fix → get the money</i>. Everything else is for once you actually own it and are up and running — add those any time. Don't overthink it.</div></div>
-    <div class="baseline">🎓 <b>Learn &amp; Coach is always on</b> — your plain-English copilot rides along on every tile (the “💡 Explain this” button). It's part of Foundation, not an add-on.</div>
-    <div id="layerCards"></div>
+      <div class="bubble">Now your companies. Add an LLC for each one you hold property (or do business) under. Already set some up? They'll show below — just add what's missing.</div></div>
+    <div class="onfile" id="entOnfile"></div>
+    <div class="card">
+      <div class="ttl">ADD AN ENTITY</div>
+      <div class="grid2">
+        <div><label>Code (natural key) *</label><input id="ent_code" placeholder="e.g. ECH_NEWCO"></div>
+        <div><label>Legal name *</label><input id="ent_name" placeholder="e.g. ECH NEWCO LLC"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Type</label><select id="ent_legal"><option>LLC</option><option>Inc</option><option>S-Corp</option><option>Partnership</option><option>Sole proprietor</option></select></div>
+        <div><label>Primary bank</label><input id="ent_bank" value="Altra"></div>
+      </div>
+      <label>Parent entity (optional)</label>
+      <select id="ent_parent"><option value="">— top-level (no parent) —</option></select>
+      <p class="hint">Code must be unique. EIN, formation date, registered agent &amp; annual-report status aren't stored yet (the entities table has no columns for them — TD-109) — they arrive with the Secretary-of-State source. Not collected here, so nothing's faked.</p>
+      <button class="savebtn" onclick="saveEntity()">Save entity</button>
+      <div class="msg" id="ent_msg"></div>
+    </div>
     <div class="nav"><button class="btn ghost" onclick="go(2)">Back</button><button class="btn prim" onclick="go(4)">Next →</button></div>
   </section>
 
-  <!-- STEP 4 — EMPLOYEES -->
+  <!-- STEP 4 — PORTFOLIO FACTS (Intake E → /api/portfolio-facts) -->
   <section id="s4" class="hidden">
     <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
-      <div class="bubble">Quick thing — none of this is required. Every tile already comes with me on call. Adding a dedicated <b>AI employee</b> to an area just takes more off your plate: it works faster, stays precise, and keeps mistakes to a minimum. Add the ones that'd help, skip the rest — totally your call, and you can always add them later.</div></div>
-    <div id="empList"></div>
-    <div class="totalbar"><span class="t">ESTIMATED MONTHLY</span><span class="v" id="total1">$0/mo</span></div>
-    <div class="pricenote">Pricing is placeholder (Foundation $15 · layer $15 · employee $15) — final pricing TBD. Nothing is charged in this build.</div>
+      <div class="bubble">These three numbers per company light up your <b>LTV</b> and <b>per-door cash flow</b> — the two rules that read UNKNOWN until you enter them. <b>$0 is a real answer</b> (a paid-off entity = loan balance 0). Leave blank only if you genuinely don't know it yet.</div></div>
+    <div class="onfile" id="factsOnfile"></div>
+    <div class="card">
+      <div class="ttl">ENTER / UPDATE FACTS FOR ONE ENTITY</div>
+      <label>Entity *</label>
+      <select id="pf_entity"><option value="">— choose an entity —</option></select>
+      <div class="grid2">
+        <div><label>Doors / units</label><input id="pf_doors" inputmode="numeric" placeholder="blank = unknown"></div>
+        <div><label>As-of date</label><input id="pf_asof" type="date"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Loan balance ($)</label><input id="pf_loan" inputmode="decimal" placeholder="0 = paid off · blank = unknown"></div>
+        <div><label>Asset value ($)</label><input id="pf_value" inputmode="decimal" placeholder="market value · blank = unknown"></div>
+      </div>
+      <p class="hint">Re-entering the same entity overwrites its row (no duplicates). LTV needs loan balance + asset value; per-door needs doors.</p>
+      <button class="savebtn" onclick="saveFact()">Save these numbers</button>
+      <div class="msg" id="pf_msg"></div>
+    </div>
     <div class="nav"><button class="btn ghost" onclick="go(3)">Back</button><button class="btn prim" onclick="go(5)">Next →</button></div>
   </section>
 
-  <!-- STEP 5 — CONNECT -->
+  <!-- STEP 5 — BANK ACCOUNTS (Intake F → Plaid + bank_account record) -->
   <section id="s5" class="hidden">
     <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
-      <div class="bubble">Almost there. Hook up whatever you're comfortable with so I can actually do the work — and skip anything you're not ready for. I'll keep everything in "draft for your approval" until you trust me.</div></div>
-    <div class="conn"><div class="l"><span class="ic">🏦</span><div><div class="nm">Bank accounts</div><div class="ds">balances, transactions (Plaid)</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
-    <div class="conn"><div class="l"><span class="ic">✉️</span><div><div class="nm">Email</div><div class="ds">Gmail / Outlook → unified inbox</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
-    <div class="conn"><div class="l"><span class="ic">🗓️</span><div><div class="nm">Calendar</div><div class="ds">Google / Microsoft</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
-    <div class="conn"><div class="l"><span class="ic">📁</span><div><div class="nm">Files & folders</div><div class="ds">your knowledge folder (local / cloud / drive)</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
-    <div class="conn"><div class="l"><span class="ic">📲</span><div><div class="nm">Text messaging</div><div class="ds">SMS for reminders + dispatch</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
-    <div class="conn"><div class="l"><span class="ic">💳</span><div><div class="nm">Payments</div><div class="ds">Stripe / your processor</div></div></div><button class="cbtn" onclick="conn(this)">Connect</button></div>
-    <p class="sub" style="margin-top:10px">All connections are stubbed in this build — nothing actually links yet. Real auth + connectors arrive in the next phases.</p>
-    <div class="nav"><button class="btn ghost" onclick="go(4)">Back</button><button class="btn prim" onclick="go(6)">Review →</button></div>
+      <div class="bubble">Two ways to add accounts: connect a bank with Plaid for live balances &amp; transactions, or just record an account by hand. Do either, both, or skip.</div></div>
+
+    <div class="card">
+      <div class="ttl">CONNECT A BANK (PLAID — SANDBOX)</div>
+      <label>Link for entity *</label>
+      <select id="plaid_entity"><option value="">— choose an entity —</option></select>
+      <button class="savebtn" id="plaidBtn" onclick="startPlaid()">🏦 Connect with Plaid</button>
+      <div class="msg" id="plaid_msg"></div>
+      <p class="hint">Sandbox until the Nov compliance attestation — balances read $0 honestly until production. Use sandbox login <code>user_good</code> / <code>pass_good</code>.</p>
+    </div>
+
+    <div class="onfile" id="bankOnfile"></div>
+    <div class="card">
+      <div class="ttl">OR RECORD AN ACCOUNT MANUALLY</div>
+      <div class="grid2">
+        <div><label>Bank / institution *</label><input id="bk_label" placeholder="e.g. Altra Federal CU"></div>
+        <div><label>Account type</label><select id="bk_type"><option value="">—</option><option>Checking</option><option>Savings</option><option>Credit card</option><option>Line of credit</option><option>Other</option></select></div>
+      </div>
+      <div class="grid2">
+        <div><label>Last 4</label><input id="bk_last4" maxlength="4" inputmode="numeric" placeholder="optional"></div>
+        <div><label>Owning entity</label><select id="bk_entity"><option value="">— not entity-specific —</option></select></div>
+      </div>
+      <label>Purpose</label>
+      <input id="bk_purpose" placeholder="operating / reserve / deposits…">
+      <button class="savebtn" onclick="saveBank()">Save account</button>
+      <div class="msg" id="bk_msg"></div>
+    </div>
+    <div class="nav"><button class="btn ghost" onclick="go(4)">Back</button><button class="btn prim" onclick="go(6)">Next →</button></div>
   </section>
 
-  <!-- STEP 6 — REVIEW -->
+  <!-- STEP 6 — LOANS (Intake G → loan record) -->
   <section id="s6" class="hidden">
     <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
-      <div class="bubble" id="b6">Here's your command center. Looks right? I'll build it and take you in.</div></div>
+      <div class="bubble">Any loans or mortgages? Add one per loan. The current balance also feeds LTV alongside the portfolio facts.</div></div>
+    <div class="onfile" id="loanOnfile"></div>
+    <div class="card">
+      <div class="ttl">ADD A LOAN</div>
+      <div class="grid2">
+        <div><label>Lender *</label><input id="ln_label" placeholder="e.g. VeraBank"></div>
+        <div><label>Loan type</label><input id="ln_type" placeholder="mortgage / term / HELOC"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Original amount ($)</label><input id="ln_orig" inputmode="decimal" placeholder="blank = unknown"></div>
+        <div><label>Current balance ($)</label><input id="ln_balance" inputmode="decimal" placeholder="0 = paid off · blank = unknown"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Rate (%)</label><input id="ln_rate" inputmode="decimal" placeholder="optional"></div>
+        <div><label>Monthly payment ($)</label><input id="ln_pmt" inputmode="decimal" placeholder="optional"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Maturity date</label><input id="ln_maturity" type="date"></div>
+        <div><label>Secured by / entity</label><select id="ln_entity"><option value="">— not entity-specific —</option></select></div>
+      </div>
+      <button class="savebtn" onclick="saveLoan()">Save loan</button>
+      <div class="msg" id="ln_msg"></div>
+    </div>
+    <div class="nav"><button class="btn ghost" onclick="go(5)">Back</button><button class="btn prim" onclick="go(7)">Next →</button></div>
+  </section>
+
+  <!-- STEP 7 — VENDORS (Intake H → vendor record) -->
+  <section id="s7" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Your people — contractors, your CPA, attorney, insurance agent. Add the ones you work with so dispatch and reminders know who to reach.</div></div>
+    <div class="onfile" id="vendorOnfile"></div>
+    <div class="card">
+      <div class="ttl">ADD A VENDOR / PROFESSIONAL</div>
+      <div class="grid2">
+        <div><label>Name / company *</label><input id="vn_label" placeholder="e.g. Lone Star Plumbing"></div>
+        <div><label>Trade / role</label><input id="vn_trade" placeholder="contractor / CPA / attorney…"></div>
+      </div>
+      <label>Contact (phone / email)</label>
+      <input id="vn_contact" placeholder="optional">
+      <div class="grid2">
+        <div><label>W-9 on file?</label><select id="vn_w9"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+        <div><label>Default entity</label><select id="vn_entity"><option value="">— not entity-specific —</option></select></div>
+      </div>
+      <label>Insurance expiry (optional)</label>
+      <input id="vn_insexp" type="date">
+      <button class="savebtn" onclick="saveVendor()">Save vendor</button>
+      <div class="msg" id="vn_msg"></div>
+    </div>
+    <div class="nav"><button class="btn ghost" onclick="go(6)">Back</button><button class="btn prim" onclick="go(8)">Next →</button></div>
+  </section>
+
+  <!-- STEP 8 — COMING NEXT (Intake D + I, deferred — no fake) -->
+  <section id="s8" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Two more intakes are coming in the next build — I'm not going to pretend to save them yet. Here's what's next so you know it's planned.</div></div>
+    <div class="deferbox">🏡 <b>Properties</b> — address, owning entity, beds/baths/sqft, purchase price, value, occupancy, doors. <span style="color:var(--dim)">Needs the <code>properties</code> table (next step). Will feed Property File, Rent Roll &amp; portfolio facts.</span></div>
+    <div class="deferbox">🛡️ <b>Insurance</b> — carrier, policy #, covered property, coverage &amp; limits, premium, renewal date. <span style="color:var(--dim)">Needs the <code>insurance</code> table (next step). Will feed the Insurance tile &amp; renewal reminders.</span></div>
+    <div class="nav"><button class="btn ghost" onclick="go(7)">Back</button><button class="btn prim" onclick="go(9)">Next →</button></div>
+  </section>
+
+  <!-- STEP 9 — CONNECTORS (Intake J — honest status, no fake toggles) -->
+  <section id="s9" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Here's what I can connect to. Bank (Plaid) is wired today — you did that a couple steps back. The rest land in the connector phase; I won't show a fake "Connected" until they actually are.</div></div>
+    <div id="connList"></div>
+    <p class="hint" style="margin-top:6px">Each connector stores its credentials only in the hub (never this browser), defaults to draft-for-approval, and shows a real connected/last-sync status once live.</p>
+    <div class="nav"><button class="btn ghost" onclick="go(8)">Back</button><button class="btn prim" onclick="go(10)">Next →</button></div>
+  </section>
+
+  <!-- STEP 10 — TILES & EMPLOYEES (Intake K) -->
+  <section id="s10" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble">Last thing — pick the tiles you want to start with (I've pre-picked the deal-flow four), and add an AI employee to any area you'd like extra help with. You can change all of this any time.</div></div>
+    <div class="baseline">🎓 <b>Learn &amp; Coach is always on</b> — your plain-English copilot rides along on every tile. It's part of Foundation, not an add-on.</div>
+    <div id="layerCards"></div>
+    <div class="grplbl" style="margin-top:20px">AI EMPLOYEES (OPTIONAL)</div>
+    <div id="empList"></div>
+    <div class="totalbar"><span class="t">ESTIMATED MONTHLY</span><span class="v" id="total1">$0/mo</span></div>
+    <div class="pricenote">Pricing is placeholder (Foundation $15 · layer $15 · employee $15) — final pricing TBD. Selections save to this device now; server-side entitlements land with the auth phase.</div>
+    <div class="nav"><button class="btn ghost" onclick="go(9)">Back</button><button class="btn prim" onclick="go(11)">Review →</button></div>
+  </section>
+
+  <!-- STEP 11 — REVIEW & FINISH -->
+  <section id="s11" class="hidden">
+    <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
+      <div class="bubble" id="b11">Here's everything that's now on file in your account. Looks right? I'll take you into your command center.</div></div>
     <div class="rev" id="review"></div>
     <div class="totalbar"><span class="t">YOUR PLAN</span><span class="v" id="total2">$0/mo</span></div>
-    <div class="nav"><button class="btn ghost" onclick="go(5)">Back</button><button class="btn prim" onclick="launch()">🚀 Build my command center</button></div>
+    <div class="nav"><button class="btn ghost" onclick="go(10)">Back</button><button class="btn prim" onclick="launch()">🚀 Enter my command center</button></div>
   </section>
 </div>
 
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<script>
+  window.FL_SUPABASE = window.FL_SUPABASE || {url:'https://vnsbmzbnvszgsibttkot.supabase.co', anon:'sb_publishable_lAyX64SeqyQz8dyA25i91w_1jp7dxaL'};
+  window.FL_API_BASE = window.FL_API_BASE || 'https://api.foundationlayerhq.com';
+</script>
+<script src="../shared/fl-auth.js?v=20260626a"></script>
+<script src="../shared/fl-api.js?v=20260626a"></script>
 <script>
 const FOUNDATION=15, LAYER=15, EMPLOYEE=15;
-const state={layers:{},employees:{},conns:0,hasBiz:false,hasRe:false};
+const LAST_STEP=11;
+const state={layers:{},employees:{}};
+let ENTITIES=[];   // cached real entities for the dropdowns
 
-// Real-estate-only library. [icon, name, desc, recommended(1/0)]. Learn & Coach is
-// baseline (always-on) and intentionally NOT in this list.
-const LIBS=[
-  ['💰','Financials','the money basics',1],
-  ['🔍','Deal Analyzer','is this a good buy?',1],
-  ['🏗️','Build & Renovate','rehab plan + budget',1],
-  ['🏦','Lender Packet','get the financing',1],
-  ['🏡','Property File','one page per property',0],
-  ['🏠','Rent Roll','once you own + rent it',0],
-  ['🛠️','Maintenance','after tenants move in',0],
-  ['🧾','Vendors & Payables','as the bills come in',0],
-  ['✉️','Inbox','all comms in one place',0],
-  ['📁','Documents','leases · files',0],
-  ['🌐','Website & IT','list + market units',0],
-  ['⚖️','Legal','contracts · closing · law',0],
-  ['🏛️','Taxes','tax due · write-offs',0],
-  ['🛡️','Insurance','policies · coverage',0],
-  ['📝','Tenant Screening','apps · credit · approve',0],
-  ['✍️','Sign','e-signature · leases',0],
-  ['🔭','Deal Finder','source deals to the Analyzer',0],
-  ['💸','Sell / Exit','sell · refi · 1031',0],
-  ['🔧','Reserves & CapEx','plan big-ticket costs',0],
-  ['✅','Compliance','licenses · inspections',0],
-  ['🎯','Goals & Growth','am I winning?',0],
-  ['📅','Calendar','every deadline, synced',0]
+/* ───────────────────────── helpers ───────────────────────── */
+function $(id){return document.getElementById(id);}
+function val(id){const e=$(id);return e?e.value:'';}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+// honesty: omit blank text → UNKNOWN
+function txt(id){const v=(val(id)||'').trim();return v===''?undefined:v;}
+// honesty: omit blank number, but KEEP a typed 0 (real zero)
+function num(id){const v=(val(id)||'').trim();if(v==='')return undefined;const n=+v;return isFinite(n)?n:undefined;}
+function details(map){const d={};Object.keys(map).forEach(function(k){if(map[k]!==undefined)d[k]=map[k];});return Object.keys(d).length?d:undefined;}
+function isAuthed(){return !!(window.flApi&&flApi.authed&&flApi.authed());}
+function failCopy(){return (window.flApi&&!flApi.authed())
+  ? 'Session expired — sign in again, then retry. Nothing was saved.'
+  : 'Save failed — confirm your access scope (admin/granted entity), then retry.';}
+function setMsg(id,kind,html){const e=$(id);if(e)e.innerHTML='<span class="'+kind+'">'+html+'</span>';}
+
+/* ───────────────────────── auth (Intake A) ───────────────────────── */
+function reflectAuth(){
+  const authed=isAuthed();
+  $('signedOut').classList.toggle('hidden',authed);
+  $('signedIn').classList.toggle('hidden',!authed);
+  if(authed){
+    const who=(window.flAuth&&flAuth.email&&flAuth.email())||'your account';
+    $('whoami').textContent=who;
+    $('demorib').innerHTML='Real setup — saving to <b>'+esc(who)+'</b> through the secure hub.';
+  }
+}
+function doSignIn(){
+  const btn=$('signinBtn');
+  const em=val('signinEmail').trim(), pw=val('signinPass');
+  if(!em||!pw){setMsg('signinMsg','err','Enter your email and password.');return;}
+  if(!(window.flAuth&&flAuth.signIn)){setMsg('signinMsg','err','Auth unavailable — reload and try again.');return;}
+  btn.disabled=true;setMsg('signinMsg','sub','Signing in…');
+  flAuth.signIn(em,pw).then(function(res){
+    btn.disabled=false;
+    if(res&&res.error){setMsg('signinMsg','err',esc(res.error));return;}
+    $('signinMsg').innerHTML='';
+    reflectAuth();
+  });
+}
+
+/* ───────── generic read-back renderers (idempotency: show what's on file) ───────── */
+function renderList(hostId,items,mapFn,emptyTxt){
+  const host=$(hostId);if(!host)return;
+  if(!items||!items.length){host.innerHTML='<div class="empty">'+esc(emptyTxt)+'</div>';return;}
+  host.innerHTML='<div class="grplbl">ALREADY ON FILE ('+items.length+')</div>'+items.map(mapFn).join('');
+}
+function ofItem(name,meta,badge){
+  return '<div class="ofitem"><div><div class="nm">'+esc(name)+'</div>'+(meta?'<div class="meta">'+esc(meta)+'</div>':'')+'</div>'+
+    (badge?'<span class="ofbadge">'+esc(badge)+'</span>':'')+'</div>';
+}
+function detailBits(d){const out=[];if(d)for(const k in d){if(d[k]!=null&&d[k]!=='')out.push(d[k]);if(out.length>=3)break;}return out.join(' · ');}
+
+/* ───────── entity cache + dropdowns ───────── */
+function refreshEntities(){
+  if(!isAuthed())return Promise.resolve([]);
+  return window.flEntities.list().then(function(rows){ENTITIES=rows||[];fillEntitySelects();return ENTITIES;}).catch(function(){return [];});
+}
+function fillEntitySelects(){
+  const opts='<option value="">— not entity-specific —</option>'+ENTITIES.map(function(e){return '<option value="'+esc(e.code)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>';}).join('');
+  ['bk_entity','ln_entity','vn_entity'].forEach(function(id){const s=$(id);if(s)s.innerHTML=opts;});
+  const parent='<option value="">— top-level (no parent) —</option>'+ENTITIES.map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>';}).join('');
+  if($('ent_parent'))$('ent_parent').innerHTML=parent;
+  const req='<option value="">— choose an entity —</option>'+ENTITIES.map(function(e){return '<option value="'+esc(e.code)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>';}).join('');
+  ['pf_entity','plaid_entity'].forEach(function(id){const s=$(id);if(s)s.innerHTML=req;});
+}
+
+/* ───────── B — owner profile → personal_info ───────── */
+function loadProfile(){
+  if(!isAuthed())return;
+  window.flRecords.list('personal_info').then(function(rows){
+    renderList('profileOnfile',rows,function(r){return ofItem(r.label||'(unnamed)',detailBits(r.details),'on file');},'No owner profile on file yet.');
+  }).catch(function(){});
+}
+function saveProfile(){
+  if(!isAuthed()){setMsg('pi_msg','err','Please sign in first.');return;}
+  const label=txt('pi_label');
+  if(!label){setMsg('pi_msg','err','Your full legal name is required.');return;}
+  const payload={kind:'personal_info',label:label,retention:'7yr',
+    details:details({role:txt('pi_role'),email:txt('pi_email'),phone:txt('pi_phone'),
+      mailing_address:txt('pi_address'),ssn_last4:txt('pi_ssn4'),emergency_contact:txt('pi_emergency')})};
+  setMsg('pi_msg','sub','Saving…');
+  window.flRecords.create(payload).then(function(res){
+    if(!res){setMsg('pi_msg','err',failCopy());return;}
+    setMsg('pi_msg','ok','✓ Saved to your account.');
+    ['pi_label','pi_role','pi_email','pi_phone','pi_address','pi_ssn4','pi_emergency'].forEach(function(id){if($(id))$(id).value='';});
+    loadProfile();
+  });
+}
+
+/* ───────── C — entities → /api/entities ───────── */
+function loadEntities(){
+  if(!isAuthed())return;
+  refreshEntities().then(function(rows){
+    renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'No entities yet — add your first below.');
+  });
+}
+function autoCode(){
+  const c=$('ent_code'), n=$('ent_name');
+  if(c&&!c.value&&n&&n.value){c.value=n.value.trim().toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,24);}
+}
+function saveEntity(){
+  if(!isAuthed()){setMsg('ent_msg','err','Please sign in first.');return;}
+  const code=txt('ent_code'),name=txt('ent_name');
+  if(!code||!name){setMsg('ent_msg','err','Code and legal name are both required.');return;}
+  const payload={code:code,name:name,legal_form:val('ent_legal')||'LLC',primary_bank:(val('ent_bank')||'').trim()||'Altra'};
+  const parent=val('ent_parent');if(parent)payload.parent_entity_id=parent;
+  setMsg('ent_msg','sub','Saving…');
+  window.flEntities.create(payload).then(function(res){
+    if(!res){setMsg('ent_msg','err',(window.flApi&&!flApi.authed())?failCopy():'Save failed — that code may already exist, or you may not have create access. Try a different code.');return;}
+    setMsg('ent_msg','ok','✓ '+esc(res.name||name)+' created.');
+    ['ent_code','ent_name','ent_bank'].forEach(function(id){if($(id))$(id).value=(id==='ent_bank'?'Altra':'');});
+    loadEntities();
+  });
+}
+
+/* ───────── E — portfolio facts → /api/portfolio-facts (upsert) ───────── */
+function loadFacts(){
+  if(!isAuthed())return;
+  refreshEntities().then(function(){
+    return window.flPortfolioFacts.list();
+  }).then(function(rows){
+    renderList('factsOnfile',rows,function(f){
+      const bits=[];
+      bits.push('doors '+(f.door_count==null?'—':f.door_count));
+      bits.push('loan '+(f.loan_balance==null?'—':('$'+f.loan_balance)));
+      bits.push('value '+(f.asset_value==null?'—':('$'+f.asset_value)));
+      return ofItem(f.entity_code,bits.join(' · ')+(f.as_of_date?(' · as of '+f.as_of_date):''),'facts');
+    },'No portfolio facts yet — entering them lights LTV + per-door.');
+  }).catch(function(){});
+}
+function saveFact(){
+  if(!isAuthed()){setMsg('pf_msg','err','Please sign in first.');return;}
+  const ec=val('pf_entity');
+  if(!ec){setMsg('pf_msg','err','Choose an entity.');return;}
+  const payload={entity_code:ec,source:'manual',
+    door_count:num('pf_doors'),loan_balance:num('pf_loan'),asset_value:num('pf_value'),as_of_date:txt('pf_asof')};
+  // strip undefined so omitted = NULL (UNKNOWN); a typed 0 survives as a real zero
+  Object.keys(payload).forEach(function(k){if(payload[k]===undefined)delete payload[k];});
+  setMsg('pf_msg','sub','Saving…');
+  window.flPortfolioFacts.upsert(payload).then(function(res){
+    if(!res){setMsg('pf_msg','err',failCopy());return;}
+    setMsg('pf_msg','ok','✓ Saved for '+esc(ec)+'. LTV/per-door recompute on the dashboard.');
+    ['pf_doors','pf_loan','pf_value','pf_asof'].forEach(function(id){if($(id))$(id).value='';});
+    loadFacts();
+  });
+}
+
+/* ───────── F — bank accounts: Plaid Link + manual record ───────── */
+function loadBanks(){
+  if(!isAuthed())return;
+  refreshEntities();
+  window.flRecords.list('bank_account').then(function(rows){
+    renderList('bankOnfile',rows,function(r){return ofItem(r.label||'(account)',detailBits(r.details)+(r.entity_code?(' · '+r.entity_code):''),'manual');},'No manual accounts on file yet.');
+  }).catch(function(){});
+}
+function startPlaid(){
+  if(!isAuthed()){setMsg('plaid_msg','err','Please sign in first.');return;}
+  const ec=val('plaid_entity');
+  if(!ec){setMsg('plaid_msg','err','Choose which entity to link.');return;}
+  if(typeof Plaid==='undefined'){setMsg('plaid_msg','err','Plaid Link library is unavailable right now. Use the manual path below, or retry later.');return;}
+  setMsg('plaid_msg','sub','Requesting a secure link…');
+  window.flApi.call('POST','/plaid/link-token',{entity_code:ec}).then(function(res){
+    if(!res||!res.link_token){setMsg('plaid_msg','err',(window.flApi&&!flApi.authed())?failCopy():'Could not start Plaid (check entity access). Try again or use the manual path.');return;}
+    const handler=Plaid.create({
+      token:res.link_token,
+      onSuccess:function(public_token){
+        setMsg('plaid_msg','sub','Linking your accounts…');
+        window.flApi.call('POST','/plaid/exchange',{public_token:public_token,entity_code:ec}).then(function(ex){
+          if(!ex||ex.status!=='linked'){setMsg('plaid_msg','err','Link exchange failed. Nothing was stored — retry, or use the manual path.');return;}
+          setMsg('plaid_msg','ok','✓ Linked '+esc(ec)+' — '+(ex.accounts_provisioned||0)+' account(s). Balances are $0 in sandbox until production.');
+        });
+      },
+      onExit:function(err){if(err)setMsg('plaid_msg','err','Plaid closed before finishing. Nothing was stored.');else $('plaid_msg').innerHTML='';}
+    });
+    handler.open();
+  });
+}
+function saveBank(){
+  if(!isAuthed()){setMsg('bk_msg','err','Please sign in first.');return;}
+  const label=txt('bk_label');
+  if(!label){setMsg('bk_msg','err','Bank / institution name is required.');return;}
+  const payload={kind:'bank_account',label:label,
+    details:details({account_type:txt('bk_type'),last4:txt('bk_last4'),purpose:txt('bk_purpose')})};
+  const ec=val('bk_entity');if(ec)payload.entity_code=ec;
+  setMsg('bk_msg','sub','Saving…');
+  window.flRecords.create(payload).then(function(res){
+    if(!res){setMsg('bk_msg','err',failCopy());return;}
+    setMsg('bk_msg','ok','✓ Account recorded.');
+    ['bk_label','bk_last4','bk_purpose'].forEach(function(id){if($(id))$(id).value='';});
+    loadBanks();
+  });
+}
+
+/* ───────── G — loans → loan record ───────── */
+function loadLoans(){
+  if(!isAuthed())return;
+  refreshEntities();
+  window.flRecords.list('loan').then(function(rows){
+    renderList('loanOnfile',rows,function(r){const d=r.details||{};return ofItem(r.label||'(lender)',[d.loan_type,(d.current_balance!=null?('bal $'+d.current_balance):null),(r.entity_code||null)].filter(Boolean).join(' · '),'loan');},'No loans on file yet.');
+  }).catch(function(){});
+}
+function saveLoan(){
+  if(!isAuthed()){setMsg('ln_msg','err','Please sign in first.');return;}
+  const label=txt('ln_label');
+  if(!label){setMsg('ln_msg','err','Lender name is required.');return;}
+  const payload={kind:'loan',label:label,
+    details:details({loan_type:txt('ln_type'),original_amount:num('ln_orig'),current_balance:num('ln_balance'),
+      rate:num('ln_rate'),monthly_payment:num('ln_pmt'),maturity_date:txt('ln_maturity'),secured_by:txt('ln_secured')})};
+  const ec=val('ln_entity');if(ec)payload.entity_code=ec;
+  setMsg('ln_msg','sub','Saving…');
+  window.flRecords.create(payload).then(function(res){
+    if(!res){setMsg('ln_msg','err',failCopy());return;}
+    setMsg('ln_msg','ok','✓ Loan saved.');
+    ['ln_label','ln_type','ln_orig','ln_balance','ln_rate','ln_pmt','ln_maturity'].forEach(function(id){if($(id))$(id).value='';});
+    loadLoans();
+  });
+}
+
+/* ───────── H — vendors → vendor record ───────── */
+function loadVendors(){
+  if(!isAuthed())return;
+  refreshEntities();
+  window.flRecords.list('vendor').then(function(rows){
+    renderList('vendorOnfile',rows,function(r){const d=r.details||{};return ofItem(r.label||'(vendor)',[d.trade,d.contact,(d.w9_on_file?('W-9 '+d.w9_on_file):null)].filter(Boolean).join(' · '),'vendor');},'No vendors on file yet.');
+  }).catch(function(){});
+}
+function saveVendor(){
+  if(!isAuthed()){setMsg('vn_msg','err','Please sign in first.');return;}
+  const label=txt('vn_label');
+  if(!label){setMsg('vn_msg','err','Name / company is required.');return;}
+  const payload={kind:'vendor',label:label,
+    details:details({trade:txt('vn_trade'),contact:txt('vn_contact'),w9_on_file:txt('vn_w9'),insurance_expiry:txt('vn_insexp')})};
+  const ec=val('vn_entity');if(ec)payload.entity_code=ec;
+  setMsg('vn_msg','sub','Saving…');
+  window.flRecords.create(payload).then(function(res){
+    if(!res){setMsg('vn_msg','err',failCopy());return;}
+    setMsg('vn_msg','ok','✓ Vendor saved.');
+    ['vn_label','vn_trade','vn_contact','vn_insexp'].forEach(function(id){if($(id))$(id).value='';});
+    loadVendors();
+  });
+}
+
+/* ───────── J — connectors (honest status, no fake toggles) ───────── */
+const CONNECTORS=[
+  ['🏦','Bank accounts','balances + transactions (Plaid)','live','Wired (sandbox) — connect above'],
+  ['✉️','Email','Gmail / Outlook → unified Inbox','soon','Connector phase'],
+  ['🗓️','Calendar','Google / Microsoft','soon','Connector phase'],
+  ['📁','Files & folders','your knowledge folder','soon','Connector phase'],
+  ['📲','Text messaging','SMS reminders + dispatch','soon','Connector phase (Twilio)'],
+  ['💳','Payments','Stripe / your processor','soon','Connector phase'],
+  ['🏠','Rent','RentRedi rent roll + leads','soon','Connector phase'],
+  ['✍️','E-signature','DocuSign','soon','Connector phase']
 ];
+function renderConnectors(){
+  $('connList').innerHTML=CONNECTORS.map(function(c){
+    const cls=c[3]==='live'?'live':'soon';
+    const lbl=c[3]==='live'?'WIRED':'NOT CONNECTED';
+    return '<div class="conn"><div class="l"><span class="ic">'+c[0]+'</span><div><div class="nm">'+esc(c[1])+'</div><div class="ds">'+esc(c[2])+' · '+esc(c[4])+'</div></div></div><span class="statuspill '+cls+'">'+lbl+'</span></div>';
+  }).join('');
+}
 
+/* ───────── K — tiles & employees (selection; localStorage + TODO entitlements) ───────── */
+const LIBS=[
+  ['💰','Financials','the money basics',1],['🔍','Deal Analyzer','is this a good buy?',1],
+  ['🏗️','Build & Renovate','rehab plan + budget',1],['🏦','Lender Packet','get the financing',1],
+  ['🏡','Property File','one page per property',0],['🏠','Rent Roll','once you own + rent it',0],
+  ['🛠️','Maintenance','after tenants move in',0],['🧾','Vendors & Payables','as the bills come in',0],
+  ['✉️','Inbox','all comms in one place',0],['📁','Documents','leases · files',0],
+  ['🌐','Website & IT','list + market units',0],['⚖️','Legal','contracts · closing · law',0],
+  ['🏛️','Taxes','tax due · write-offs',0],['🛡️','Insurance','policies · coverage',0],
+  ['📝','Tenant Screening','apps · credit · approve',0],['✍️','Sign','e-signature · leases',0],
+  ['🔭','Deal Finder','source deals to the Analyzer',0],['💸','Sell / Exit','sell · refi · 1031',0],
+  ['🔧','Reserves & CapEx','plan big-ticket costs',0],['✅','Compliance','licenses · inspections',0],
+  ['🎯','Goals & Growth','am I winning?',0],['📅','Calendar','every deadline, synced',0]
+];
 function renderLayers(){
-  const host=document.getElementById('layerCards');
-  state.layers={}; host.innerHTML='';
-  const rec=LIBS.filter(L=>L[3]), later=LIBS.filter(L=>!L[3]);
-  const card=(L)=>{const[ic,nm,ds,r]=L; if(r)state.layers[nm]=true;
+  const host=$('layerCards');state.layers={};host.innerHTML='';
+  const rec=LIBS.filter(L=>L[3]),later=LIBS.filter(L=>!L[3]);
+  const card=(L)=>{const[ic,nm,ds,r]=L;if(r)state.layers[nm]=true;
     return '<div class="lcard'+(r?' on':'')+'" data-nm="'+nm+'"><span class="chk">✓</span><div class="ic">'+ic+'</div><div class="nm">'+nm+'</div><div class="ds">'+ds+'</div></div>';};
   let h='';
-  if(rec.length) h+='<div class="grplbl start">✦ RECOMMENDED TO START</div><div class="cards">'+rec.map(card).join('')+'</div>';
-  if(later.length) h+='<div class="grplbl" style="margin-top:18px">ADD WHEN YOU\'RE READY</div><div class="cards">'+later.map(card).join('')+'</div>';
+  if(rec.length)h+='<div class="grplbl start">✦ RECOMMENDED TO START</div><div class="cards">'+rec.map(card).join('')+'</div>';
+  if(later.length)h+='<div class="grplbl" style="margin-top:18px">ADD WHEN YOU\'RE READY</div><div class="cards">'+later.map(card).join('')+'</div>';
   host.innerHTML=h;
-  host.querySelectorAll('.lcard').forEach(d=>{const nm=d.dataset.nm; d.onclick=()=>{const on=!state.layers[nm];state.layers[nm]=on;d.classList.toggle('on',on);};});
+  host.querySelectorAll('.lcard').forEach(d=>{const nm=d.dataset.nm;d.onclick=()=>{const on=!state.layers[nm];state.layers[nm]=on;d.classList.toggle('on',on);};});
 }
 function selectedLayers(){return Object.keys(state.layers).filter(k=>state.layers[k]);}
 function renderEmployees(){
-  const host=document.getElementById('empList'); host.innerHTML='';
+  const host=$('empList');host.innerHTML='';
   selectedLayers().forEach(nm=>{
     const on=!!state.employees[nm];
-    const row=document.createElement('div'); row.className='emprow';
-    row.innerHTML='<div class="l"><b>'+nm+'</b> employee<span class="price">+$'+EMPLOYEE+'/mo</span></div>';
-    const tg=document.createElement('div'); tg.className='toggle'+(on?' on':''); tg.innerHTML='<div class="knob"></div>';
+    const row=document.createElement('div');row.className='emprow';
+    row.innerHTML='<div class="l"><b>'+esc(nm)+'</b> employee<span class="price">+$'+EMPLOYEE+'/mo</span></div>';
+    const tg=document.createElement('div');tg.className='toggle'+(on?' on':'');tg.innerHTML='<div class="knob"></div>';
     tg.onclick=()=>{state.employees[nm]=!state.employees[nm];tg.classList.toggle('on',state.employees[nm]);total();};
-    row.appendChild(tg); host.appendChild(row);
+    row.appendChild(tg);host.appendChild(row);
   });
   total();
 }
-function monthly(){const L=selectedLayers().length, E=Object.values(state.employees).filter(Boolean).length; return FOUNDATION+L*LAYER+E*EMPLOYEE;}
-function total(){const v='$'+monthly()+'/mo';document.getElementById('total1').textContent=v;document.getElementById('total2').textContent=v;}
-function conn(btn){btn.classList.toggle('done');btn.textContent=btn.classList.contains('done')?'✓ Connected':'Connect';state.conns=document.querySelectorAll('.cbtn.done').length;}
-function sync(){
-  const o=document.getElementById('ownerName').value||'there';
-  const b2=document.getElementById('b2'); if(b2) b2.innerHTML='Got it, '+o+'. Tell me a bit about where you\'re at — no wrong answers, this just helps me set things up right for you.';
-}
-function go(n){for(let i=1;i<=6;i++)document.getElementById('s'+i).classList.toggle('hidden',i!==n);
-  document.getElementById('steplbl').textContent='STEP '+n+' OF 6';
-  const p=document.getElementById('prog');p.innerHTML='';for(let i=1;i<=6;i++){const s=document.createElement('div');s.className='seg'+(i<=n?' on':'');p.appendChild(s);}
-  if(n===3 && !Object.keys(state.layers).length) renderLayers();
-  if(n===4)renderEmployees();
-  if(n===6)review();
-  window.scrollTo(0,0);
-}
-function val(id){const e=document.getElementById(id);return e?e.value:'';}
+function monthly(){const L=selectedLayers().length,E=Object.values(state.employees).filter(Boolean).length;return FOUNDATION+L*LAYER+E*EMPLOYEE;}
+function total(){const v='$'+monthly()+'/mo';$('total1').textContent=v;$('total2').textContent=v;}
+
+/* ───────── review + finish ───────── */
 function line(k,v){return '<div class="line"><span class="k">'+k+'</span><span style="max-width:62%;text-align:right">'+v+'</span></div>';}
-function setBiz(yes,btn){state.hasBiz=yes;btn.parentNode.querySelectorAll('.segbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');document.getElementById('bizFields').classList.toggle('hidden',!yes);}
-function setRe(yes,btn){state.hasRe=yes;btn.parentNode.querySelectorAll('.segbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');document.getElementById('propField').classList.toggle('hidden',!yes);document.getElementById('reNote').textContent=yes?'Perfect — I\'ll tune things around the doors you already have.':'Just starting is exactly who this is built for — we\'ll take it one step at a time.';}
 function review(){
-  const o=val('ownerName')||'—', tn=val('tarsName')||'TARS';
-  const Ls=selectedLayers(), Es=Object.keys(state.employees).filter(k=>state.employees[k]);
-  document.getElementById('b6').innerHTML='That\'s it, '+o+' — here\'s your command center. Look good? Say the word and I\'ll put it together and take you in.';
-  let h='';
-  h+=line('Owner',o);
-  h+=line('Assistant',tn);
-  h+=line('Business', state.hasBiz?((val('bizName')||'(unnamed)')+' · '+val('bizEntity')):'Just getting started — no business yet');
-  if(state.hasBiz) h+=line('Company', val('bizLoc')+' location(s) · team: '+val('bizTeam'));
-  h+=line('Real estate', state.hasRe?(val('propCount')+' propert'+(val('propCount')=='1'?'y':'ies')+' owned'):'Starting fresh — first deal ahead');
-  h+=line('Tiles ('+Ls.length+')', Ls.join(', ')||'—');
-  h+=line('Always on','Learn & Coach copilot');
-  h+=line('AI employees ('+Es.length+')', Es.join(', ')||'none');
-  h+=line('Connected', state.conns+' account(s)');
-  document.getElementById('review').innerHTML=h; total();
+  const o=val('ownerName')||(window.flAuth&&flAuth.email&&flAuth.email())||'—';
+  const Ls=selectedLayers(),Es=Object.keys(state.employees).filter(k=>state.employees[k]);
+  $('b11').innerHTML='That\'s it, '+esc(o)+' — here\'s what\'s on file in your account. Look good? I\'ll take you in.';
+  Promise.all([
+    window.flRecords.list('personal_info').catch(()=>[]),
+    (ENTITIES.length?Promise.resolve(ENTITIES):refreshEntities()),
+    window.flPortfolioFacts.list().catch(()=>[]),
+    window.flRecords.list('bank_account').catch(()=>[]),
+    window.flRecords.list('loan').catch(()=>[]),
+    window.flRecords.list('vendor').catch(()=>[])
+  ]).then(function(r){
+    const cnt=a=>(a||[]).length;
+    let h='';
+    h+=line('Signed in as',esc((window.flAuth&&flAuth.email&&flAuth.email())||'—'));
+    h+=line('Owner profile',cnt(r[0])?(cnt(r[0])+' on file ✓'):'none yet');
+    h+=line('Entities',cnt(r[1])?(cnt(r[1])+' on file ✓'):'none yet');
+    h+=line('Portfolio facts',cnt(r[2])?(cnt(r[2])+' entit'+(cnt(r[2])===1?'y':'ies')+' ✓'):'none yet (LTV/per-door stay UNKNOWN)');
+    h+=line('Bank accounts (manual)',cnt(r[3])?(cnt(r[3])+' on file ✓'):'none yet');
+    h+=line('Loans',cnt(r[4])?(cnt(r[4])+' on file ✓'):'none yet');
+    h+=line('Vendors',cnt(r[5])?(cnt(r[5])+' on file ✓'):'none yet');
+    h+=line('Tiles ('+Ls.length+')',esc(Ls.join(', ')||'—'));
+    h+=line('AI employees ('+Es.length+')',esc(Es.join(', ')||'none'));
+    $('review').innerHTML=h;
+  });
+  total();
 }
 function launch(){
-  const tn=val('tarsName')||'TARS', o=val('ownerName')||'Owner';
-  // Persist the onboarding profile + a local demo session, then drop the user into
-  // the app. This is the Phase-2 auth seam: today it writes a client-side session
-  // (same shape app.js reads); real Supabase magic-link verification slots in here.
-  const profile={
-    owner:o, assistant:tn,
-    hasBiz:state.hasBiz, bizName:val('bizName'), bizEntity:val('bizEntity'),
-    hasRe:state.hasRe, propCount:val('propCount'),
-    tiles:selectedLayers(), employees:Object.keys(state.employees).filter(k=>state.employees[k]),
-    connections:state.conns, at:new Date().toISOString()
-  };
+  const email=(window.flAuth&&flAuth.email&&flAuth.email())||val('signinEmail')||'';
+  const sess={name:val('ownerName')||email||'Owner',email:email,role:'owner',tenant:'ech',authed:true,contact:null,scope:null,at:new Date().toISOString()};
   try{
-    localStorage.setItem('tcc_onboarding', JSON.stringify(profile));
-    localStorage.setItem('tcc_session', JSON.stringify({ name:o, role:'owner', tenant:'ech', contact:null, scope:null, at:profile.at }));
+    // Real signed-in session (replaces the old localStorage-only DEMO session).
+    localStorage.setItem('tcc_session',JSON.stringify(sess));
+    // Selections persist to this device. TODO(Phase-2 auth): write tiles/employees to
+    // server-side member_grants/entitlements — no entitlements endpoint exists yet.
+    localStorage.setItem('tcc_onboarding',JSON.stringify({
+      assistant:val('tarsName')||'TARS',owner:sess.name,
+      tiles:selectedLayers(),employees:Object.keys(state.employees).filter(k=>state.employees[k]),
+      entitlements_written:false, at:sess.at
+    }));
   }catch(e){}
-  // Into the command center (one level up from /onboarding/).
-  window.location.href = '../';
+  window.location.href='../';
 }
-function start(){document.getElementById('s0').classList.add('hidden');document.getElementById('chrome').classList.remove('hidden');go(1);}
-renderLayers();
+
+/* ───────── step framework ───────── */
+function go(n){
+  if(n>1 && !isAuthed()){   // gate: everything past sign-in requires a real session
+    n=1; reflectAuth();
+    setMsg('signinMsg','err','Please sign in first — that\'s what makes the rest save for real.');
+  }
+  for(let i=1;i<=LAST_STEP;i++){const s=$('s'+i);if(s)s.classList.toggle('hidden',i!==n);}
+  $('steplbl').textContent='STEP '+n+' OF '+LAST_STEP;
+  const p=$('prog');p.innerHTML='';for(let i=1;i<=LAST_STEP;i++){const s=document.createElement('div');s.className='seg'+(i<=n?' on':'');p.appendChild(s);}
+  // onEnter hooks
+  if(n===1)reflectAuth();
+  if(n===2)loadProfile();
+  if(n===3)loadEntities();
+  if(n===4)loadFacts();
+  if(n===5)loadBanks();
+  if(n===6)loadLoans();
+  if(n===7)loadVendors();
+  if(n===9)renderConnectors();
+  if(n===10){if(!Object.keys(state.layers).length)renderLayers();renderEmployees();}
+  if(n===11)review();
+  window.scrollTo(0,0);
+}
+function start(){$('s0').classList.add('hidden');$('chrome').classList.remove('hidden');go(1);}
+
+// wire small conveniences
+document.addEventListener('DOMContentLoaded',function(){
+  const n=$('ent_name');if(n)n.addEventListener('blur',autoCode);
+  renderLayers();   // pre-pick the recommended set even before reaching step 10
+});
 </script>
 </body>
 </html>
