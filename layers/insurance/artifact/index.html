@@ -5,76 +5,185 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Insurance — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .in-form{margin:12px 0}
+  .in-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:10px}
+  .in-field{display:flex;flex-direction:column}.in-field.full{grid-column:1/-1}
+  .in-lab{font-size:11.5px;font-weight:600;color:var(--dim,#8a8a93);margin-bottom:4px}
+  .in-in{width:100%;background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a}
+  .in-in:focus{outline:none;border-color:#6366f1}
+  .in-save{margin-top:12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+  .in-save:hover{filter:brightness(1.06)}.in-save:disabled{opacity:.6;cursor:default}
+  .in-msg{font-size:12px;margin-top:8px;min-height:16px}
+  .in-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .in-del:hover{background:#fee2e2;border-color:#f87171}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+</style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">🛡️ Insurance</div>
 
-  <div class="preview-banner"><b>PREVIEW — sample data.</b> The live source isn't wired yet, so the figures below are illustrative — honest sample state until the connector phase lands.<div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Mara</b> and say "remove the pull-a-policy section" — the employee reshapes this view and it sticks.</div></div>
-
-  <div class="card" data-view-section="coverage-map">
-    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">FULL COVERAGE MAP — not one policy (Mara flags the gaps)</div>
-    <div class="covg" id="covmap"><div class="small dim">loading coverage map…</div></div>
-    <div class="small dim" style="margin-top:10px">Renewals land on the <button class="xref" type="button" onclick="flOpen('calendar')" title="Open Calendar — renewals are on the deadline feed">Calendar</button> · a category with nothing in it is a detected <b style="color:var(--yellow)">GAP</b>, not an empty box.</div>
+  <div class="preview-banner">
+    <b>Your policies — one per row.</b> Every policy is a <b>live read</b> from your account
+    (<code>/api/insurance</code>, RLS-scoped). Renewal dates flow into the <button class="xref" type="button" onclick="flOpen('calendar')">Calendar</button>'s unified view. Coverage limits/deductible/agent live in each policy's detail. Honest empty until you add a policy — nothing illustrative.
   </div>
 
-  <div class="card" data-view-section="pull-policy">
-    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">PULL A POLICY (reads from Document Navigator)</div>
-    <input placeholder="e.g. policy for 415 Skiles…" style="width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:9px 11px;font:inherit;font-size:13px">
-    <div class="doccard" style="margin-top:10px">📄 POLICY_415_SKILES_STATEFARM.pdf · State Farm · DP-3 · $1,240/yr · renews 2026-09-14 <button class="xref" type="button" onclick="flOpen('property-file')" title="Open Property File">Property File</button> <button class="xref" type="button" onclick="flOpen('vendors-payables')" title="Open Vendors &amp; Payables — premiums are payables">Vendors &amp; Payables</button></div>
-    <div class="card" style="background:var(--surf2);margin-top:10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">What it covers — plain English</div>
-      <div style="font-size:12.5px;color:var(--mut);line-height:1.6">✓ Dwelling to $185K (replacement cost) · ✓ Landlord liability $300K · ✓ Loss of rent 12 mo · ✓ Wind/hail ($2,500 deductible)<br>✗ <b>Flood NOT covered</b> — needs a separate policy · ✗ Tenant belongings (their renters' insurance)</div>
+  <div class="card" id="in-auth" style="display:none"></div>
+
+  <div id="in-live" style="display:none">
+    <div class="ruleg" id="in-kpis"></div>
+
+    <div class="card">
+      <div class="section-label">POLICIES</div>
+      <div id="in-loading" class="small muted" style="padding:6px 2px">Loading…</div>
+      <table><thead><tr><th>CARRIER</th><th>COVERAGE</th><th>PROPERTY</th><th>PREMIUM</th><th>RENEWS</th><th></th></tr></thead>
+        <tbody id="in-rows"></tbody>
+      </table>
+      <div class="small dim" style="margin-top:8px">Premiums also surface as payables in <button class="xref" type="button" onclick="flOpen('vendors-payables')">Vendors &amp; Payables</button> when that's wired; policy PDFs file in <button class="xref" type="button" onclick="flOpen('document-navigator')">Document Navigator</button>.</div>
+    </div>
+
+    <div class="card in-form">
+      <div class="section-label">ADD A POLICY</div>
+      <div class="in-grid">
+        <div class="in-field"><span class="in-lab">Carrier *</span><input class="in-in" id="in_carrier" placeholder="e.g. State Farm"></div>
+        <div class="in-field"><span class="in-lab">Policy #</span><input class="in-in" id="in_policy" placeholder="optional"></div>
+        <div class="in-field"><span class="in-lab">Coverage type</span><input class="in-in" id="in_coverage" placeholder="property / liability / umbrella / flood"></div>
+        <div class="in-field"><span class="in-lab">Premium ($/yr)</span><input class="in-in" id="in_premium" inputmode="decimal" placeholder="0 = none · blank = unknown"></div>
+        <div class="in-field"><span class="in-lab">Renewal date</span><input class="in-in" id="in_renewal" type="date"></div>
+        <div class="in-field"><span class="in-lab">Owning entity</span><select class="in-in" id="in_entity"><option value="">— not entity-specific —</option></select></div>
+        <div class="in-field"><span class="in-lab">Covered property</span><select class="in-in" id="in_property"><option value="">— none —</option></select></div>
+        <div class="in-field"><span class="in-lab">Agent (optional)</span><input class="in-in" id="in_agent" placeholder="name / contact"></div>
+        <div class="in-field"><span class="in-lab">Coverage limits (optional)</span><input class="in-in" id="in_limits" placeholder="e.g. dwelling $185K · liab $300K"></div>
+        <div class="in-field"><span class="in-lab">Deductible (optional)</span><input class="in-in" id="in_deductible" placeholder="e.g. 2500"></div>
+      </div>
+      <button type="button" class="in-save" id="in-savebtn">Save policy</button>
+      <div class="in-msg" id="in-msg"></div>
     </div>
   </div>
 
-  <div class="card" data-view-section="policy-drop">
-    <div style="font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.5px;margin-bottom:8px">ADD A POLICY DOC</div>
-    <div id="ins-drop"></div>
-  </div>
-
-  <div style="font-size:11px;color:var(--dim);margin-top:10px">Policies are stored in Document Navigator <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Documents</button>; this layer pulls the right one on request and explains what it actually covers. Sample data.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/insurance</code> (live, RLS-scoped). Renewals feed the Calendar; policy documents file in Document Navigator.</div>
 </div>
 
-<script src="../../../shared/docdrop.js"></script>
+<script src="../../../shared/fl-auth.js?v=20260622d"></script>
+<script src="../../../shared/fl-api.js?v=20260626e"></script>
 <script>
+  var POLICIES=[], ENTITIES=[], PROPS=[];
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function dash(v){ return (v==null||v==='')?'—':esc(v); }
+  function money(n){ if(n==null||n===''||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
+  function txt(id){ var v=(($(id)&&$(id).value)||'').trim(); return v===''?undefined:v; }
+  function num(id){ var v=(($(id)&&$(id).value)||'').trim(); if(v==='') return undefined; var n=+v; return isFinite(n)?n:undefined; }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function isAuthed(){ return !!(window.flApi&&flApi.authed&&flApi.authed()); }
+  function propAddr(id){ for(var i=0;i<PROPS.length;i++){ if(PROPS[i].id===id) return PROPS[i].address; } return id?'(property)':'—'; }
 
-  // the five-category coverage map — a category with no policies is a detected GAP (amber)
-  fetch('../../../data/STUB_INSURANCE.json',{cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){
-      document.getElementById('covmap').innerHTML = (d.categories||[]).map(function(c){
-        var body = c.gap
-          ? '<div class="cb">—</div><span class="pill ry">GAP — '+esc2(c.gap)+'</span>'
-          : '<div class="cb">'+esc2(c.headline||'—')+'</div>'+esc2(c.detail||'');
-        var tie = c.ties ? '<div style="margin-top:6px"><button class="xref" type="button" onclick="flOpen(\''+esc2(c.ties)+'\')" title="Open '+esc2(c.ties_label||c.ties)+'">'+esc2(c.ties_label||c.ties)+'</button></div>' : '';
-        return '<div class="cov"'+(c.gap?' style="border-color:var(--yellowln)"':'')+'><h5>'+c.icon+' '+esc2(c.label)+'</h5>'+body+tie+'</div>';
-      }).join('');
-    })
-    .catch(function(){ document.getElementById('covmap').innerHTML='<div class="small dim">Awaiting coverage record — shared source not reachable.</div>'; });
+  function showAuth(){
+    var expired=window.flApi&&flApi.authExpired&&flApi.authExpired();
+    $('in-live').style.display='none';
+    var box=$('in-auth'); box.style.display='block';
+    box.innerHTML='<div class="section-label">'+(expired?'SESSION EXPIRED':'SIGN IN REQUIRED')+'</div>'+
+      '<div class="small">'+(expired?'Your session expired. <b>Sign in again</b> to view your policies.':'<b>Sign in to the Command Center</b> to view and manage your insurance policies.')+'</div>';
+  }
 
-  // policy docs file into Document Navigator (Insurance Policies) via the shared component
-  FLDocDrop.mount(document.getElementById('ins-drop'), {
-    folder:'insurance', source_tile:'insurance',
-    label:'Drop a policy doc', sub:'filed into Document Navigator (Insurance Policies)'
-  });
+  function renderKpis(){
+    var n=POLICIES.length;
+    var prem=POLICIES.reduce(function(s,p){ return s+(Number(p.premium)||0); },0);
+    var hasPrem=POLICIES.some(function(p){ return p.premium!=null; });
+    var today=new Date(); today=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    var soon=POLICIES.filter(function(p){ if(!p.renewal_date) return false; var d=new Date(p.renewal_date+'T00:00:00'); return !isNaN(d) && (d-today)/864e5<=60 && d>=today; }).length;
+    var next=POLICIES.filter(function(p){return p.renewal_date;}).map(function(p){return p.renewal_date;}).sort()[0];
+    $('in-kpis').innerHTML=
+      '<div class="rule rg"><div class="rn">POLICIES</div><div class="rv">'+n+'</div><div class="rt">on file</div></div>'+
+      '<div class="rule rg"><div class="rn">ANNUAL PREMIUM</div><div class="rv">'+(hasPrem?money(prem):'—')+'</div><div class="rt">Σ /yr</div></div>'+
+      '<div class="rule '+(soon?'ry':'rg')+'"><div class="rn">RENEWING ≤60d</div><div class="rv">'+soon+'</div><div class="rt">soon</div></div>'+
+      '<div class="rule rg"><div class="rn">NEXT RENEWAL</div><div class="rv" style="font-size:15px">'+dash(next)+'</div><div class="rt">earliest</div></div>';
+  }
 
-  function applyViewCfg(ops){
-    ops = ops||[];
-    document.querySelectorAll('[data-view-section]').forEach(function(el){ el.style.display=''; });
-    ops.forEach(function(op){
-      if(op.target_type==='section'){
-        document.querySelectorAll('[data-view-section="'+op.target+'"]').forEach(function(el){
-          el.style.display = (op.type==='remove')?'none':'';
-        });
-      }
+  function renderRows(){
+    $('in-loading').style.display='none';
+    if(!POLICIES.length){ $('in-rows').innerHTML='<tr><td colspan="6" class="small muted" style="padding:8px 2px">No policies yet. Add one below.</td></tr>'; return; }
+    $('in-rows').innerHTML=POLICIES.map(function(p){
+      return '<tr><td style="font-weight:700">'+esc(p.carrier)+(p.policy_no?'<div class="small muted">#'+esc(p.policy_no)+'</div>':'')+'</td>'+
+        '<td>'+dash(p.coverage_type)+'</td>'+
+        '<td class="small muted">'+(p.property_id?esc(propAddr(p.property_id)):(p.entity_code?esc(p.entity_code):'—'))+'</td>'+
+        '<td>'+money(p.premium)+'</td>'+
+        '<td>'+dash(p.renewal_date)+'</td>'+
+        '<td><button type="button" class="in-del" data-del="'+esc(p.id)+'" title="Delete">🗑</button></td></tr>';
+    }).join('');
+  }
+
+  function fillSelects(){
+    if($('in_entity')) $('in_entity').innerHTML='<option value="">— not entity-specific —</option>'+ENTITIES.map(function(e){ return '<option value="'+esc(e.code)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>'; }).join('');
+    if($('in_property')) $('in_property').innerHTML='<option value="">— none —</option>'+PROPS.map(function(p){ return '<option value="'+esc(p.id)+'">'+esc(p.address)+'</option>'; }).join('');
+  }
+
+  function save(){
+    if(!isAuthed()){ $('in-msg').innerHTML='<span class="err">Please sign in first.</span>'; return; }
+    var carrier=txt('in_carrier');
+    if(!carrier){ $('in-msg').innerHTML='<span class="err">Carrier is required.</span>'; return; }
+    var payload={ carrier:carrier };
+    var pn=txt('in_policy'); if(pn) payload.policy_no=pn;
+    var cv=txt('in_coverage'); if(cv) payload.coverage_type=cv;
+    var pr=num('in_premium'); if(pr!==undefined) payload.premium=pr;   // keeps a typed 0
+    var rn=txt('in_renewal'); if(rn) payload.renewal_date=rn;
+    var ec=$('in_entity').value; if(ec) payload.entity_code=ec;
+    var pid=$('in_property').value; if(pid) payload.property_id=pid;
+    var det={};
+    var lim=txt('in_limits'); if(lim) det.limits=lim;
+    var ded=num('in_deductible'); if(ded!==undefined) det.deductible=ded;
+    var ag=txt('in_agent'); if(ag) det.agent=ag;
+    if(Object.keys(det).length) payload.details=det;
+    var btn=$('in-savebtn'); btn.disabled=true; $('in-msg').innerHTML='Saving…';
+    window.flInsurance.create(payload).then(function(res){
+      btn.disabled=false;
+      if(!res){ $('in-msg').innerHTML='<span class="err">'+((window.flApi&&!flApi.authed())?'Session expired — sign in again, then retry.':'Save failed — confirm your access scope, then retry.')+'</span>'; return; }
+      $('in-msg').innerHTML='<span class="ok">✓ Saved.</span> Policy added — its renewal now shows on the Calendar.';
+      POLICIES.push(res);
+      ['in_carrier','in_policy','in_coverage','in_premium','in_renewal','in_agent','in_limits','in_deductible'].forEach(function(id){ if($(id)) $(id).value=''; });
+      $('in_entity').selectedIndex=0; $('in_property').selectedIndex=0;
+      renderKpis(); renderRows();
     });
   }
-  window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
-  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+
+  function del(id){
+    if(!id) return;
+    var p=null; for(var i=0;i<POLICIES.length;i++){ if(POLICIES[i].id===id){ p=POLICIES[i]; break; } }
+    if(!window.confirm('Delete the '+((p&&p.carrier)||'this')+' policy? This removes it from your account.')) return;
+    window.flInsurance.del(id).then(function(res){
+      if(!res){ $('in-msg').innerHTML='<span class="err">'+((window.flApi&&!flApi.authed())?'Session expired — nothing was deleted.':'Delete failed — only the creator or an admin can delete it.')+'</span>'; return; }
+      POLICIES=POLICIES.filter(function(x){ return x.id!==id; });
+      renderKpis(); renderRows();
+      $('in-msg').innerHTML='<span class="ok">✓ Deleted.</span>';
+    });
+  }
+
+  document.addEventListener('click', function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('[data-del]'):null;
+    if(b){ ev.preventDefault(); del(b.getAttribute('data-del')); }
+  });
+
+  function start(){
+    var sb=$('in-savebtn'); if(sb) sb.addEventListener('click', save);
+    if(!isAuthed()){ showAuth(); return; }
+    $('in-auth').style.display='none'; $('in-live').style.display='';
+    Promise.all([
+      window.flInsurance.list(),
+      window.flEntities ? window.flEntities.list() : Promise.resolve([]),
+      window.flProperties ? window.flProperties.list() : Promise.resolve([])
+    ]).then(function(out){
+      if(out[0]==null && window.flApi && !flApi.authed()){ showAuth(); return; }
+      POLICIES=out[0]||[]; ENTITIES=out[1]||[]; PROPS=out[2]||[];
+      fillSelects(); renderKpis(); renderRows();
+    }).catch(function(){
+      if(window.flApi && !flApi.authed()) showAuth();
+      else { $('in-loading').style.display='none'; $('in-rows').innerHTML='<tr><td colspan="6" class="small err">Could not load policies — reload to retry.</td></tr>'; }
+    });
+  }
+  start();
 </script>
 <script src="../../../shared/fl-tile-settings.js"></script>
-<script>FLSettings.mount({tileId:'insurance'});</script>
+<script>try{ FLSettings.mount({tileId:'insurance'}); }catch(e){}</script>
 </body>
 </html>

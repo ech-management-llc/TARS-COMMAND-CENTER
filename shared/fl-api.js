@@ -155,6 +155,17 @@
     del: function (id) { return call('DELETE', '/api/recurring/' + encodeURIComponent(id)); },
   };
 
+  // Insurance (Lane-2 ops, 2D). One row per policy behind the Insurance tile; renewal_date feeds
+  // the Calendar. Promoted columns + JSONB details; creator-owned, optional entity/property
+  // linkage, RLS-scoped.
+  window.flInsurance = {
+    list: function () { return call('GET', '/api/insurance'); },
+    get: function (id) { return call('GET', '/api/insurance/' + encodeURIComponent(id)); },
+    create: function (p) { return call('POST', '/api/insurance', p); },
+    update: function (id, patch) { return call('PATCH', '/api/insurance/' + encodeURIComponent(id), patch); },
+    del: function (id) { return call('DELETE', '/api/insurance/' + encodeURIComponent(id)); },
+  };
+
   // Entities (Phase 3 setup). The setup flow creates the LLC rows here, as the SIGNED-IN USER —
   // TARS guides/asks, the app writes (this is NOT the autonomous agent). create() -> the new row,
   // or null on no-session / error (caller surfaces an honest "sign in to persist").
