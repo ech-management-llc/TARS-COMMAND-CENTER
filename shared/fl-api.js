@@ -85,8 +85,30 @@
     authed: authed,
     // Token-expiry aware (shares authedCall): refreshes proactively + retries once on 401, and a
     // confirmed-dead session flips flApi.authed()/authExpired() so the caller can prompt re-sign-in.
-    chat: function (message, context) {
-      return authedCall(AGENT_BASE, 'POST', '/agent/chat', { message: message, context: context || null });
+    // Lane 4b: opts.conversation_id continues a thread; opts.scope tags a NEW thread ('all' | layer
+    // id). The response carries conversation_id + persisted so the caller can keep the thread going.
+    chat: function (message, context, opts) {
+      opts = opts || {};
+      return authedCall(AGENT_BASE, 'POST', '/agent/chat', {
+        message: message,
+        context: context || null,
+        conversation_id: opts.conversation_id || null,
+        scope: opts.scope || (context && context.scope) || null,
+      });
+    },
+  };
+
+  // AI agent memory (Lane 4b) — READ side for the UI: load prior conversations + their messages
+  // from FL Postgres so a chat reopens with its history (the agent service does the writes during
+  // /agent/chat). RLS-scoped to the signed-in user; null on no-session/error -> caller stays ephemeral.
+  window.flAiMemory = {
+    conversations: function (scope) {
+      return call('GET', '/api/ai/conversations' +
+        (scope ? ('?scope_filter=' + encodeURIComponent(scope)) : ''));
+    },
+    messages: function (conversationId, limit) {
+      return call('GET', '/api/ai/conversations/' + encodeURIComponent(conversationId) +
+        '/messages' + (limit ? ('?limit=' + encodeURIComponent(limit)) : ''));
     },
   };
 

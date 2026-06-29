@@ -13,6 +13,10 @@
 
 let TENANT = null;
 let STATE  = null;
+// Lane 4b: the live conversation thread id per scope ('all' = global TARS | a layer id).
+// The agent service persists each turn to FL Postgres and returns the thread id; we keep it
+// to continue the thread and to reload history on a fresh page load.
+const convByScope = {};
 
 /* ════════════════════════════════════════════════════════════════
    MEMORY STORE — pluggable abstraction (the anti-relearning substrate)
@@ -106,7 +110,7 @@ function globalStubReply(text){
 async function globalReply(text){
   if (window.flAgent && window.flAgent.authed && window.flAgent.authed()){
     let res = null;
-    try { res = await window.flAgent.chat(text, { scope: 'all', hint: liveContextHint() }); } catch(e){ res = null; }
+    try { res = await flChat('all', text, liveContextHint()); } catch(e){ res = null; }
     if (res && res.answer) return renderAgentAnswer(res);
     // session died mid-use (token expired + refresh failed) -> prompt re-sign-in, not the stub
     if (window.flApi && flApi.authExpired && flApi.authExpired()){
@@ -118,6 +122,39 @@ async function globalReply(text){
 }
 function formatAnswer(s){ return escd(s).replace(/\n/g,'<br>'); }
 function liveContextHint(){ try { if (STATE && STATE.openLayer) return 'viewing the '+STATE.openLayer+' tile'; } catch(e){} return ''; }
+
+// Lane 4b: call the live advisor threading the per-scope conversation id; remember the id it
+// returns so the next turn continues the same thread (and it survives a reload via hydrateHistory).
+async function flChat(scope, text, hint){
+  const opts = { scope: scope, conversation_id: convByScope[scope] || null };
+  const res = await window.flAgent.chat(text, { scope: scope, hint: hint }, opts);
+  if (res && res.conversation_id) convByScope[scope] = res.conversation_id;
+  return res;
+}
+
+// Load + render a scope's persisted history into a messages container (best-effort, honest).
+// Signed-out or hub-unreachable -> leaves the fresh greeting in place (ephemeral session); never
+// crashes, never fabricates a turn. Returns true if it rendered prior turns.
+async function hydrateHistory(scope, msgsEl){
+  if (!msgsEl) return false;
+  if (!(window.flAiMemory && window.flApi && flApi.authed && flApi.authed())) return false;
+  try {
+    const convs = await window.flAiMemory.conversations(scope);
+    if (!convs || !convs.length) return false;        // no prior thread -> fresh session
+    const conv = convs[0];                            // newest (server orders by updated_at desc)
+    const msgs = await window.flAiMemory.messages(conv.id, 50);
+    if (!msgs || !msgs.length) return false;
+    convByScope[scope] = conv.id;                     // continue this thread on the next send
+    let html = '<div class="memline"><span class="pulse"></span> '+esc('Loaded your saved conversation from memory.')+'</div>';
+    msgs.forEach(function(m){
+      if (m.role === 'user') html += '<div class="emsg u">'+escd(m.content||'')+'</div>';
+      else if (m.role === 'assistant') html += '<div class="emsg a">'+formatAnswer(m.content||'')+'</div>';
+    });
+    msgsEl.insertAdjacentHTML('beforeend', html);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+    return true;
+  } catch(e){ return false; }                          // ephemeral fallback — keep the greeting
+}
 
 // shared renderer for a live agent answer (tools_called + truncation note)
 function renderAgentAnswer(res){
@@ -141,7 +178,7 @@ function layerHint(layer, emp){
 async function layerAgentReply(layer, emp, text){
   if (window.flAgent && window.flAgent.authed && window.flAgent.authed()){
     let res = null;
-    try { res = await window.flAgent.chat(text, { scope: layer.id, hint: layerHint(layer, emp) }); } catch(e){ res = null; }
+    try { res = await flChat(layer.id, text, layerHint(layer, emp)); } catch(e){ res = null; }
     if (res && res.answer) return renderAgentAnswer(res);
     if (window.flApi && flApi.authExpired && flApi.authExpired())
       return 'Your session expired (sign-ins last about an hour). Sign in to the Command Center again to use the live advisor. <span style="color:var(--dim)">I won’t answer from stale data in the meantime.</span>';
@@ -223,11 +260,14 @@ function handleLayerMessage(layer, emp, text){
 function esc(s){ return (window.TCC?window.TCC.esc:String)(s); }
 function escd(s){ return String(s==null?'':s).replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function memLine(connected){
-  const cls = connected ? 'memline' : 'memline pending';
-  const c = Memory.cfg();
-  const txt = 'Memory: '+Memory.describe()+' · '+(c.status||'configured')+
-    ' — loaded as context each session; live read/append wiring pending.';
+function memLine(){
+  // Lane 4b: when signed in, memory is LIVE — conversations + facts persist in FL Postgres,
+  // RLS-scoped to the user, and reload across sessions/devices. Signed out -> honest pending.
+  const authed = !!(window.flApi && flApi.authed && flApi.authed());
+  const cls = authed ? 'memline' : 'memline pending';
+  const txt = authed
+    ? 'Memory: live — this conversation saves to your Foundation Layer account and reloads across sessions and devices.'
+    : 'Memory: '+Memory.describe()+' — sign in to save this conversation across sessions.';
   return '<div class="'+cls+'"><span class="pulse"></span> '+esc(txt)+'</div>';
 }
 
@@ -255,7 +295,15 @@ function injectLayerEmployee(panel, layer){
     '<div class="einput"><input placeholder="Ask '+esc(emp.name)+'…"><button type="button">Send</button></div>';
   bar.parentNode.insertBefore(dock, bar.nextSibling);
 
-  chip.onclick = () => { dock.style.display = dock.style.display==='none'?'block':'none'; if (dock.style.display==='block') dock.scrollIntoView({behavior:'smooth',block:'nearest'}); };
+  let hydrated = false;
+  chip.onclick = () => {
+    dock.style.display = dock.style.display==='none'?'block':'none';
+    if (dock.style.display==='block'){
+      dock.scrollIntoView({behavior:'smooth',block:'nearest'});
+      // Lane 4b: load this area's saved conversation the first time it's opened (honest fallback).
+      if (!hydrated){ hydrated = true; hydrateHistory(layer.id, dock.querySelector('.emsgs')); }
+    }
+  };
 
   const msgs = dock.querySelector('.emsgs');
   const input = dock.querySelector('.einput input');
@@ -321,6 +369,8 @@ function buildGlobal(){
   const cw = $('gchips');
   (g.chips||[]).forEach(c => { const b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=c; b.onclick=()=>{ input.value=c; send(); }; cw.appendChild(b); });
   gInit = true;
+  // Lane 4b: on a fresh build (i.e. a new page load), reload the global TARS thread from memory.
+  hydrateHistory('all', $('gmsgs'));
 }
 function openGlobal(){ if (!gInit) buildGlobal(); $('gov').classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; }
 
