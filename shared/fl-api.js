@@ -213,4 +213,27 @@
     // success (204), or null on no-session / 4xx / error so the caller keeps the row and explains.
     del: function (id) { return call('DELETE', '/api/admin-records/' + encodeURIComponent(id)); },
   };
+
+  // ── Lane 3 A2 — Text-TARS add-on (entitlement + per-seat Stripe + SMS config) ──
+  // Entitlements (server-enforced; closes TD-110). list() -> the caller's features/status/seats.
+  window.flEntitlements = {
+    list: function () { return call('GET', '/api/entitlements'); },
+  };
+
+  // Per-seat Stripe billing. subscribe() -> {checkout_url} to redirect to Stripe Checkout (test
+  // mode), or null if billing isn't configured server-side (503) — the caller shows "billing not
+  // set up yet" rather than a fake state.
+  window.flBilling = {
+    subscribe: function () { return call('POST', '/api/billing/text-tars/subscribe'); },
+  };
+
+  // SMS config (gated server-side by the active text_tars entitlement -> 403 if not). The wizard
+  // connects the tenant's Twilio + registers team phones; each register/remove syncs the seat count.
+  window.flSms = {
+    getTelephony: function () { return call('GET', '/api/sms/telephony'); },
+    setTelephony: function (cfg) { return call('POST', '/api/sms/telephony', cfg); },
+    listNumbers: function () { return call('GET', '/api/sms/numbers'); },
+    addNumber: function (n) { return call('POST', '/api/sms/numbers', n); },
+    removeNumber: function (id) { return call('DELETE', '/api/sms/numbers/' + encodeURIComponent(id)); },
+  };
 })();
