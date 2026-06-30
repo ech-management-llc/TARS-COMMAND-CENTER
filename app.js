@@ -122,7 +122,17 @@ const Auth = {
 //    entry shows until THIS is true, so the user can always return to setup after exploring.
 function setupComplete(){ try { return localStorage.getItem('fl_setup_complete') === 'true'; } catch(e){ return false; } }
 function explored(){ try { return localStorage.getItem('fl_explored') === 'true'; } catch(e){ return false; } }
-function boardUnlocked(){ return explored() || setupComplete(); }
+// Demo/sandbox accounts (seed_demo.py). The demo login exists to SHOW the full board on labeled
+// sample data, so it lands unlocked (no setup gate) and surfaces the SAMPLE-DATA banner.
+const DEMO_ACCOUNTS = ['demo@foundationlayerhq.com'];
+function isDemoAccount(){
+  try{
+    const em = ((STATE.user && STATE.user.contact) ||
+                (window.flAuth && flAuth.email && flAuth.email()) || '').toLowerCase();
+    return DEMO_ACCOUNTS.indexOf(em) !== -1;
+  }catch(e){ return false; }
+}
+function boardUnlocked(){ return explored() || setupComplete() || isDemoAccount(); }
 
 // ── Phase 3 dual-mode setup engine ─────────────────────────────────────────────
 // Per-area "active" + per-area employee hire/skip. BOTH modes — manual (click an area → "Set up"
@@ -306,6 +316,19 @@ function layerById(id){ return (STATE.registry.layers||[]).find(l => l.id === id
 /* ════════════════════════════════════════════════════════════════
    CHROME (verbar, global TARS button, header, AI summary, footer)
    ════════════════════════════════════════════════════════════════ */
+// SAMPLE-DATA banner — shown ONLY when the demo/sandbox account is signed in (isDemoAccount), so
+// seeded sample figures can never be mistaken for real ECH financials (Jerry's #1 honesty doctrine).
+// Self-styled — the shell doesn't load artifact.css, so we inline an amber notice (no shared CSS).
+function sampleDataBanner(){
+  try{
+    if (!isDemoAccount()) return '';
+    return '<div class="fl-sample-banner" role="note" style="margin:10px 0 0;padding:9px 13px;'+
+      'border-radius:10px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);'+
+      'color:#f6c453;font-size:12.5px;line-height:1.5;font-weight:600">'+
+      '🧪 <b>SAMPLE DATA</b> — this is the demo account. Every figure shown is sandbox/sample data '+
+      'for walkthrough purposes, <b>not real ECH financials</b>.</div>';
+  }catch(e){ return ''; }
+}
 function renderChrome(){
   const b = (STATE.tenant.branding)||{};
   const u = STATE.user || {};
@@ -387,7 +410,8 @@ function renderChrome(){
 
   // header — tenant title only (date / role / sign-out moved up into the ribbon)
   $('head').innerHTML =
-    '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>';
+    '<h1>'+esc(b.title||STATE.tenant.name||'')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h1>'+
+    sampleDataBanner();
 
   // Daily Brief now renders as its own lasso (renderBriefGroup); hide the legacy summary block.
   $('ai-summary').style.display = 'none';
