@@ -658,8 +658,13 @@ function renderHome(){
 function renderBriefGroup(ls){
   const ai = STATE.tenant.ai_summary || {};
   const r = STATE.briefRouter || { attn:[], brief:[] };
-  let attn = (r.attn || []).concat(ai.attention || []);   // routed (red) items first, then any static summary
-  let brief = (r.brief || []).concat(ai.brief || []);
+  // Honesty (TD-135): until the brief is LIVE (ai.live — wired to real feeds/a model), emit NOTHING
+  // here. Both the router items (reference-stub-derived) and the static ai_summary lines are
+  // placeholder figures, not this account's real data. When not live we show an honest note only
+  // (below) and let the live tiles carry the real reads.
+  const live = !!ai.live;
+  let attn = live ? (r.attn || []).concat(ai.attention || []) : [];   // routed (red) first, then static
+  let brief = live ? (r.brief || []).concat(ai.brief || []) : [];
   // Member scoping (UI only — TD-101): a scoped member only sees brief items routed to a tile they can see.
   if (STATE.role === 'member' && STATE.user && STATE.user.access) {
     const vis = {}; visibleLayers().forEach(l => { vis[l.id] = 1; });
@@ -675,8 +680,8 @@ function renderBriefGroup(ls){
   if (rest.length){
     h += '<div class="brief-h urg">⚠ NEEDS ATTENTION</div>' + rest.map((it,i)=>briefItem(it,'a'+i,true)).join('');
   }
-  h += '<div class="brief-h">TODAY’S BRIEF</div>' + brief.map((it,i)=>briefItem(it,'b'+i,false)).join('');
-  if (!ai.live) h += '<div class="src-note" style="margin:8px 2px 4px">'+esc(ai.note||'Static for v1.')+'</div>';
+  if (brief.length) h += '<div class="brief-h">TODAY’S BRIEF</div>' + brief.map((it,i)=>briefItem(it,'b'+i,false)).join('');
+  if (!live) h += '<div class="src-note" style="margin:8px 2px 4px">'+esc(ai.note||'The daily brief goes live once TARS is wired to your feeds — until then, the tiles below read your live data directly.')+'</div>';
   // Punch List + Recurring docked at the bottom
   if (ls.length) h += '<div class="gridA" style="margin-top:12px">'+ls.map(artTile).join('')+'</div>';
   return h;
