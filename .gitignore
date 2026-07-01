@@ -1,2 +1,6 @@
 # Local tooling / editor state — not part of the published site
 .claude/
+
+# Python bytecode from scripts/ (e.g. stamp_versions.py) — never publish
+__pycache__/
+*.pyc
