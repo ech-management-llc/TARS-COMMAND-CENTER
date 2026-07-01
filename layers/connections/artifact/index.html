@@ -113,7 +113,7 @@
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('conngrid').innerHTML='<div class="muted small">Awaiting connection record — shared source not reachable.</div>'; });
 </script>
-<script src="../../../shared/fl-tile-settings.js"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260630d"></script>
 <script>FLSettings.mount({tileId:'connections'});</script>
 </body>
 </html>
