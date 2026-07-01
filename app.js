@@ -1046,8 +1046,13 @@ function fetchAll(){
   // committed snapshots (graceful absence)
   loadSnapshot('./data/REVENTURE_LATEST.json',      d=>STATE.data.reventure=d);
   loadSnapshot('./data/CENSUS_VACANCY_LATEST.json', d=>STATE.data.census=d);
-  loadSnapshot('./data/DEALCHECK_PORTFOLIO.json',   d=>STATE.data.dealcheck=d);
-  loadSnapshot('./data/FRED_LATEST.json',           d=>STATE.data.fred=d);
+  // DealCheck + FRED snapshots are produced by their scraper skills and committed to data/ when they
+  // first run — they're NOT in the repo yet. Fetching an absent optional snapshot logs an uncatchable
+  // "404" console error on every board load (loadSnapshot already .catches it, so the chips correctly
+  // show "not connected"); we just don't request it until it exists. Re-enable each line when its
+  // scraper commits data/DEALCHECK_PORTFOLIO.json / data/FRED_LATEST.json (chips flip to connected then).
+  if (window.FL_SNAPSHOTS_DEALCHECK) loadSnapshot('./data/DEALCHECK_PORTFOLIO.json', d=>STATE.data.dealcheck=d);
+  if (window.FL_SNAPSHOTS_FRED)      loadSnapshot('./data/FRED_LATEST.json',         d=>STATE.data.fred=d);
 }
 function loadSnapshot(url, set){
   fetch(url, {cache:'no-store'})
