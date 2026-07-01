@@ -20,15 +20,9 @@
   "ai_summary": {
     "enabled": true,
     "live": false,
-    "attention": [
-      { "t": "3 capital-rule checks can't run yet", "d": "LTV, DSCR and per-door are dark because there's no loan-balance or door-count source wired. Liquidity is the only rule computing today. These light up when the ledger leaves sandbox at Plaid production (Nov gate)." }
-    ],
-    "brief": [
-      { "t": "Financial Health: liquidity is GREEN, $366K over the floor", "d": "Liquidity passes with $366K of headroom above the floor. LTV, DSCR and per-door are still pending (sandbox). Tap into Financial Health for the per-rule breakdown." },
-      { "t": "Market is live: cap rate + two vacancy reads for your counties", "d": "Reventure cap rate and Reventure/Census vacancy are live for the counties you track. The seasonal gap explains why total vacancy and rental vacancy differ — your rental number is the one to underwrite to." },
-      { "t": "Money figures read $0 until Plaid production", "d": "Revenue and NOI honestly show $0 while Plaid is in sandbox — nothing is fabricated. Real dollars flow at the November compliance gate." }
-    ],
-    "note": "Static for v1 — not a live model call. The live daily brief writes itself when the global agent is wired to a model."
+    "attention": [],
+    "brief": [],
+    "note": "The daily brief goes live once TARS is wired to your feeds and a model. Until then it stays empty on purpose — the tiles below read your live data directly (no placeholder figures)."
   },
 
   "global_agent": {
