@@ -106,4 +106,31 @@
     configured: configured, signIn: signIn, signOut: signOut, token: token, email: email,
     refresh: refresh, needsRefresh: needsRefresh, expired: expired,
   };
+
+  // ── DEMO-ENVIRONMENT banner inside drill-in artifacts (Tier-2 backlog #1) ──
+  // The shell shows its own SAMPLE banner (app.js), but that can't reach drill-in iframes. When a
+  // demo/synthetic account is signed in, mount an amber "DEMO ENVIRONMENT" banner atop the artifact
+  // (.art-wrap). Self-mounting here so every artifact that already loads fl-auth gets it for free —
+  // no per-tile wiring. Keyed off the same email rule as the shell's isDemoAccount().
+  function _isDemoEmail() {
+    var e = (email() || '').toLowerCase();
+    return !!e && (e === 'demo@foundationlayerhq.com' || /@prebash\.foundationlayerhq\.com$/.test(e));
+  }
+  function _mountDemoBanner() {
+    try {
+      if (!_isDemoEmail()) return;
+      var w = document.querySelector('.art-wrap');
+      if (!w || w.querySelector('.fl-demo-banner')) return;
+      var d = document.createElement('div');
+      d.className = 'preview-banner fl-demo-banner';
+      d.setAttribute('role', 'note');
+      d.style.cssText = 'background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#f6c453';
+      d.innerHTML = '🧪 <b>DEMO ENVIRONMENT</b> — sample data for walkthrough, <b>not real figures</b>.';
+      w.insertBefore(d, w.firstChild);
+    } catch (e) {}
+  }
+  if (typeof document !== 'undefined') {
+    if (document.readyState !== 'loading') _mountDemoBanner();
+    else document.addEventListener('DOMContentLoaded', _mountDemoBanner);
+  }
 })();
