@@ -125,11 +125,13 @@ function explored(){ try { return localStorage.getItem('fl_explored') === 'true'
 // Demo/sandbox accounts (seed_demo.py). The demo login exists to SHOW the full board on labeled
 // sample data, so it lands unlocked (no setup gate) and surfaces the SAMPLE-DATA banner.
 const DEMO_ACCOUNTS = ['demo@foundationlayerhq.com'];
+// The demo login + the pre-bash synthetic tenants (*@prebash.foundationlayerhq.com) are all
+// sample/sandbox accounts — treated identically for the SAMPLE banner + unlocked board + funnel suppression.
 function isDemoAccount(){
   try{
     const em = ((STATE.user && STATE.user.contact) ||
                 (window.flAuth && flAuth.email && flAuth.email()) || '').toLowerCase();
-    return DEMO_ACCOUNTS.indexOf(em) !== -1;
+    return !!em && (DEMO_ACCOUNTS.indexOf(em) !== -1 || /@prebash\.foundationlayerhq\.com$/.test(em));
   }catch(e){ return false; }
 }
 function boardUnlocked(){ return explored() || setupComplete() || isDemoAccount(); }
@@ -371,6 +373,7 @@ function renderChrome(){
     var old = document.getElementById('tars-firstrun'); if(old) old.remove();
     if (STATE.role === 'field') return;            // scoped field role: no setup entry
     if (setupComplete()) return;                   // setup finished -> no entry at all
+    if (isDemoAccount()) return;                   // demo/synthetic tenant: no setup funnel
     var name = esc(g.name||'TARS');
     var firstRun = !boardUnlocked();               // locked board, hasn't explored yet
     var el = document.createElement('div');
@@ -422,9 +425,11 @@ function renderChrome(){
 }
 
 /* ════════════════════════════════════════════════════════════════
-   LOGIN GATE — light, plug-and-play. Default path = magic link.
-   "Advanced / demo roles" lets you sign in as Admin / Read-only / Field
-   (Field picks a single layer/job it is scoped to).
+   LOGIN GATE — light, plug-and-play. Primary path = email + password
+   (Supabase Auth when configured). "Try the demo →" drops into the seeded
+   sandbox account in one click; "Continue without an account" opens the
+   advanced local demo roles (Admin / Read-only / Field). Magic-link / SMS
+   OTP is the team-phase upgrade (needs an email/SMS provider — not wired).
    ════════════════════════════════════════════════════════════════ */
 function deriveName(contact, role){
   if (role==='owner') return (STATE.tenant.operator && STATE.tenant.operator.greeting_name) || 'Owner';
@@ -449,6 +454,8 @@ function renderLoginGate(){
       '<input id="gate-pass" type="password" placeholder="••••••••" autocomplete="current-password">'+
       '<button class="gate-btn primary" type="button" id="gate-signin">Sign in</button>'+
       '<div class="gate-note" id="gate-err" style="display:none;color:var(--red)"></div>'+
+      '<button class="gate-btn" type="button" id="gate-try-demo">Try the demo →</button>'+
+      '<div class="gate-note">One click into a sandbox account with labeled sample data — no signup.</div>'+
       '<button class="gate-link" type="button" id="gate-adv-toggle">Continue without an account (demo) ▾</button>'+
       '<div id="gate-adv" style="display:none">'+
         '<label>Role</label>'+
@@ -466,6 +473,18 @@ function renderLoginGate(){
   const role = el.querySelector('#gate-role');
   el.querySelector('#gate-adv-toggle').onclick = () => { const a=el.querySelector('#gate-adv'); a.style.display = a.style.display==='none'?'block':'none'; };
   role.onchange = () => { el.querySelector('#gate-scope-wrap').style.display = role.value==='field'?'block':'none'; };
+
+  // "Try the demo" — prefill the seeded demo account + focus the password so it's one field, not two.
+  // (A real JWT is required for the seeded server data to render, so we route through the real sign-in
+  // rather than a JWT-less local session — which would land on an unlocked-but-empty board. Shipping
+  // the sample password for a zero-typing one-click is a Jerry call — kept out of the repo per the brief.)
+  el.querySelector('#gate-try-demo').onclick = () => {
+    el.querySelector('#gate-email').value = 'demo@foundationlayerhq.com';
+    const err = el.querySelector('#gate-err');
+    err.style.display = 'block'; err.style.color = 'var(--mut)';
+    err.textContent = 'Demo account prefilled — enter the sample password (in the demo run sheet), then Sign in.';
+    el.querySelector('#gate-pass').focus();
+  };
 
   // Demo path — cosmetic local session (no JWT). The no-lockout fallback.
   el.querySelector('#gate-demo').onclick = () => {
@@ -610,9 +629,13 @@ function renderHome(){
     let body;
     const adminPartial = locked && grp.id === LIVE_AREA && !areaActive('admin');
     if (adminPartial){
-      // First-run Admin: only Document Navigator (TARS's filing destination) is active until Admin is
-      // set up; the rest stay locked tiles. Activating Admin (manual or TARS) lights up the whole area.
-      body = '<div class="gridA">'+ls.map(l => l.id === 'document-navigator' ? artTile(l) : lockedTile(l)).join('')+'</div>';
+      // First-run Admin: the source-of-truth tiles whose data the Document Navigator already shows
+      // live (Personal Info / Accounts / Loans / Vendors) are reachable alongside it (TD-108 — the
+      // Navigator showed the data while its edit tiles read "set up to unlock", which was backwards);
+      // the rest stay locked until Admin is activated (manual or TARS).
+      const ADMIN_LIVE = ['document-navigator', 'personal-information', 'accounts-banking',
+                          'loans-lenders', 'vendors-professionals'];
+      body = '<div class="gridA">'+ls.map(l => ADMIN_LIVE.indexOf(l.id) >= 0 ? artTile(l) : lockedTile(l)).join('')+'</div>';
     }
     else if (grp.id === 'brief')       body = renderBriefGroup(ls);
     else if (grp.id === 'market')      body = renderMarketGroup(ls);
@@ -625,7 +648,7 @@ function renderHome(){
     }
     // Per-area employee strip (hireable areas only) — shows hire/skip state + opens the setup panel.
     const emp = areaEmployee(grp.id);
-    if (emp && !emp.always && !adminPartial){
+    if (emp && !emp.always && !adminPartial && !isDemoAccount()){
       const h = areaHire(grp.id);
       const st = h==='hire' ? '<span class="emp-on">🤝 '+esc(emp.name)+' hired</span>'
                : h==='skip' ? '<span class="emp-off">'+esc(emp.name)+' · manual</span>'
