@@ -60,9 +60,9 @@
   <div style="font-size:11px;color:var(--dim);margin-top:10px">Docs live in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator">Document Navigator</button>; this layer explains, tracks deadlines, and looks up law. Sample data.</div>
 </div>
 
-<script src="../../../shared/jurisdiction.js"></script>
-<script src="../../../shared/ingest.js"></script>
-<script src="../../../shared/docdrop.js"></script>
+<script src="../../../shared/jurisdiction.js?v=20260630d"></script>
+<script src="../../../shared/ingest.js?v=20260630d"></script>
+<script src="../../../shared/docdrop.js?v=20260630d"></script>
 <script>
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
@@ -121,7 +121,7 @@
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260630d"></script>
 <script>FLSettings.mount({tileId:'legal'});</script>
 </body>
 </html>
