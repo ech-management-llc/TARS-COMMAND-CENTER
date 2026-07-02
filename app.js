@@ -85,6 +85,7 @@ function startApp(){
   fetchAll();
   wireGlobalControls();
   loadBriefRouter();
+  if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();  // "Report an issue" (bug-capture)
 }
 
 // TARS as router: compute the cross-section brief from the reference stubs, then repaint so it shows in the Daily Brief.
@@ -634,7 +635,7 @@ function renderHome(){
       // Navigator showed the data while its edit tiles read "set up to unlock", which was backwards);
       // the rest stay locked until Admin is activated (manual or TARS).
       const ADMIN_LIVE = ['document-navigator', 'personal-information', 'accounts-banking',
-                          'loans-lenders', 'vendors-professionals'];
+                          'loans-lenders', 'vendors-professionals', 'feedback'];
       body = '<div class="gridA">'+ls.map(l => ADMIN_LIVE.indexOf(l.id) >= 0 ? artTile(l) : lockedTile(l)).join('')+'</div>';
     }
     else if (grp.id === 'brief')       body = renderBriefGroup(ls);

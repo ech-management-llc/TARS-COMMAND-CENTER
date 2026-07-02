@@ -105,6 +105,7 @@
   window.flAuth = {
     configured: configured, signIn: signIn, signOut: signOut, token: token, email: email,
     refresh: refresh, needsRefresh: needsRefresh, expired: expired,
+    mountReportButton: function () { _mountReportButton(); },   // callable after in-window login
   };
 
   // ── DEMO-ENVIRONMENT banner inside drill-in artifacts (Tier-2 backlog #1) ──
@@ -129,8 +130,149 @@
       w.insertBefore(d, w.firstChild);
     } catch (e) {}
   }
+  // ── "Report an issue" control (bug-capture loop, schema_patch_017) ──
+  // One small persistent button in the TOP window (skipped inside drill-in iframes, so there's
+  // exactly one — it floats above the drill-in overlay and is reachable on every screen). Opens a
+  // tiny form (severity + free-text) with context/route/user-agent auto-captured, and POSTs via
+  // flFeedback. HONEST STATES: a failed send shows an error AND preserves the tester's text — it is
+  // never silently dropped. Shown only to a signed-in tester (feedback needs a JWT). startApp()
+  // calls flAuth.mountReportButton() after an in-window login; focus/storage retries cover other
+  // paths. Cross-tenant scoping is enforced server-side (owner-scoped RLS + route).
+  function _reportCtx() {
+    try {
+      var t = document.querySelector('.ptitle');                 // the open drill-in's title, if any
+      if (t && t.textContent && t.textContent.trim()) return t.textContent.trim();
+      if (document.title) return document.title.trim();
+    } catch (e) {}
+    return 'dashboard';
+  }
+  function _mountReportButton() {
+    try {
+      if (typeof document === 'undefined' || !document.body) return;
+      if (window.top !== window.self) return;                    // top window only (one button)
+      if (!token()) return;                                      // signed-in testers only
+      if (document.getElementById('fl-report-btn')) return;      // mount once
+
+      var style = document.createElement('style');
+      style.textContent =
+        '#fl-report-btn{position:fixed;right:16px;bottom:16px;z-index:2147483000;' +
+          'background:#1f2937;color:#e5e7eb;border:1px solid rgba(148,163,184,.4);border-radius:999px;' +
+          'padding:9px 14px;font:600 13px/1 system-ui,-apple-system,sans-serif;cursor:pointer;' +
+          'box-shadow:0 4px 14px rgba(0,0,0,.35)}' +
+        '#fl-report-btn:hover{background:#374151}' +
+        '#fl-report-modal{position:fixed;inset:0;z-index:2147483001;display:none;' +
+          'align-items:flex-end;justify-content:flex-end;background:rgba(0,0,0,.35)}' +
+        '#fl-report-modal.open{display:flex}' +
+        '#fl-report-card{background:#0f172a;color:#e5e7eb;border:1px solid rgba(148,163,184,.35);' +
+          'border-radius:14px;margin:0 16px 74px 16px;padding:16px;width:min(360px,92vw);' +
+          'box-shadow:0 12px 40px rgba(0,0,0,.5);font:14px system-ui,-apple-system,sans-serif}' +
+        '#fl-report-card h3{margin:0 0 10px;font-size:15px}' +
+        '#fl-report-card label{display:block;font-size:12px;color:#9ca3af;margin:8px 0 4px}' +
+        '#fl-report-card select,#fl-report-card textarea{width:100%;box-sizing:border-box;background:#111827;' +
+          'color:#e5e7eb;border:1px solid rgba(148,163,184,.35);border-radius:8px;padding:8px;' +
+          'font:14px system-ui,-apple-system,sans-serif}' +
+        '#fl-report-card textarea{min-height:88px;resize:vertical}' +
+        '#fl-report-row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}' +
+        '#fl-report-row button{border-radius:8px;padding:8px 14px;font:600 13px system-ui;cursor:pointer;' +
+          'border:1px solid transparent}' +
+        '#fl-report-cancel{background:transparent;color:#9ca3af;border-color:rgba(148,163,184,.35)}' +
+        '#fl-report-send{background:#2563eb;color:#fff}' +
+        '#fl-report-send[disabled]{opacity:.6;cursor:default}' +
+        '#fl-report-msg{margin-top:10px;font-size:12.5px;min-height:16px}' +
+        '#fl-report-msg.ok{color:#34d399}#fl-report-msg.err{color:#f87171}';
+      document.head.appendChild(style);
+
+      var btn = document.createElement('button');
+      btn.id = 'fl-report-btn'; btn.type = 'button';
+      btn.setAttribute('aria-haspopup', 'dialog');
+      btn.textContent = '🐞 Report an issue';
+
+      var modal = document.createElement('div');
+      modal.id = 'fl-report-modal';
+      modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true');
+      modal.innerHTML =
+        '<div id="fl-report-card">' +
+          '<h3>Report an issue</h3>' +
+          '<label for="fl-report-sev">What kind?</label>' +
+          '<select id="fl-report-sev">' +
+            '<option value="bug">Something’s broken (bug)</option>' +
+            '<option value="blocker">I’m blocked (can’t continue)</option>' +
+            '<option value="confusing">Confusing / unclear</option>' +
+            '<option value="idea">Idea / suggestion</option>' +
+          '</select>' +
+          '<label for="fl-report-body">Tell us what happened</label>' +
+          '<textarea id="fl-report-body" placeholder="What did you expect, and what happened instead?"></textarea>' +
+          '<div id="fl-report-msg" role="status"></div>' +
+          '<div id="fl-report-row">' +
+            '<button id="fl-report-cancel" type="button">Cancel</button>' +
+            '<button id="fl-report-send" type="button">Send</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(btn);
+      document.body.appendChild(modal);
+
+      var bodyEl = modal.querySelector('#fl-report-body');
+      var sevEl = modal.querySelector('#fl-report-sev');
+      var msgEl = modal.querySelector('#fl-report-msg');
+      var sendBtn = modal.querySelector('#fl-report-send');
+
+      function openModal() {
+        msgEl.className = ''; msgEl.textContent = '';
+        modal.classList.add('open');
+        setTimeout(function () { try { bodyEl.focus(); } catch (e) {} }, 30);
+      }
+      function closeModal() { modal.classList.remove('open'); }
+
+      btn.addEventListener('click', openModal);
+      modal.querySelector('#fl-report-cancel').addEventListener('click', closeModal);
+      modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+      });
+
+      sendBtn.addEventListener('click', async function () {
+        var body = (bodyEl.value || '').trim();
+        var sev = sevEl.value || 'bug';
+        msgEl.className = ''; msgEl.textContent = '';
+        if (!body) { msgEl.className = 'err'; msgEl.textContent = 'Please describe the issue first.'; return; }
+        if (!window.flFeedback) {
+          msgEl.className = 'err';
+          msgEl.textContent = 'Reporting is unavailable right now — your text is kept.';
+          return;
+        }
+        sendBtn.disabled = true; msgEl.textContent = 'Sending…';
+        var res = await flFeedback.submit({
+          severity: sev, body: body, context: _reportCtx(),
+          route: (location.pathname + location.hash) || location.href,
+          user_agent: navigator.userAgent,
+        });
+        sendBtn.disabled = false;
+        if (res && res.id) {
+          msgEl.className = 'ok';
+          msgEl.textContent = 'Thanks — logged. TARS will see this.';
+          bodyEl.value = '';                                     // clear only on confirmed success
+          setTimeout(closeModal, 1200);
+        } else {
+          // Honest failure — DO NOT clear the textarea; the tester keeps their words.
+          var expiredSession = !!(window.flApi && flApi.authExpired && flApi.authExpired());
+          msgEl.className = 'err';
+          msgEl.textContent = expiredSession
+            ? 'Your session expired — sign in again; your text is saved here.'
+            : 'Couldn’t send just now — your text is saved here. Try again.';
+        }
+      });
+    } catch (e) {}
+  }
+
   if (typeof document !== 'undefined') {
-    if (document.readyState !== 'loading') _mountDemoBanner();
-    else document.addEventListener('DOMContentLoaded', _mountDemoBanner);
+    var _mountAll = function () { _mountDemoBanner(); _mountReportButton(); };
+    if (document.readyState !== 'loading') _mountAll();
+    else document.addEventListener('DOMContentLoaded', _mountAll);
+    // The report button needs a session; if the tester signs in without a full reload, retry.
+    window.addEventListener('focus', _mountReportButton);
+    window.addEventListener('storage', function (e) {
+      if (!e || e.key === 'fl_auth_token' || e.key === null) _mountReportButton();
+    });
   }
 })();

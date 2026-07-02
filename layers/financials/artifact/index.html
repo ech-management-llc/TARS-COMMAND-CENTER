@@ -60,8 +60,8 @@
   <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260701b"></script>
-<script src="../../../shared/fl-scope-select.js?v=20260701b"></script>
+<script src="../../../shared/fl-auth.js?v=20260701c"></script>
+<script src="../../../shared/fl-scope-select.js?v=20260701c"></script>
 <script>
   var FL = "https://api.foundationlayerhq.com/api/dashboard/latest";
   var PROFILES_URL = "../../../data/STUB_CAPITAL_PROFILES.json";
@@ -228,7 +228,7 @@
     fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
   ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api'); }).catch(fail);
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260701b"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260701c"></script>
 <script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
 </body>
 </html>

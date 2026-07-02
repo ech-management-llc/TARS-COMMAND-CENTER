@@ -236,4 +236,18 @@
     addNumber: function (n) { return call('POST', '/api/sms/numbers', n); },
     removeNumber: function (id) { return call('DELETE', '/api/sms/numbers/' + encodeURIComponent(id)); },
   };
+
+  // In-app bug-capture (schema_patch_017) — backs the "Report an issue" control + admin Feedback
+  // tile. Owner-scoped server-side: a member's list() returns only their own reports; an admin's
+  // returns all (triage). submit() resolves to the created row on success or null on no-session /
+  // 4xx / 5xx / network error — the control MUST treat null as an honest failure and preserve the
+  // tester's text (never silently drop). severity: blocker|bug|confusing|idea; status: new|triaged|
+  // closed. entity_code/context/route/user_agent are optional metadata auto-captured at filing time.
+  window.flFeedback = {
+    submit: function (report) { return call('POST', '/api/feedback', report); },
+    list: function () { return call('GET', '/api/feedback'); },
+    setStatus: function (id, status) {
+      return call('PATCH', '/api/feedback/' + encodeURIComponent(id), { status: status });
+    },
+  };
 })();
