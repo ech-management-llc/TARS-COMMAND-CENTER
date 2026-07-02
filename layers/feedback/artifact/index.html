@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .fb-sev{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:2px 7px;text-transform:uppercase;letter-spacing:.02em}
+  .fb-sev.blocker{background:#fef2f2;color:#dc2626;border:1px solid #fca5a5}
+  .fb-sev.bug{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+  .fb-sev.confusing{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+  .fb-sev.idea{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+  .fb-body{font-weight:600;color:#0f172a;white-space:pre-wrap;max-width:340px}
+  .fb-meta{font-size:11.5px;color:var(--dim,#8a8a93)}
+  .fb-statussel{background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:3px 6px;font-size:11.5px;font-family:inherit;color:#0f172a;width:auto}
+  .fb-statussel:focus{outline:none;border-color:#6366f1}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🐞 Feedback — Tester Reports</div>
+
+  <div class="preview-banner">
+    <b>Live tester reports — real.</b> Every row is a <b>live read</b> from
+    <code>/api/feedback</code> (owner-scoped, RLS-enforced): an <b>admin sees all submissions</b> for
+    triage; anyone else sees <b>only their own</b>. Reports arrive from the <b>“🐞 Report an issue”</b>
+    button that rides along on every screen. Set a row to <b>triaged</b> or <b>closed</b> as you work them.
+  </div>
+
+  <div class="card" id="fb-auth" style="display:none"></div>
+
+  <div id="fb-live" style="display:none">
+    <div class="ruleg" id="fb-kpis"></div>
+
+    <div class="card">
+      <div class="section-label">SUBMISSIONS</div>
+      <div id="fb-loading" class="small muted" style="padding:6px 2px">Loading…</div>
+      <table><thead><tr><th>KIND</th><th>WHAT HAPPENED</th><th>WHERE</th><th>STATUS</th><th>WHEN</th></tr></thead>
+        <tbody id="fb-rows"></tbody>
+      </table>
+      <div class="fb-msg small" id="fb-msg" style="min-height:16px;margin-top:6px"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">HOW THIS WORKS</div>
+      <div class="small muted">Testers file reports in-context via the persistent <b>Report an issue</b> control
+        (severity + free text; the tile, route, and browser are captured automatically). Submissions are
+        <b>scoped per tenant</b> — one tenant can never read another’s. TARS folds these into the
+        <button class="xref" type="button" onclick="flOpen('punch-list')">Punch List</button>.</div>
+    </div>
+  </div>
+
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/feedback</code> (live, owner-scoped RLS). Filed via the “Report an issue” control.</div>
+</div>
+
+<script src="../../../shared/fl-auth.js?v=20260701c"></script>
+<script src="../../../shared/fl-api.js?v=20260701c"></script>
+<script>
+  var ROWS=[];
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function dash(v){ return (v==null||v==='')?'—':esc(v); }
+  function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
+  function isAuthed(){ return !!(window.flApi&&flApi.authed&&flApi.authed()); }
+
+  function when(ts){
+    if(!ts) return '—';
+    try{ var d=new Date(ts); if(isNaN(d)) return esc(ts);
+      return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    }catch(e){ return esc(ts); }
+  }
+
+  function showAuth(){
+    var expired=window.flApi&&flApi.authExpired&&flApi.authExpired();
+    $('fb-live').style.display='none';
+    var box=$('fb-auth'); box.style.display='block';
+    box.innerHTML='<div class="section-label">'+(expired?'SESSION EXPIRED':'SIGN IN REQUIRED')+'</div>'+
+      '<div class="small">'+(expired?'Your session expired. <b>Sign in again</b> to view feedback.':'<b>Sign in to the Command Center</b> to view tester feedback.')+'</div>';
+  }
+
+  function renderKpis(){
+    var nw=ROWS.filter(function(r){return r.status==='new';}).length;
+    var tri=ROWS.filter(function(r){return r.status==='triaged';}).length;
+    var closed=ROWS.filter(function(r){return r.status==='closed';}).length;
+    var blockers=ROWS.filter(function(r){return r.severity==='blocker'&&r.status!=='closed';}).length;
+    $('fb-kpis').innerHTML=
+      '<div class="rule '+(nw?'ry':'rg')+'"><div class="rn">NEW</div><div class="rv">'+nw+'</div><div class="rt">untriaged</div></div>'+
+      '<div class="rule '+(blockers?'rr':'rg')+'"><div class="rn">BLOCKERS</div><div class="rv">'+blockers+'</div><div class="rt">open, can’t continue</div></div>'+
+      '<div class="rule rg"><div class="rn">TRIAGED</div><div class="rv">'+tri+'</div><div class="rt">in progress</div></div>'+
+      '<div class="rule rg"><div class="rn">CLOSED</div><div class="rv">'+closed+'</div><div class="rt">resolved</div></div>';
+  }
+
+  function statusSelect(r){
+    var opts=['new','triaged','closed'];
+    return '<select class="fb-statussel" data-status-id="'+esc(r.id)+'" title="Change status (saves immediately)">'+
+      opts.map(function(o){ return '<option value="'+o+'"'+(r.status===o?' selected':'')+'>'+o+'</option>'; }).join('')+
+      '</select>';
+  }
+
+  function whereCell(r){
+    var ctx=r.context?esc(r.context):'';
+    var route=r.route?('<div class="fb-meta">'+esc(r.route)+'</div>'):'';
+    return (ctx?('<span>'+ctx+'</span>'):'<span class="muted">—</span>')+route;
+  }
+
+  function renderRows(){
+    $('fb-loading').style.display='none';
+    if(!ROWS.length){ $('fb-rows').innerHTML='<tr><td colspan="5" class="small muted" style="padding:8px 2px">No feedback yet. Reports filed via “🐞 Report an issue” land here.</td></tr>'; return; }
+    $('fb-rows').innerHTML=ROWS.map(function(r){
+      var sev=(r.severity||'bug');
+      return '<tr>'+
+        '<td><span class="fb-sev '+esc(sev)+'">'+esc(sev)+'</span></td>'+
+        '<td><div class="fb-body">'+dash(r.body)+'</div></td>'+
+        '<td>'+whereCell(r)+'</td>'+
+        '<td>'+statusSelect(r)+'</td>'+
+        '<td class="small muted">'+when(r.created_at)+'</td></tr>';
+    }).join('');
+  }
+
+  // Inline status triage: change → PATCH /api/feedback/{id}. Optimistic with revert-on-fail (honest).
+  async function onStatusChange(sel){
+    var id=sel.getAttribute('data-status-id');
+    var next=sel.value;
+    var row=null; for(var i=0;i<ROWS.length;i++){ if(String(ROWS[i].id)===String(id)){ row=ROWS[i]; break; } }
+    var prev=row?row.status:null;
+    sel.disabled=true;
+    var res=(window.flFeedback&&flFeedback.setStatus)?await flFeedback.setStatus(id,next):null;
+    sel.disabled=false;
+    if(res&&res.id){
+      if(row) row.status=res.status;
+      renderKpis();
+      $('fb-msg').innerHTML='<span class="ok">Saved — '+esc(next)+'.</span>';
+      setTimeout(function(){ if($('fb-msg')) $('fb-msg').textContent=''; },1500);
+    } else {
+      if(row&&prev!=null){ sel.value=prev; }   // revert — never show a change that didn't persist
+      var expired=window.flApi&&flApi.authExpired&&flApi.authExpired();
+      $('fb-msg').innerHTML='<span class="err">'+(expired?'Session expired — sign in again.':'Couldn’t save that status. Left it unchanged.')+'</span>';
+    }
+  }
+
+  async function load(){
+    if(!isAuthed()){ showAuth(); return; }
+    $('fb-auth').style.display='none';
+    $('fb-live').style.display='block';
+    var rows=(window.flFeedback&&flFeedback.list)?await flFeedback.list():null;
+    if(rows===null){
+      // null = no-session / error. If the session is dead, say so; else honest empty-with-retry.
+      if(!isAuthed()||(window.flApi&&flApi.authExpired&&flApi.authExpired())){ showAuth(); return; }
+      $('fb-loading').style.display='none';
+      $('fb-msg').innerHTML='<span class="err">Couldn’t load feedback just now. Refresh to retry.</span>';
+      return;
+    }
+    ROWS=Array.isArray(rows)?rows:[];
+    renderKpis();
+    renderRows();
+  }
+
+  document.addEventListener('change', function(e){
+    var t=e.target;
+    if(t&&t.classList&&t.classList.contains('fb-statussel')) onStatusChange(t);
+  });
+
+  load();
+</script>
+</body>
+</html>

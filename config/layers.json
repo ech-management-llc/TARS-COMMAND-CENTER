@@ -1266,6 +1266,32 @@
       "section_lead": "tars"
     },
     {
+      "id": "feedback",
+      "title": "Feedback",
+      "icon": "🐞",
+      "desc": "tester reports · triage",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/feedback/artifact/index.html",
+      "employee": {
+        "name": "TARS",
+        "role": "Overview & Daily Brief · company-wide",
+        "avatar": "T"
+      },
+      "chips": [
+        "What did testers report today?",
+        "Anything marked a blocker?",
+        "Mark this one triaged"
+      ],
+      "section_lead": "admin"
+    },
+    {
       "id": "add-layer",
       "title": "Add a layer",
       "icon": "➕",
