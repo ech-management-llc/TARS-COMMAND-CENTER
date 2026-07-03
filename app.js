@@ -455,6 +455,13 @@ function renderLoginGate(){
       '<input id="gate-pass" type="password" placeholder="••••••••" autocomplete="current-password">'+
       '<button class="gate-btn primary" type="button" id="gate-signin">Sign in</button>'+
       '<div class="gate-note" id="gate-err" style="display:none;color:var(--red)"></div>'+
+      (real ? '<button class="gate-link" type="button" id="gate-create-toggle">Create an account ▾</button>'+
+        '<div id="gate-create" style="display:none">'+
+          '<label>Access code</label>'+
+          '<input id="gate-code" type="text" placeholder="invitation code" autocomplete="one-time-code">'+
+          '<button class="gate-btn primary" type="button" id="gate-create-btn">Create account &amp; sign in</button>'+
+          '<div class="gate-note">Invite-only. Uses the email + password above, plus the access code you were given. Creates your own empty workspace.</div>'+
+        '</div>' : '')+
       '<button class="gate-btn" type="button" id="gate-try-demo">Try the demo →</button>'+
       '<div class="gate-note">One click into a sandbox account with labeled sample data — no signup.</div>'+
       '<button class="gate-link" type="button" id="gate-adv-toggle">Continue without an account (demo) ▾</button>'+
@@ -520,6 +527,48 @@ function renderLoginGate(){
     err.textContent = 'Auth not configured — use “Continue without an account (demo)”.';
   };
   el.querySelector('#gate-pass').addEventListener('keydown', e => { if (e.key==='Enter') signinBtn.click(); });
+
+  // Create-account (access-code-gated → /api/signup). Reuses the email + password fields above and
+  // adds the invitation code. On 201 it signs in through the SAME Supabase path (no token minted
+  // here) and lands the new operator in their own empty workspace (self-serve entity next).
+  const createToggle = el.querySelector('#gate-create-toggle');
+  if (createToggle) createToggle.onclick = () => {
+    const c = el.querySelector('#gate-create');
+    c.style.display = c.style.display === 'none' ? 'block' : 'none';
+    if (c.style.display === 'block') el.querySelector('#gate-code').focus();
+  };
+  async function createAccount(){
+    const email = (el.querySelector('#gate-email').value||'').trim();
+    const pass  = el.querySelector('#gate-pass').value||'';
+    const code  = (el.querySelector('#gate-code').value||'').trim();
+    const err = el.querySelector('#gate-err'); err.style.color = 'var(--red)';
+    if(!email || !pass){ err.style.display='block'; err.textContent='Enter your email and password above, then the access code.'; return; }
+    if(pass.length < 8){ err.style.display='block'; err.textContent='Choose a password of at least 8 characters.'; return; }
+    if(!code){ err.style.display='block'; err.textContent='Enter your invitation access code.'; return; }
+    if(!window.flSignup){ err.style.display='block'; err.textContent='Sign-up is unavailable right now.'; return; }
+    const btn = el.querySelector('#gate-create-btn'); btn.disabled=true; btn.textContent='Creating…';
+    const r = await flSignup.create(email, pass, code);
+    if(r && r.ok){
+      btn.textContent='Signing in…';
+      const s = await flAuth.signIn(email, pass);   // normal JWT path; no token minted client-side
+      btn.disabled=false; btn.textContent='Create account & sign in';
+      if(s && s.error){ err.style.display='block'; err.textContent='Account created — sign-in failed: '+s.error+'. Try Sign in.'; return; }
+      Auth.signIn({ name: email.split('@')[0], role:'owner', tenant: STATE.tenant.tenant_id||'ech',
+        contact: email, supabase:true, at:new Date().toISOString() });
+      el.remove(); startApp();   // lands in their own empty workspace — create your first entity next
+      return;
+    }
+    btn.disabled=false; btn.textContent='Create account & sign in';
+    err.style.display='block';
+    const st = r ? r.status : 0;
+    err.textContent = st===403 ? 'That access code isn’t valid. Check it and try again.'
+      : st===409 ? 'An account with that email already exists — try Sign in.'
+      : st===429 ? 'Too many attempts. Wait a few minutes and try again.'
+      : st===503 ? 'Sign-up isn’t enabled yet. Ask your administrator for an invite.'
+      : 'Couldn’t create the account just now. Please try again.';
+  }
+  const createBtn = el.querySelector('#gate-create-btn');
+  if (createBtn) createBtn.onclick = createAccount;
 }
 
 function tarsSvg(s){

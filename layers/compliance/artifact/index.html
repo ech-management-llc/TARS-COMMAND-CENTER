@@ -52,9 +52,9 @@
 
 </div>
 
-<script src="../../../shared/jurisdiction.js?v=20260701c"></script>
-<script src="../../../shared/ingest.js?v=20260701c"></script>
-<script src="../../../shared/docdrop.js?v=20260701c"></script>
+<script src="../../../shared/jurisdiction.js?v=20260703a"></script>
+<script src="../../../shared/ingest.js?v=20260703a"></script>
+<script src="../../../shared/docdrop.js?v=20260703a"></script>
 <script>
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -103,7 +103,7 @@
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260701c"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260703a"></script>
 <script>FLSettings.mount({tileId:'compliance'});</script>
 </body>
 </html>

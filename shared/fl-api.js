@@ -237,6 +237,26 @@
     removeNumber: function (id) { return call('DELETE', '/api/sms/numbers/' + encodeURIComponent(id)); },
   };
 
+  // Access-code-gated sign-up (pre-auth — NO token; public Supabase sign-up stays OFF). POSTs to
+  // /api/signup; returns {ok, status, body} so the caller can show honest per-status messages
+  // (403 bad code · 409 email exists · 429 slow down · 503 not enabled). On ok, the caller signs
+  // in through flAuth.signIn (the normal JWT path — this never mints a token itself).
+  window.flSignup = {
+    create: async function (email, password, accessCode) {
+      try {
+        var res = await fetch(BASE + '/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: password, access_code: accessCode }),
+        });
+        var body = await res.json().catch(function () { return null; });
+        return { ok: res.ok, status: res.status, body: body };
+      } catch (e) {
+        return { ok: false, status: 0, body: null };
+      }
+    },
+  };
+
   // In-app bug-capture (schema_patch_017) — backs the "Report an issue" control + admin Feedback
   // tile. Owner-scoped server-side: a member's list() returns only their own reports; an admin's
   // returns all (triage). submit() resolves to the created row on success or null on no-session /
