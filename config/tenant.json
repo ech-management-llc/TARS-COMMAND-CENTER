@@ -50,7 +50,7 @@
   },
 
   "data_sources": {
-    "fl_api": "https://api.foundationlayerhq.com/api/dashboard/latest"
+    "fl_api": "https://api.foundationlayerhq.com/api/dashboard/scoped"
   },
 
   "market": {

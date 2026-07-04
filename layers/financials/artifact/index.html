@@ -60,10 +60,14 @@
   <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260703a"></script>
-<script src="../../../shared/fl-scope-select.js?v=20260703a"></script>
+<script src="../../../shared/fl-auth.js?v=20260704a"></script>
+<script src="../../../shared/fl-api.js?v=20260704a"></script>
+<script src="../../../shared/fl-scope-select.js?v=20260704a"></script>
 <script>
-  var FL = "https://api.foundationlayerhq.com/api/dashboard/latest";
+  // H5: the financial dashboard now reads the AUTHED, per-principal /api/dashboard/scoped (was the
+  // unauth global /latest, now admin-only). flApi.call carries the caller's JWT + returns null on
+  // no-session/error -> falls back to the last-good cache (fail()).
+  var FL = "/api/dashboard/scoped";
   var PROFILES_URL = "../../../data/STUB_CAPITAL_PROFILES.json";
   var LS = "tcc_fin_artifact_lastgood";
   var SEL_LS = "tcc_fin_entity_sel";
@@ -224,11 +228,12 @@
   function emailReport(){ document.getElementById('reportnote').innerHTML='Live build: opens the email flow (recipient · scope · note) and sends the report via the Foundation Layer report pipeline. No external send is wired in this public preview.'; }
 
   Promise.all([
-    fetch(FL,{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+    (window.flApi && window.flApi.call ? window.flApi.call('GET', FL) : Promise.resolve(null))
+      .then(function(d){ if(!d) throw 0; return d; }),   // null (no session/err) -> fall back to last-good
     fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
-  ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api'); }).catch(fail);
+  ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api:scoped'); }).catch(fail);
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260703a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260704a"></script>
 <script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
 </body>
 </html>

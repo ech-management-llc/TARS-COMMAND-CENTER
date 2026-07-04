@@ -629,7 +629,7 @@ function groupSrcTags(grpId){
 }
 // Where each source goes to (re)connect — so if a feed drops, the chip is the way back in.
 const SRC_CONNECT = {
-  FL:'https://api.foundationlayerhq.com/api/dashboard/latest',
+  FL:'https://api.foundationlayerhq.com/api/dashboard/scoped',
   FRED:'https://fredaccount.stlouisfed.org/apikeys',
   REV:'https://www.reventure.app/',
   CEN:'https://api.census.gov/data/key_signup.html',
@@ -1110,10 +1110,12 @@ function tileGeneric(l){
 function fetchAll(){
   // FL API
   const flUrl = (STATE.tenant.data_sources && STATE.tenant.data_sources.fl_api);
-  if (flUrl){
-    fetch(flUrl, {cache:'no-store'})
-      .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-      .then(d=>{ STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
+  if (flUrl && window.flApi && flApi.call){
+    // H5: the Capital-Rules feed is the AUTHED, per-principal /api/dashboard/scoped (was the unauth
+    // global /latest, now admin-only). flApi.call carries the JWT; null = no session/error -> down.
+    flApi.call('GET', '/api/dashboard/scoped')
+      .then(d=>{ if(!d){ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
+        STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
       .catch(()=>{ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
   }
   // committed snapshots (graceful absence)

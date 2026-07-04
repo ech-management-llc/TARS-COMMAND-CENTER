@@ -106,7 +106,7 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Accounts contract: every cost links to the paying account (entity → account). Permits gate the work — see <button class="xref" type="button" onclick="flOpen('compliance')" title="Open Compliance, Inspections &amp; Permits — WO-1041 reno permit REQUIRED">Compliance, Inspections &amp; Permits</button>. Sample data; Plaid sandbox → $0 honest.</div>
 </div>
 
-<script src="../../../shared/ingest.js?v=20260703a"></script>
+<script src="../../../shared/ingest.js?v=20260704a"></script>
 <script>
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -166,7 +166,7 @@
     if(el) el.innerHTML = msg;
   }
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260703a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260704a"></script>
 <script>FLSettings.mount({tileId:'build-renovate'});</script>
 </body>
 </html>
