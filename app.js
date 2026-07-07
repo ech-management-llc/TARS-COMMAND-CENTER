@@ -83,6 +83,7 @@ function startApp(){
   renderChrome();
   renderHome();
   fetchAll();
+  checkNewOperator();   // real signed-in + zero grants -> "Create your first company" (find #1)
   wireGlobalControls();
   loadBriefRouter();
   if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();  // "Report an issue" (bug-capture)
@@ -649,10 +650,87 @@ function refreshGroupChips(){
   });
 }
 
+// ── New-operator first run (Ashley proving-run find #1) ─────────────────────
+// A REAL signed-in account with ZERO entity grants gets 403 from GET /api/entities
+// (require_entity_scope) while POST /api/entities is exactly the self-serve create it is
+// supposed to use (TD-086). That 403 must read as "new operator — create your first company",
+// never as a read-only app or an outage. FE-only: detection + a form; authorization stays
+// entirely server-side (the server namespaces member codes + grants ownership atomically).
+function checkNewOperator(){
+  if (!(window.flApi && flApi.authed && flApi.authed() && flApi.callX)) return;   // demo/local: skip
+  flApi.callX('GET', '/api/entities').then(r => {
+    if (!r) return;
+    const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
+    // !! so the initial undefined doesn't force a redundant full home re-render for granted users
+    if (!!STATE.newOperator !== isNew){ STATE.newOperator = isNew; renderHome(); }
+  }).catch(()=>{});
+}
+
+function newOperatorCard(){
+  const inSty = 'background:#0f1520;border:1.5px solid #2a3446;color:#e5e7eb;border-radius:8px;'+
+                'padding:9px 11px;font-size:13px;font-family:inherit;min-width:210px';
+  return '<section class="grp" id="newop-card" style="border:1.5px solid var(--accent,#10b981);'+
+      'border-radius:12px;padding:16px 18px;margin-bottom:14px">'+
+    '<div style="font-size:16px;font-weight:800;margin-bottom:4px">🏢 Create your first company</div>'+
+    '<div class="note" style="margin-bottom:12px">Welcome! Your account is live, but it has no companies yet. '+
+      'Add your first one below — <b>you own it</b>, and the whole board builds from there. '+
+      'Prefer a guided walk-through? <a href="./onboarding/" style="color:var(--accent,#10b981)">Get set up →</a></div>'+
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">'+
+      '<label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600">LEGAL NAME'+
+        '<input id="newop-name" placeholder="e.g. MY COMPANY LLC" style="'+inSty+'"></label>'+
+      '<label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600">SHORT CODE'+
+        '<input id="newop-code" placeholder="auto-suggested" style="'+inSty+';min-width:130px"></label>'+
+      '<button type="button" id="newop-create" style="background:var(--accent,#10b981);color:#04110b;'+
+        'border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer;'+
+        'font-family:inherit">Create company</button>'+
+    '</div>'+
+    '<div id="newop-msg" class="note" style="min-height:16px;margin-top:8px"></div></section>';
+}
+
+function newOperatorCreate(){
+  const name = ($('newop-name').value||'').trim(), code = ($('newop-code').value||'').trim();
+  const msg = $('newop-msg'), btn = $('newop-create');
+  if (!name || !code){ msg.innerHTML = '<b style="color:#ef4444">Name and code are both required.</b>'; return; }
+  btn.disabled = true; msg.textContent = 'Creating…';
+  flApi.callX('POST', '/api/entities', { code: code, name: name, legal_form: 'LLC', primary_bank: 'Altra' })
+    .then(r => {
+      btn.disabled = false;
+      if (!r.ok){
+        // Honest per-status copy — a policy refusal is never blamed on the network, and vice versa.
+        const why = r.status === 409 ? 'That code already exists — pick another.'
+          : r.status === 403 ? esc((r.data && r.data.detail) || 'That code prefix is reserved — pick another.')
+          : r.status === 422 ? 'Check the fields — name and code are required.'
+          : r.status ? 'Create failed (HTTP '+r.status+') — try again.'
+          : 'Service unreachable — nothing was saved; your entries are still here, retry in a moment.';
+        msg.innerHTML = '<b style="color:#ef4444">'+why+'</b>';
+        return;
+      }
+      msg.innerHTML = '<b style="color:var(--accent,#10b981)">✓ '+esc(r.data.name||name)+' created — you own it.</b> Opening your board…';
+      setTimeout(() => { STATE.newOperator = false; renderHome(); fetchAll(); }, 900);
+    });
+}
+
+// Delegated (survives every home re-render): create click + code auto-suggest from the name.
+document.addEventListener('click', e => {
+  if (e.target && e.target.id === 'newop-create') newOperatorCreate();
+});
+document.addEventListener('input', e => {
+  if (!e.target) return;
+  if (e.target.id === 'newop-code') e.target.dataset.touched = e.target.value.trim() ? '1' : '';
+  if (e.target.id === 'newop-name'){
+    const c = $('newop-code');
+    if (c && !c.dataset.touched){
+      c.value = e.target.value.toUpperCase().replace(/\b(LLC|INC|L\.L\.C\.|CORP)\b\.?/g,'')
+        .replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,12);
+    }
+  }
+});
+
 function renderHome(){
   const groups = STATE.registry.groups || [];
   const collapsed = collapsedSet();
   let html = '';
+  if (STATE.newOperator) html += newOperatorCard();   // first-run: create form, never "read-only"
   let firstCard = true;
   const locked = !boardUnlocked();      // Phase 2: locked until explored or setup-complete
   const LIVE_AREA = 'admin';            // only Administration is live until setup completes
@@ -1262,6 +1340,11 @@ function wireGlobalControls(){
   window.addEventListener('message', e => {
     const d = e.data || {};
     if (d && d.type === 'tcc:purchase') renderHome();
+    // the Entities tile just created a first company for a new operator -> drop the hero card
+    if (d && d.type === 'tcc:newop-created'){
+      if (STATE.newOperator){ STATE.newOperator = false; renderHome(); }
+      fetchAll();
+    }
     // cross-tile nav: a drill-in iframe asks the shell to open another tile
     // (front-end cross-reference only — artifacts post {type:'tcc:open-layer', layer:'<id>'})
     if (d && d.type === 'tcc:open-layer' && typeof d.layer === 'string') openLayer(d.layer);

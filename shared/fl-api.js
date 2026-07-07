@@ -9,6 +9,8 @@
 
    Contract: each method resolves to the parsed JSON on success, or null on
    "use your fallback" (no token / 4xx / 5xx / network error). Never throws.
+   callX()/listX()/createX() are the status-carrying variants ({ok, status, data})
+   for callers that must tell 403-forbidden apart from empty or down.
    ════════════════════════════════════════════════════════════════ */
 (function () {
   if (window.flApi) return;
@@ -37,18 +39,20 @@
   // "your session expired" instead of a misleading empty state when a call returns null.
   function authExpired() { return !!(window.flAuth && flAuth.expired && flAuth.expired()); }
 
-  // The single authed-fetch path for every FL call (FL API + the agent service). Returns parsed JSON,
-  // {} for 204, or null ("use your fallback"). Token-expiry aware: refreshes proactively when the
-  // stored token is near expiry, and reactively retries ONCE on a 401. A confirmed-dead session is
-  // cleared by flAuth.refresh(), so after a null the caller can branch on flApi.authed()/authExpired()
-  // — distinguishing an expired session from a genuinely-empty result.
-  async function authedCall(base, method, path, body) {
+  // The single authed-fetch path for every FL call (FL API + the agent service), STATUS-CARRYING:
+  // resolves to { ok, status, data } and never throws. status 0 = no session / transport error.
+  // Token-expiry aware: refreshes proactively when the stored token is near expiry, and reactively
+  // retries ONCE on a 401. A confirmed-dead session is cleared by flAuth.refresh(), so the caller
+  // can branch on flApi.authed()/authExpired(). Callers that must tell "forbidden (e.g. a no-grant
+  // new operator, 403)" apart from "API down" use this via callX (Ashley proving-run find #1 — a
+  // 403 must NOT read as read-only/unreachable); everything else keeps the simpler call().
+  async function authedCallX(base, method, path, body) {
     var t = token();
-    if (!t) return null;                                   // not signed in -> caller fallback
+    if (!t) return { ok: false, status: 0, data: null };   // not signed in -> caller fallback
     if (window.flAuth && flAuth.needsRefresh && flAuth.needsRefresh()) {
       await flAuth.refresh();                              // proactive (may clear the session)
       t = token();
-      if (!t) return null;
+      if (!t) return { ok: false, status: 0, data: null };
     }
     function doFetch(tok) {
       return fetch(base + path, {
@@ -63,17 +67,32 @@
         var ok = await flAuth.refresh();                   // ONE reactive refresh
         if (ok) res = await doFetch(token());
       }
-      if (!res.ok) return null;                            // incl. a still-401 (session now cleared)
-      if (res.status === 204) return {};
-      return await res.json();
+      var data = null;
+      if (res.status !== 204) { data = await res.json().catch(function () { return null; }); }
+      else { data = {}; }
+      if (!res.ok) return { ok: false, status: res.status, data: data };
+      if (res.status !== 204 && data === null) {
+        return { ok: false, status: 0, data: null };       // 2xx with unparseable body -> fallback
+      }
+      return { ok: true, status: res.status, data: data };
     } catch (e) {
-      return null;                                         // network/CORS error -> fallback
+      return { ok: false, status: 0, data: null };         // network/CORS error -> fallback
     }
   }
 
-  function call(method, path, body) { return authedCall(BASE, method, path, body); }
+  // Legacy contract (every existing consumer): parsed JSON on success, {} for 204, null on
+  // "use your fallback" (no token / 4xx / 5xx / network error) — byte-identical behavior, now
+  // implemented on the status-carrying path so there is still exactly ONE fetch/refresh seam.
+  async function authedCall(base, method, path, body) {
+    var r = await authedCallX(base, method, path, body);
+    return r.ok ? r.data : null;
+  }
 
-  window.flApi = { base: BASE, token: token, authed: authed, authExpired: authExpired, call: call };
+  function call(method, path, body) { return authedCall(BASE, method, path, body); }
+  function callX(method, path, body) { return authedCallX(BASE, method, path, body); }
+
+  window.flApi = { base: BASE, token: token, authed: authed, authExpired: authExpired,
+                   call: call, callX: callX };
 
   // AI Agent Layer (Lane 4a) — the hosted TARS advisor (READ-ONLY). Calls the separate
   // fl-agent service with the same Supabase JWT (fl_auth_token). Returns the parsed
@@ -193,7 +212,14 @@
   // or null on no-session / error (caller surfaces an honest "sign in to persist").
   window.flEntities = {
     list: function () { return call('GET', '/api/entities'); },
+    // Status-carrying list ({ok, status, data}) so the Entities tile can tell a no-grant NEW
+    // OPERATOR (403 -> offer "create your first company") from an unreachable API (status 0 ->
+    // sample fallback). Ashley proving-run find #1.
+    listX: function () { return callX('GET', '/api/entities'); },
     create: function (entity) { return call('POST', '/api/entities', entity); },
+    // Status-carrying create so save errors are honest per-status (409 code exists · 403 reserved
+    // prefix / parent outside scope · 401/0 session/down) instead of one blended guess.
+    createX: function (entity) { return callX('POST', '/api/entities', entity); },
     update: function (id, patch) { return call('PATCH', '/api/entities/' + encodeURIComponent(id), patch); },
     // Soft-delete one entity (admin-gated server-side; sets active=false + writes an audit row).
     // Resolves to the {status:'soft-deleted',...} body on success, or null on no-session / 4xx
