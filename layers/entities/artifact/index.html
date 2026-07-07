@@ -83,9 +83,9 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260704a"></script>
-<script src="../../../shared/fl-api.js?v=20260704a"></script>
-<script src="../../../shared/fl-scope-select.js?v=20260704a"></script>
+<script src="../../../shared/fl-auth.js?v=20260707a"></script>
+<script src="../../../shared/fl-api.js?v=20260707a"></script>
+<script src="../../../shared/fl-scope-select.js?v=20260707a"></script>
 <script>
   var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
   function scopedENTS(){ return SELE ? ENTS.filter(function(e){ return SELE.indexOf(e.id)>=0; }) : ENTS; }
@@ -243,18 +243,41 @@
     var parent = document.getElementById('ent-parent').value;
     if(parent) payload.parent_entity_id = parent;
     btn.disabled = true; msg.innerHTML = 'Saving…';
-    window.flEntities.create(payload).then(function(res){
+    var createP = (window.flEntities.createX ? window.flEntities.createX(payload)
+      : window.flEntities.create(payload).then(function(res){   // stale-cached fl-api safety net
+          return res == null ? {ok:false, status:0, data:null} : {ok:true, status:201, data:res};
+        }));
+    createP.then(function(r){
       btn.disabled = false;
-      if(!res){
+      if(!r.ok){
+        // Honest per-status message — never blame the network for a policy refusal or vice versa.
         if(window.flApi && !flApi.authed()) msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then re-save — your entries are still here.';
-        else msg.innerHTML='<span class="err">Save failed.</span> The code may already exist, or you may not have create access. Try a different code.';
+        else if(r.status === 409) msg.innerHTML='<span class="err">That code already exists.</span> Pick a different code and re-save.';
+        else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'That code prefix is reserved, or the parent is outside your access.');
+        else if(r.status === 422) msg.innerHTML='<span class="err">Check the fields.</span> Code and legal name are both required.';
+        else msg.innerHTML='<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status?'Try again.':'The service looks unreachable — your entries are still here; retry in a moment.');
         return;
       }
-      msg.innerHTML='<span class="ok">✓ Saved.</span> '+esc(res.name||name)+' created.';
-      ENTS.unshift(mapEntity(res));
-      current = 0;
+      var res = r.data;
+      msg.innerHTML='<span class="ok">✓ Saved.</span> '+esc(res.name||name)+' created — you own it.';
       ['ent-code','ent-name','ent-bank'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=(id==='ent-bank'?'Altra':''); });
       document.getElementById('ent-legal').selectedIndex=0;
+      codeTouched = false;
+      // First entity just created? The owner-grant now exists, so a re-list returns 200 and the
+      // tile exits first-run into the normal roster (the moment the app stops being "read-only").
+      if(ENTS.length === 0 && window.flEntities.listX){
+        window.flEntities.listX().then(function(rr){
+          ENTS = (rr.ok ? (rr.data||[]) : [res]).map(mapEntity);
+          current = 0; document.getElementById('ent-add').querySelector('.section-label').textContent='ADD AN ENTITY';
+          document.getElementById('ent-code').placeholder='e.g. NEWCO — required';
+          document.getElementById('ent-name').placeholder='e.g. NEWCO LLC — required';
+          boot();
+          try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:newop-created'},'*'); }catch(e){}
+        });
+        return;
+      }
+      ENTS.unshift(mapEntity(res));
+      current = 0;
       boot();
     });
   }
@@ -289,25 +312,62 @@
     if(b){ ev.preventDefault(); deleteEntity(b.getAttribute('data-del')); }
   });
 
+  // ── FIRST-RUN (new operator) ────────────────────────────────────────
+  // Authenticated but ZERO entity grants: GET /api/entities is 403 by design (require_entity_scope)
+  // while POST /api/entities is the self-serve TD-086 create the account is SUPPOSED to use. This
+  // is a brand-new operator, NOT read-only and NOT an outage — surface "Create your first company"
+  // (Ashley proving-run find #1: the old path mislabeled this 403 "service unreachable" and hid the
+  // form, dead-ending every fresh account).
+  function enterFirstRun(){
+    ENTS = []; boot();
+    document.getElementById('ent-head').innerHTML =
+      '<div style="font-size:16px;font-weight:800">Welcome — let’s set up your first company</div>'+
+      '<div class="small muted">Your account is live but has no companies yet. Create your first one below — you’ll own it, and every tile unlocks from there. Prefer a guided walk-through? Use <b>Get set up</b> from the sign-in page.</div>';
+    var add = document.getElementById('ent-add');
+    add.style.display='';
+    add.querySelector('.section-label').textContent = 'CREATE YOUR FIRST COMPANY';
+    document.getElementById('ent-code').placeholder = 'e.g. MYCO — short code (auto-suggested from the name)';
+    document.getElementById('ent-name').placeholder = 'e.g. MY COMPANY LLC — required';
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+  }
+
+  // Auto-suggest a code from the legal name while the code field is untouched (first-run helper;
+  // the server namespaces member codes anyway, so this is a convenience, not an identity).
+  var codeTouched = false;
+  function suggestCode(){
+    if(codeTouched) return;
+    var name = (document.getElementById('ent-name').value||'').trim();
+    var slug = name.toUpperCase().replace(/\b(LLC|INC|L\.L\.C\.|CORP)\b\.?/g,'')
+      .replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,12);
+    document.getElementById('ent-code').value = slug;
+  }
+
   // ── BOOT ────────────────────────────────────────────────────────────
   function start(){
     var saveBtn = document.getElementById('ent-save');
     if(saveBtn) saveBtn.addEventListener('click', saveEntity);
+    var codeEl = document.getElementById('ent-code'), nameEl = document.getElementById('ent-name');
+    if(codeEl) codeEl.addEventListener('input', function(){ codeTouched = !!codeEl.value.trim(); });
+    if(nameEl) nameEl.addEventListener('input', suggestCode);
 
     // Not signed in -> sign-in card (never a stub).
     if(!(window.flApi && window.flApi.authed && window.flApi.authed())){ showAuth(); return; }
 
     showLive();
-    window.flEntities.list().then(function(rows){
-      // Signed in but the call came back null: session may have just expired, else the API is unreachable.
-      if(rows == null){
-        if(window.flApi && !flApi.authed()){ showAuth(); return; }
-        loadSampleFallback();   // signed in + API unreachable -> clearly-labeled dev sample
+    var listP = (window.flEntities.listX ? window.flEntities.listX()
+      : window.flEntities.list().then(function(rows){       // stale-cached fl-api safety net
+          return rows == null ? {ok:false, status:0, data:null} : {ok:true, status:200, data:rows};
+        }));
+    listP.then(function(r){
+      if(r.ok){
+        ENTS = (r.data||[]).map(mapEntity);
+        boot();
+        try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
         return;
       }
-      ENTS = rows.map(mapEntity);
-      boot();
-      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+      if(r.status === 403){ enterFirstRun(); return; }       // no grants yet = new operator, NOT down
+      if(window.flApi && !flApi.authed()){ showAuth(); return; }  // session died mid-flight
+      loadSampleFallback();   // signed in + API genuinely unreachable -> clearly-labeled dev sample
     }).catch(function(){
       if(window.flApi && !flApi.authed()) showAuth();
       else loadSampleFallback();
@@ -332,7 +392,7 @@
 
   start();
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260704a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
 <script>try{ FLSettings.mount({tileId:'entities'}); }catch(e){}</script>
 </body>
 </html>
