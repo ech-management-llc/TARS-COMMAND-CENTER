@@ -65,10 +65,10 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Roles + grants decide what the UI renders; <b>server-side authorization decides what's actually allowed</b> (auth phase). Per-tenant isolation + read-only-per-grant land with it.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260708a"></script>
-<script src="../../../shared/fl-api.js?v=20260708a"></script>
-<script src="../../../shared/fl-state.js?v=20260708a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
+<script src="../../../shared/fl-auth.js?v=20260708b"></script>
+<script src="../../../shared/fl-api.js?v=20260708b"></script>
+<script src="../../../shared/fl-state.js?v=20260708b"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708b"></script>
 <script>
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function telD(p){ var d=String(p==null?'':p).replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }

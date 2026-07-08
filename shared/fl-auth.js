@@ -51,6 +51,28 @@
     }
   }
 
+  // Self-service password reset: ask GoTrue to email a recovery link that lands on the dedicated
+  // /reset-password/ handler. GoTrue returns 200 whether or not the address has an account (no
+  // account enumeration), so callers must keep the confirmation message neutral. redirect_to is the
+  // allow-listed reset page; 429 (rate-limited) is surfaced distinctly so the UI can say "wait".
+  async function requestPasswordReset(emailAddr) {
+    if (!configured()) return { error: 'not_configured' };
+    var redirectTo = location.origin + '/reset-password/';
+    try {
+      var res = await fetch(CFG.url + '/auth/v1/recover?redirect_to=' + encodeURIComponent(redirectTo), {
+        method: 'POST',
+        headers: { 'apikey': CFG.anon, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailAddr }),
+      });
+      if (res.ok) return { ok: true };
+      if (res.status === 429) return { error: 'rate_limited' };
+      var data = await res.json().catch(function () { return {}; });
+      return { error: data.error_description || data.msg || data.error || ('HTTP ' + res.status) };
+    } catch (e) {
+      return { error: 'network' };
+    }
+  }
+
   function signOut() {
     try {
       ['fl_auth_token', 'fl_auth_refresh', 'fl_auth_exp', 'fl_auth_email']
@@ -104,6 +126,7 @@
 
   window.flAuth = {
     configured: configured, signIn: signIn, signOut: signOut, token: token, email: email,
+    requestPasswordReset: requestPasswordReset,
     refresh: refresh, needsRefresh: needsRefresh, expired: expired,
     mountReportButton: function () { _mountReportButton(); },   // callable after in-window login
   };
