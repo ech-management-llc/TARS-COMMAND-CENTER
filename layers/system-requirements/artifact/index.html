@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Requirements &amp; Connections — Foundation Layer</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .sr-note{font-size:12.5px;line-height:1.6}
+  .sr-tier{margin-top:16px}
+  .sr-tier-h{font-size:12px;font-weight:800;letter-spacing:.4px;color:var(--mut,#9aa3b2);margin:0 0 8px;text-transform:uppercase}
+  .sr-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line,#26243a)}
+  .sr-st{flex:0 0 auto;font-size:15px;width:20px;text-align:center;line-height:1.5}
+  .sr-main{flex:1;min-width:0}
+  .sr-nm{font-weight:700;font-size:13.5px}
+  .sr-for{font-size:12px;color:var(--dim,#8a8a93);margin-top:1px}
+  .sr-tags{flex:0 0 auto;display:flex;flex-direction:column;gap:3px;align-items:flex-end;font-size:10px}
+  .sr-badge{font-weight:800;border-radius:5px;padding:1px 7px;white-space:nowrap}
+  .sr-who-host{background:#1e293b;color:#93c5fd;border:1px solid #334155}
+  .sr-who-you{background:#0d1f16;color:#34d399;border:1px solid #1c4d3e}
+  .sr-req{color:var(--dim,#8a8a93)}
+  .sr-src{font-size:10px;color:#64748b;margin-top:3px}
+  .sr-callout{margin-top:16px;border:1px solid var(--yellowln,#caa53a);background:rgba(202,165,58,.08);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6}
+  .sr-legend{font-size:11px;color:var(--dim,#8a8a93);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🧩 System Requirements &amp; Connections</div>
+  <div class="preview-banner">
+    <b>Everything the system needs to run and stay accurate — so nobody spins this up thinking it's plug-and-play.</b>
+    <div class="sr-note" style="margin-top:6px">A regular user only connects <b>their own</b> business accounts (bank, documents, optional texts) — by clicking, never by code. The platform plumbing is the <b>host's</b> job, done once.</div>
+    <div class="sr-legend">Status: ✅ connected/live · 🟡 partial/sandbox · ⛔ not connected yet · ⚪ optional &nbsp;•&nbsp; <span id="sr-mode">checking live status…</span></div>
+  </div>
+  <div id="sr-body"></div>
+  <div class="sr-callout">
+    <b>⏳ External dates / gates (outside anyone's control)</b>
+    <div style="margin-top:5px">• <b>Plaid production</b> — real money stays in sandbox until <b>Nov 19, 2026</b>.</div>
+    <div>• <b>A2P 10DLC</b> — only if texting is turned on; carrier registration takes days-to-weeks.</div>
+  </div>
+  <div class="sr-callout" style="border-color:var(--purpleln,#5b4b8a);background:rgba(139,127,240,.08)">
+    <b>Model:</b> Foundation Layer is <b>hosted</b> — ECH runs one platform; users sign up and click-connect their own bank/documents. No code, no Fly/Supabase for them. The platform column below (Host) is stood up once and stays with the host.
+  </div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>FL_SYSTEM_REQUIREMENTS_MANIFEST.md</code>. Live checks run where the app can see status; everything else shows the manifest's stated status (labeled). No secrets are shown here.</div>
+</div>
+
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script>
+(function(){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  var ICON = { live:'✅', partial:'🟡', off:'⛔', optional:'⚪' };
+  // Baseline from the manifest; `check` keys get a best-effort live override below.
+  var TIERS = [
+    { tier:'Must-have — the system won’t run without these', items:[
+      { nm:'Supabase', fr:'Database + every login for the app', who:'Host', req:'required', status:'live', check:'supabase' },
+      { nm:'Fly.io', fr:'Hosting — runs the app + the AI advisor', who:'Host', req:'required', status:'live' },
+      { nm:'Domain + DNS', fr:'Web addresses for the app / API', who:'Host', req:'required', status:'live', check:'domain' },
+      { nm:'Anthropic API (Claude)', fr:'Powers TARS, the AI advisor', who:'Host', req:'required', status:'live' },
+      { nm:'GitHub', fr:'Where the code lives / deploys from', who:'Host', req:'required', status:'live' },
+      { nm:'Your bank (Plaid)', fr:'Real balances + transactions = financial truth', who:'You', req:'required', status:'partial', note:'sandbox — live money Nov 19', check:'plaid' },
+      { nm:'Your documents', fr:'Formation docs, tax returns, insurance, etc.', who:'You', req:'required', status:'off', check:'documents' }
+    ]},
+    { tier:'Full-function — needed for the whole product to work', items:[
+      { nm:'Email sender (Postmark or similar)', fr:'Sends login links, alerts, reports to users', who:'Host', req:'required', status:'off' },
+      { nm:'Market data feeds', fr:'Reventure · US Census · DealCheck · FRED — market/deal numbers', who:'Host', req:'required', status:'partial', note:'mixed / stub today' },
+      { nm:'Your rent data (RentRedi)', fr:'Rent roll, who’s paid / late', who:'You', req:'if you use RentRedi', status:'partial', note:'CSV import today' },
+      { nm:'Google Workspace (manager@)', fr:'Identity that gates the host tools', who:'Host', req:'required', status:'live' }
+    ]},
+    { tier:'Add-ons — optional', items:[
+      { nm:'Your phone (Twilio)', fr:'If you want TARS by text', who:'You', req:'optional', status:'optional', check:'twilio' },
+      { nm:'Password manager', fr:'Safe storage for the host’s keys/logins', who:'Host', req:'required', status:'partial', note:'host-owned' }
+    ]}
+  ];
+
+  function row(it){
+    var whoCls = it.who==='You' ? 'sr-who-you' : 'sr-who-host';
+    var srcTag = it._checked ? 'checked live' : 'per manifest';
+    return '<div class="sr-row"><div class="sr-st" title="'+esc(it.status)+'">'+(ICON[it.status]||'•')+'</div>'+
+      '<div class="sr-main"><div class="sr-nm">'+esc(it.nm)+'</div>'+
+        '<div class="sr-for">'+esc(it.fr)+(it.note?(' — <b>'+esc(it.note)+'</b>'):'')+'</div>'+
+        '<div class="sr-src">'+srcTag+'</div></div>'+
+      '<div class="sr-tags"><span class="sr-badge '+whoCls+'">'+esc(it.who)+'</span>'+
+        '<span class="sr-req">'+esc(it.req)+'</span></div></div>';
+  }
+  function render(){
+    document.getElementById('sr-body').innerHTML = TIERS.map(function(t){
+      return '<div class="sr-tier"><div class="sr-tier-h">'+esc(t.tier)+'</div>'+t.items.map(row).join('')+'</div>';
+    }).join('');
+  }
+  render();
+
+  // ── best-effort LIVE status checks (never throw; fall back to the manifest value) ──
+  function find(check){
+    for(var i=0;i<TIERS.length;i++){ var it=TIERS[i].items.filter(function(x){return x.check===check;})[0]; if(it) return it; }
+    return null;
+  }
+  function set(check, status, note){
+    var it=find(check); if(!it) return;
+    it.status=status; it._checked=true; if(note!=null) it.note=note;
+  }
+  var authed = !!(window.flApi && flApi.authed && flApi.authed());
+  document.getElementById('sr-mode').textContent = authed
+    ? 'live checks run against your account' : 'sign in for live status (showing manifest values)';
+
+  // Domain — checkable regardless of auth.
+  if(location.hostname==='tcc.echmanagement.services'){ set('domain','live'); }
+
+  var jobs=[];
+  // Supabase — a valid session proves DB + auth are live for you.
+  if(authed){ set('supabase','live'); }
+  // Plaid stage — from the tenant config (sandbox vs live).
+  jobs.push(fetch('../../../config/tenant.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;})
+    .then(function(cfg){ var st=cfg&&cfg.deploy&&cfg.deploy.plaid_stage;
+      if(st==='production'||st==='live'){ set('plaid','live','live money'); }
+      else if(st){ set('plaid','partial','sandbox — live money Nov 19'); } }).catch(function(){}));
+  if(authed && window.flDocuments){
+    // Documents — real storage is live if the store answers (Part C).
+    jobs.push(flDocuments.list().then(function(r){ if(r && (r.ok || r.status===200)) set('documents','live','real storage live'); }).catch(function(){}));
+  }
+  if(authed && window.flSms && flSms.getTelephony){
+    // Twilio — configured only if a telephony config comes back; else stays optional/off.
+    jobs.push(flSms.getTelephony().then(function(r){
+      if(r && r.ok && r.data && (r.data.account_sid || r.data.configured)) set('twilio','live','number configured');
+      else set('twilio','optional','not set up (optional)');
+    }).catch(function(){ set('twilio','optional','not set up (optional)'); }));
+  }
+  Promise.all(jobs).then(render).catch(render);
+})();
+</script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
+<script>try{ FLSettings.mount({tileId:'system-requirements'}); }catch(e){}</script>
+</body>
+</html>
