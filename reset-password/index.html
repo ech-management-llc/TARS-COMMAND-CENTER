@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Set your password — Foundation Layer</title>
+<style>
+  :root{ --bg:#0b0f17; --card:#121826; --line:#243049; --fg:#e5e7eb; --dim:#94a3b8;
+         --accent:#10b981; --err:#f87171; --ok:#34d399; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:20px}
+  .card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);
+        border-radius:14px;padding:26px 24px}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 18px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--dim);margin:14px 0 5px}
+  input{width:100%;background:#0f1520;border:1.5px solid var(--line);border-radius:8px;
+        padding:11px 12px;color:var(--fg);font-size:14px;font-family:inherit}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{width:100%;margin-top:18px;background:var(--accent);color:#04110b;border:none;
+         border-radius:8px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
+  button:disabled{opacity:.55;cursor:default}
+  .msg{font-size:13px;margin-top:14px;min-height:18px}
+  .err{color:var(--err);font-weight:600}.ok{color:var(--ok);font-weight:700}
+  a{color:var(--accent)}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔐 Set your password</h1>
+  <p class="sub" id="sub">Foundation Layer — choose a new password for your account.</p>
+
+  <div id="form-wrap">
+    <label for="pw">New password</label>
+    <input id="pw" type="password" autocomplete="new-password" placeholder="at least 8 characters">
+    <label for="pw2">Confirm password</label>
+    <input id="pw2" type="password" autocomplete="new-password" placeholder="re-enter it">
+    <button id="go" type="button">Set password</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div id="state" class="msg hide"></div>
+</div>
+
+<script>
+(function(){
+  // Public config (same publishable anon key the app ships — safe client-side).
+  var SUPA = { url:'https://vnsbmzbnvszgsibttkot.supabase.co',
+               anon:'sb_publishable_lAyX64SeqyQz8dyA25i91w_1jp7dxaL' };
+
+  function $(id){ return document.getElementById(id); }
+  function parseHash(){
+    var out = {}, h = (location.hash || '').replace(/^#/, '');
+    h.split('&').forEach(function(kv){ if(!kv) return; var i = kv.indexOf('=');
+      var k = i<0 ? kv : kv.slice(0,i), v = i<0 ? '' : kv.slice(i+1);
+      try{ out[decodeURIComponent(k)] = decodeURIComponent(v); }catch(e){ out[k]=v; } });
+    return out;
+  }
+
+  var p = parseHash();
+  // Scrub the token from the address bar immediately (no lingering token in history / referrer).
+  try{ history.replaceState(null, '', location.pathname); }catch(e){}
+
+  var token = p.access_token || '';
+  function showState(html){ $('form-wrap').classList.add('hide');
+    var s = $('state'); s.classList.remove('hide'); s.innerHTML = html; }
+
+  if(p.error || p.error_description){
+    showState('<span class="err">This link can\'t be used: ' +
+      (p.error_description || p.error).replace(/\+/g,' ') +
+      '</span><br><br>Password-reset links expire quickly and are single-use. ' +
+      'Ask your administrator for a fresh link.');
+    return;
+  }
+  if(!token || p.type !== 'recovery'){
+    showState('Open this page from the <b>password-reset link</b> in your email. ' +
+      '<br><br>If you typed the address directly, there is nothing to do here.');
+    return;
+  }
+
+  // Valid recovery session token present -> let them set a new password.
+  $('sub').textContent = 'Your reset link is valid. Choose a new password below.';
+  var go = $('go'), msg = $('msg');
+  function setMsg(cls, t){ msg.className = 'msg ' + cls; msg.innerHTML = t; }
+
+  go.addEventListener('click', function(){
+    var pw = $('pw').value || '', pw2 = $('pw2').value || '';
+    if(pw.length < 8){ setMsg('err', 'Password must be at least 8 characters.'); return; }
+    if(pw !== pw2){ setMsg('err', 'The two passwords do not match.'); return; }
+    go.disabled = true; setMsg('', 'Saving…');
+    // The recovery access_token authorizes exactly one thing: setting THIS account's password.
+    fetch(SUPA.url + '/auth/v1/user', {
+      method:'PUT',
+      headers:{ 'apikey':SUPA.anon, 'Authorization':'Bearer ' + token,
+                'Content-Type':'application/json' },
+      body: JSON.stringify({ password: pw })
+    }).then(function(r){
+      return r.json().then(function(b){ return { ok:r.ok, status:r.status, body:b }; })
+                     .catch(function(){ return { ok:r.ok, status:r.status, body:null }; });
+    }).then(function(res){
+      go.disabled = false;
+      if(res.ok){
+        showState('<span class="ok">✓ Password set.</span> You can now ' +
+          '<a href="/">sign in to the Command Center</a> with your new password.');
+        return;
+      }
+      var m = (res.body && (res.body.msg || res.body.error_description || res.body.error)) || '';
+      if(res.status === 401 || res.status === 403 || /expired|invalid/i.test(m)){
+        setMsg('err', 'This reset link has expired or was already used. Ask your administrator for a fresh one.');
+      } else {
+        setMsg('err', 'Could not set the password' + (res.status ? ' (HTTP ' + res.status + ')' : '') +
+          (m ? ': ' + m : '.') + ' Try again.');
+      }
+    }).catch(function(){
+      go.disabled = false;
+      setMsg('err', 'Network error reaching the auth service. Check your connection and retry.');
+    });
+  });
+  $('pw2').addEventListener('keydown', function(e){ if(e.key === 'Enter') go.click(); });
+})();
+</script>
+</body>
+</html>
