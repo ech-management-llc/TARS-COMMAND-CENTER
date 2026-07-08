@@ -901,8 +901,9 @@
 
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260707a"></script>
-<script src="../../../shared/fl-api.js?v=20260707a"></script>
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
 <script>
   // ── globals called from inline handlers ──
   function setMode(mode) {
@@ -922,6 +923,13 @@
   (function(){
     var AKEY='fl_analyzer_assumptions_v1', PIPE='fl_deal_pipeline_v1', RENO='fl_reno_estimate_v1';
     var DEAL_ID=null;  // server deal id carried from the Finder (set when signed in)
+    var DIRTY=false;   // user typed this session — never let async hydration clobber their input
+    var CREATING=false; // direct-entry deal creation fired (once per session)
+    // server-first read (Part B) with a stale-cache fallback to the legacy LS copy
+    function stateLoad(key, lsKey){
+      return (window.FLState ? FLState.load(key, lsKey)
+        : Promise.resolve({ value:(function(){ try{ return JSON.parse(localStorage.getItem(lsKey)); }catch(e){ return null; } })() }));
+    }
     // ECH defaults: 50% down lands on the LTV target by design; costs are East-TX class-B typical.
     var DEF={ price:95000, rehab:0, closingPct:3, market:null, replacement:null,
               rent:null, units:1, beds:'', baths:'', sqft:'',
@@ -949,7 +957,11 @@
       var o={}; for(var k in DEF){ o[k]=(s[k]!==undefined && s[k]!==null)?s[k]:DEF[k]; }
       return o;
     }
-    function save(){ try{ localStorage.setItem(AKEY, JSON.stringify(S)); }catch(e){} }
+    function save(){
+      // Part B: LS immediately + debounced server PUT when signed in; LS-only if the bridge is absent
+      if(window.FLState) FLState.save('analyzer_assumptions', AKEY, S);
+      else { try{ localStorage.setItem(AKEY, JSON.stringify(S)); }catch(e){} }
+    }
     function num(v){ if(v===null||v===undefined||v==='') return null; v=String(v).replace(/[^0-9.\-]/g,''); return v===''?null:Number(v); }
     function money(x){ if(!isFinite(x)) return '—'; return (x<0?'-$':'$')+Math.abs(Math.round(x)).toLocaleString(); }
     function M(ov){ var o={}; for(var k in S){ o[k]=S[k]; } for(var k2 in ov){ o[k2]=ov[k2]; } return o; }
@@ -1191,15 +1203,28 @@
         dscr:isFinite(c.dscr)?c.dscr:null, ltv:c.ltv, coc:isFinite(c.coc)?c.coc:null,
         verdict:v.kind, deal_id:DEAL_ID, at:new Date().toISOString()
       };
-      try{ localStorage.setItem('fl_deal_analysis_v1', JSON.stringify(rec)); }catch(e){}
+      // Part B: LS immediately + debounced server PUT when signed in; LS-only if the bridge is absent
+      if(window.FLState) FLState.save('deal_analysis', 'fl_deal_analysis_v1', rec);
+      else { try{ localStorage.setItem('fl_deal_analysis_v1', JSON.stringify(rec)); }catch(e){} }
       syncAnalysis(rec);  // debounced PATCH to /api/deals when signed in (else no-op)
     }
     var _syncT=null;
     function syncAnalysis(rec){
-      if(!(DEAL_ID && window.flDeals && window.flApi && flApi.authed())) return;
+      if(!(window.flDeals && window.flApi && flApi.authed())) return;
+      if(!DEAL_ID && !(DIRTY && rec.address && String(rec.address).trim())) return; // no carried deal + nothing user-entered -> nothing to persist
       if(_syncT) clearTimeout(_syncT);
       _syncT=setTimeout(function(){
-        flDeals.update(DEAL_ID, {analysis:rec, verdict:rec.verdict, stage:'analyzer'});
+        if(DEAL_ID){
+          flDeals.update(DEAL_ID, {analysis:rec, verdict:rec.verdict, stage:'analyzer'});
+        } else if(!CREATING){
+          // direct-entry deal (no Finder carry): create the server record once, then the debounced update sync applies
+          CREATING=true;
+          flDeals.create({address:String(rec.address).trim(), source:'analyzer', stage:'analyzer', buy_box:null})
+            .then(function(deal){
+              if(deal && deal.id){ DEAL_ID=deal.id; flDeals.update(DEAL_ID, {analysis:rec, verdict:rec.verdict, stage:'analyzer'}); }
+              else { CREATING=false; } // create failed -> allow a later retry
+            });
+        }
       }, 1200);
     }
 
@@ -1218,6 +1243,7 @@
           var k=e.target.getAttribute('data-key');
           var isNum=e.target.getAttribute('data-num');
           S[k]= isNum ? num(e.target.value) : e.target.value;
+          DIRTY=true;
           save(); render();
         });
       }
@@ -1232,13 +1258,14 @@
     }
 
     // ── carry-in ──
-    function applyFinderCarry(){
-      var pipe=null; try{ pipe=JSON.parse(localStorage.getItem(PIPE)); }catch(e){}
+    function applyFinderCarry(pipe){
       if(!pipe) return;
       DEAL_ID = pipe.deal_id || null;
-      if(pipe.price!=null) S.price=Number(pipe.price);
-      if(pipe.address) S.address=pipe.address;
-      if(pipe.source) S.source=pipe.source;
+      if(!DIRTY){
+        if(pipe.price!=null) S.price=Number(pipe.price);
+        if(pipe.address) S.address=pipe.address;
+        if(pipe.source) S.source=pipe.source;
+      }
       var bb=pipe.buybox||{};
       var parts=[]; if(pipe.address)parts.push(pipe.address); if(pipe.price!=null)parts.push(money(pipe.price)); if(pipe.source)parts.push(pipe.source);
       var box=[]; if(bb.where)box.push(bb.where); if(bb.target)box.push('target ≤ '+money(bb.target)); if(bb.cap)box.push('≥ '+bb.cap+'% cap');
@@ -1253,23 +1280,33 @@
         if(t&&w){ t.textContent=money(e.total)+' · '+e.label+' · '+e.property+' ('+(e.basis||'estimate')+', '+e.date+')'; w.style.display='block'; }
         save(); syncInputs(); render();
       }
-      var ov=null; try{ ov=JSON.parse(localStorage.getItem(RENO)); }catch(e){}
-      var active = ov && (ov.estimates||[]).filter(function(e){ return e.active; })[0];
-      if(active){ set(active); return; }
-      fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
-        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-        .then(function(d){ var es=d.estimates||[]; if(es.length) set(es[es.length-1]); })
-        .catch(function(){});
+      stateLoad('reno_estimates', RENO).then(function(r){
+        var ov=r?r.value:null;
+        var active = ov && (ov.estimates||[]).filter(function(e){ return e.active; })[0];
+        if(active){ set(active); return; }
+        fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
+          .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+          .then(function(d){ var es=d.estimates||[]; if(es.length) set(es[es.length-1]); })
+          .catch(function(){});
+      });
     }
 
-    // ── boot ──
-    applyFinderCarry();
-    if(S.rent==null && S.price) S.rent=Math.round(S.price*0.013); // ~1.3% rent-to-price: realistic for sub-$100K East-TX SFR; user overrides with actual rent
-    save();
+    // ── boot ── first paint from the LS cache in S, then async server-first hydration
+    // (assumptions -> pipeline carry -> reno carry); user keystrokes always win (DIRTY).
     syncInputs();
     bindInputs();
     render();
-    applyRenoCarry(); // async; re-renders when the estimate resolves
+    stateLoad('analyzer_assumptions', AKEY).then(function(r){
+      if(r && r.value && !DIRTY){ var s=r.value; for(var k in DEF){ if(s[k]!==undefined && s[k]!==null) S[k]=s[k]; } }
+      return stateLoad('deal_pipeline', PIPE);
+    }).then(function(r){
+      applyFinderCarry(r?r.value:null);
+      if(S.rent==null && S.price) S.rent=Math.round(S.price*0.013); // ~1.3% rent-to-price: realistic for sub-$100K East-TX SFR; user overrides with actual rent
+      save();
+      syncInputs();
+      render();
+      applyRenoCarry(); // async; re-renders when the estimate resolves
+    });
   })();
 </script>
 </body>

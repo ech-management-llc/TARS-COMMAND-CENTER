@@ -36,11 +36,17 @@
 
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
 <script>
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
 
-  // reno estimates from Build & Renovate land here as funding needs (shared estimate record)
+  // reno estimates from Build & Renovate land here as funding needs (shared estimate record) —
+  // read through FLState key 'reno_estimates' so a signed-in user sees the ACCOUNT copy
+  // (server /api/tile-state; localStorage fl_reno_estimate_v1 is the offline cache); signed out
+  // or FLState absent falls back to that cache, then to the labeled sample stub.
   (function(){
     function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
     function show(list){
@@ -51,11 +57,16 @@
       }).join(' · ')+' <button class="xref" type="button" onclick="flOpen(\'build-renovate\')" title="Open Build &amp; Renovate">Build &amp; Renovate</button>';
       el.style.display='block';
     }
-    var ov=null; try{ ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){}
-    if(ov&&(ov.estimates||[]).length){ show(ov.estimates); return; }
-    fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
-      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(d){ show(d.estimates); }).catch(function(){});
+    function lsRead(){ try{ return JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){ return null; } }
+    var loading = window.FLState
+      ? FLState.load('reno_estimates','fl_reno_estimate_v1').then(function(r){ return r.value; }).catch(lsRead)
+      : Promise.resolve(lsRead());
+    loading.then(function(ov){
+      if(ov&&(ov.estimates||[]).length){ show(ov.estimates); return; }
+      fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
+        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+        .then(function(d){ show(d.estimates); }).catch(function(){});
+    });
   })();
   // In-tile view config from the core: show/hide sections. Never touches data.
   function applyViewCfg(ops){
@@ -72,7 +83,7 @@
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>FLSettings.mount({tileId:'reserves-capex'});</script>
 </body>
 </html>

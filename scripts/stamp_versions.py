@@ -37,7 +37,7 @@ _VERSION_RE = re.compile(r"^[\w.\-]+$")
 
 
 def _includers() -> list[Path]:
-    files = [ROOT / "index.html"]
+    files = [ROOT / "index.html", ROOT / "onboarding" / "index.html"]
     files += sorted(ROOT.glob("layers/*/artifact/index.html"))
     return [f for f in files if f.exists()]
 

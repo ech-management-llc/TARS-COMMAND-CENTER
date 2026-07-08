@@ -91,8 +91,90 @@
   function call(method, path, body) { return authedCall(BASE, method, path, body); }
   function callX(method, path, body) { return authedCallX(BASE, method, path, body); }
 
+  // Multipart sibling of authedCallX for file uploads: same token/refresh seam, but the body is
+  // a FormData and NO Content-Type header is set (the browser writes the multipart boundary).
+  async function authedUploadX(path, formData) {
+    var t = token();
+    if (!t) return { ok: false, status: 0, data: null };
+    if (window.flAuth && flAuth.needsRefresh && flAuth.needsRefresh()) {
+      await flAuth.refresh();
+      t = token();
+      if (!t) return { ok: false, status: 0, data: null };
+    }
+    function doFetch(tok) {
+      return fetch(BASE + path, {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + tok }, body: formData,
+      });
+    }
+    try {
+      var res = await doFetch(t);
+      if (res.status === 401 && window.flAuth && flAuth.refresh) {
+        var ok = await flAuth.refresh();
+        if (ok) res = await doFetch(token());
+      }
+      var data = res.status === 204 ? {} : await res.json().catch(function () { return null; });
+      if (!res.ok) return { ok: false, status: res.status, data: data };
+      return { ok: true, status: res.status, data: data };
+    } catch (e) {
+      return { ok: false, status: 0, data: null };
+    }
+  }
+
   window.flApi = { base: BASE, token: token, authed: authed, authExpired: authExpired,
                    call: call, callX: callX };
+
+  // Documents — REAL server-side file storage (Real-Data Foundation Part C, TD-107 family).
+  // Files live in the private fl-documents bucket behind the FL API; these are the only paths
+  // to them. upload() takes a real File/Blob; downloadUrl() resolves a short-lived signed URL.
+  // All status-carrying ({ok, status, data}) so callers can be honest per-status.
+  window.flDocuments = {
+    list: function (filters) {
+      filters = filters || {};
+      var q = [];
+      if (filters.entity_code) q.push('entity_code=' + encodeURIComponent(filters.entity_code));
+      if (filters.kind) q.push('kind=' + encodeURIComponent(filters.kind));
+      return callX('GET', '/api/documents' + (q.length ? ('?' + q.join('&')) : ''));
+    },
+    upload: function (file, meta) {
+      meta = meta || {};
+      var fd = new FormData();
+      fd.append('file', file, file.name || 'document');
+      if (meta.kind) fd.append('kind', meta.kind);
+      if (meta.entity_code) fd.append('entity_code', meta.entity_code);
+      if (meta.notes) fd.append('notes', meta.notes);
+      return authedUploadX('/api/documents', fd);
+    },
+    downloadUrl: function (id) {
+      return callX('GET', '/api/documents/' + encodeURIComponent(id) + '/download');
+    },
+    del: function (id) { return callX('DELETE', '/api/documents/' + encodeURIComponent(id)); },
+  };
+
+  // Per-user tile working-state (Part B) — the server home for what used to be localStorage-only
+  // business state (buy box, analyzer assumptions, business plan, threshold knobs, jurisdiction).
+  // shared/fl-state.js wraps this with the localStorage-migration bridge most tiles use.
+  window.flTileState = {
+    list: function () { return call('GET', '/api/tile-state'); },
+    get: function (key) { return callX('GET', '/api/tile-state/' + encodeURIComponent(key)); },
+    put: function (key, state) {
+      return callX('PUT', '/api/tile-state/' + encodeURIComponent(key), { state: state });
+    },
+    // Best-effort PUT during pagehide/unload: keepalive so the browser does NOT cancel the request
+    // as the document tears down (a plain fetch is routinely killed, silently losing the last edit).
+    // Fire-and-forget; the caller has already written localStorage as the durable local copy.
+    putKeepalive: function (key, state) {
+      try {
+        var t = token();
+        if (!t) return;
+        fetch(BASE + '/api/tile-state/' + encodeURIComponent(key), {
+          method: 'PUT', keepalive: true,
+          headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: state }),
+        });
+      } catch (e) {}
+    },
+    del: function (key) { return callX('DELETE', '/api/tile-state/' + encodeURIComponent(key)); },
+  };
 
   // AI Agent Layer (Lane 4a) — the hosted TARS advisor (READ-ONLY). Calls the separate
   // fl-agent service with the same Supabase JWT (fl_auth_token). Returns the parsed

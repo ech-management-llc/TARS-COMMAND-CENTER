@@ -84,6 +84,7 @@
       <button class="df-btn ghost" id="df-manual-toggle" type="button">✍️ Enter a property manually →</button>
     </div>
     <div id="df-saved" style="font-size:11px;color:var(--dim);margin-top:8px"></div>
+    <div id="df-persist" style="font-size:11px;color:var(--dim);margin-top:4px"></div>
   </div>
 
   <!-- SCRAPE RESULT (honest stub) -->
@@ -140,6 +141,9 @@
   </div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
 <script>
   var BUYBOX_KEY='fl_buybox_v1', PIPE_KEY='fl_deal_pipeline_v1';
   var SOURCES=['MLS / IDX','Zillow','Realtor.com','Redfin','Facebook Marketplace','Craigslist','FSBO sites','Wholesaler lists','County / tax records','Auction sites'];
@@ -154,34 +158,50 @@
       baths:num($('df-baths').value), cap:num($('df-cap').value), kw:$('df-kw').value.trim(),
       fsbo:$('df-fsbo').checked };
   }
-  function saveBuyBox(){
-    var b=readBuyBox();
-    try{ localStorage.setItem(BUYBOX_KEY, JSON.stringify(b)); }catch(e){}
+  function showSavedBox(b){
     var bits=[]; if(b.target) bits.push('≤ $'+b.target.toLocaleString()); if(b.where) bits.push(b.where);
     if(b.beds) bits.push(b.beds+'+ bd'); if(b.cap) bits.push('≥ '+b.cap+'% cap');
     $('df-saved').textContent = bits.length ? 'Saved buy box: '+bits.join(' · ') : '';
   }
+  function saveBuyBox(){
+    var b=readBuyBox();
+    // Part B: LS immediately + debounced server PUT when signed in (FLState); LS-only if the bridge is absent (stale cache)
+    if(window.FLState) FLState.save('buybox', BUYBOX_KEY, b);
+    else { try{ localStorage.setItem(BUYBOX_KEY, JSON.stringify(b)); }catch(e){} }
+    showSavedBox(b);
+  }
   function loadBuyBox(){
-    var b=null; try{ b=JSON.parse(localStorage.getItem(BUYBOX_KEY)||'null'); }catch(e){}
-    if(!b) return;
-    if(b.target!=null)$('df-target').value=b.target; if(b.type)$('df-type').value=b.type;
-    if(b.where)$('df-where').value=b.where; if(b.min!=null)$('df-min').value=b.min;
-    if(b.max!=null)$('df-max').value=b.max; if(b.beds!=null)$('df-beds').value=b.beds;
-    if(b.baths!=null)$('df-baths').value=b.baths; if(b.cap!=null)$('df-cap').value=b.cap;
-    if(b.kw)$('df-kw').value=b.kw; if(b.fsbo===false)$('df-fsbo').checked=false;
-    saveBuyBox();
+    // server-first restore (async); legacy LS value migrates up once, signed-out stays local
+    (window.FLState ? FLState.load('buybox', BUYBOX_KEY)
+      : Promise.resolve({ value:(function(){ try{ return JSON.parse(localStorage.getItem(BUYBOX_KEY)||'null'); }catch(e){ return null; } })() })
+    ).then(function(r){
+      var b=r?r.value:null;
+      if(!b) return;
+      if(b.target!=null)$('df-target').value=b.target; if(b.type)$('df-type').value=b.type;
+      if(b.where)$('df-where').value=b.where; if(b.min!=null)$('df-min').value=b.min;
+      if(b.max!=null)$('df-max').value=b.max; if(b.beds!=null)$('df-beds').value=b.beds;
+      if(b.baths!=null)$('df-baths').value=b.baths; if(b.cap!=null)$('df-cap').value=b.cap;
+      if(b.kw)$('df-kw').value=b.kw; if(b.fsbo===false)$('df-fsbo').checked=false;
+      showSavedBox(readBuyBox());
+    });
+  }
+  // pipeline write (Part B): LS immediately + server PUT when signed in; flush() so the
+  // Analyzer (which reads server-first) sees it right away. LS-only if the bridge is absent.
+  function savePipe(pipe){
+    if(window.FLState){ FLState.save('deal_pipeline', PIPE_KEY, pipe); FLState.flush(); }
+    else { try{ localStorage.setItem(PIPE_KEY, JSON.stringify(pipe)); }catch(e){} }
   }
   // hand a property + the buy box to the Analyzer (+ persist a deal to the backend when signed in)
   function sendToAnalyzer(addr, price, src){
     var pipe={ address:addr||'', price:(price!=null?Number(price):null), source:src||'manual',
       buybox:readBuyBox(), at:new Date().toISOString() };
-    try{ localStorage.setItem(PIPE_KEY, JSON.stringify(pipe)); }catch(e){}
+    savePipe(pipe);
     // Persist to /api/deals when there's a session; otherwise localStorage-only (unchanged behavior).
     if(window.flDeals && window.flApi && flApi.authed()){
       var bb=Object.assign({}, pipe.buybox||{}, {price:pipe.price});
       flDeals.create({address:pipe.address, source:pipe.source, stage:'finder', buy_box:bb})
         .then(function(deal){
-          if(deal && deal.id){ pipe.deal_id=deal.id; try{ localStorage.setItem(PIPE_KEY, JSON.stringify(pipe)); }catch(e){} }
+          if(deal && deal.id){ pipe.deal_id=deal.id; savePipe(pipe); }
           flOpen('deal-analyzer');
         });
     } else {
@@ -223,6 +243,12 @@
 
   loadBuyBox();
 
+  // honest persistence label (Part B): present-tense (describes the behavior; not a claim that a
+  // specific save already completed — the PUT is debounced/fire-and-forget).
+  $('df-persist').textContent = (window.flApi && flApi.authed && flApi.authed())
+    ? 'Buy box saves to your account — follows you across browsers.'
+    : 'Buy box saved on this device — sign in to keep it.';
+
   // In-tile view config from the core: show/hide sections. Never touches data.
   var viewOps=[];
   function applyViewCfg(ops){
@@ -235,9 +261,7 @@
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-auth.js?v=20260707a"></script>
-<script src="../../../shared/fl-api.js?v=20260707a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>FLSettings.mount({tileId:'deal-finder'});</script>
 </body>
 </html>

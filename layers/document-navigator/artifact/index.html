@@ -27,8 +27,9 @@
       <input type="text" id="docsearch" placeholder="🔎 Search every document… (e.g. 415 Skiles lease)" style="flex:1;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 11px;font:inherit;font-size:12.5px">
     </div>
     <div id="nav-msg" class="small"></div>
+    <div id="navdrop" style="margin-bottom:10px"></div>
     <div id="fview"></div>
-    <div class="small dim" style="margin-top:8px">Folder counts = what the real vault holds; itemized rows are honest samples until vault wiring. Source chips open the tile each document came from.</div>
+    <div class="small dim" style="margin-top:8px" id="nav-foot">Signed in: counts and rows are exactly what your account holds (files store to private server storage). Signed out: labeled sample structure only. Source chips open the tile each document came from.</div>
   </div>
 
   <div class="card" data-view-section="one-truth">
@@ -39,14 +40,38 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Standalone public view — sample structure only, no credentials or personal data. Live vault indexing wires to your chosen store.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260707a"></script>
-<script src="../../../shared/fl-api.js?v=20260707a"></script>
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
+<script src="../../../shared/docdrop.js?v=20260708a"></script>
 <script>
-  // The indexed VIEW = data/STUB_DOCUMENTS.json (sample structure) + the doc-drop overlay
-  // (fl_documents_overlay_v1 breadcrumbs) + the REAL source-of-truth records from /api/admin-records
-  // (when signed in). Real records carry a Delete that calls the SAME DELETE /api/admin-records/{id}.
+  // The indexed VIEW (Real-Data Foundation Part C). SIGNED IN = REAL ONLY: files from
+  // GET /api/documents (private bucket; download = short-lived signed URL, delete = same API),
+  // name-only REFERENCE notes from the server 'docnav_notes' ledger, and the source-of-truth
+  // records/entities from /api/admin-records + /api/entities. A brand-new tenant honestly shows
+  // 0 files — no sample rows, no count_hint fiction. SIGNED OUT keeps the labeled sample
+  // structure (STUB_DOCUMENTS.json + the local overlay breadcrumbs) as the public demo view.
   var DOCKEY = 'fl_documents_overlay_v1';
-  var FOLDERS = [], DOCS = [], REAL = [], openF = null;
+  var FOLDERS = [], DOCS = [], REAL = [], NOTES = null, openF = null;
+  var AUTHED = false;
+
+  function kindOf(name){
+    return String(name||'general').toLowerCase().replace(/[^a-z0-9]+/g,'_')
+      .replace(/^_+|_+$/g,'').slice(0,40) || 'general';
+  }
+  // kind slug -> folder id (built from the folder structure; unknown kinds land in 'uploads')
+  var KIND2FOLDER = {};
+  function buildKindMap(){
+    KIND2FOLDER = {};
+    FOLDERS.forEach(function(f){ KIND2FOLDER[kindOf(f.name)] = f.id; });
+  }
+  function folderForKind(kind){
+    if(KIND2FOLDER[kind]) return KIND2FOLDER[kind];
+    if(!FOLDERS.some(function(f){ return f.id==='uploads'; })){
+      FOLDERS.push({ id:'uploads', name:'Uploads', icon:'📤', source_label:'file drops' });
+    }
+    return 'uploads';
+  }
 
   // kind -> [folder id, source tile] for the four source-of-truth record types (spine §2b).
   var KIND_FOLDER = [
@@ -87,15 +112,34 @@
     return flEntities.list().then(function(rows){ return (rows||[]).map(entityToDoc); }).catch(function(){ return []; });
   }
 
+  // Turn one /api/documents row into a doc entry (real FILE: gets Download + Delete).
+  function fileToDoc(d){
+    var kb = d.size_bytes ? Math.max(1, Math.round(d.size_bytes/1024)) : null;
+    return { name:d.name, folder:folderForKind(d.kind), source_tile:null, docId:d.id, real:true,
+      meta:'file'+(kb?(' · '+kb+' KB'):'')+' · '+String(d.uploaded_at||'').slice(0,10) };
+  }
+  function loadRealDocuments(){
+    if(!AUTHED || !window.flDocuments) return Promise.resolve([]);
+    // Return RAW rows here — fileToDoc()/folderForKind() must run AFTER FOLDERS + buildKindMap() are
+    // populated (in the boot aggregate .then), else every file mis-buckets to a non-existent
+    // 'uploads' folder and folders falsely read 0. Array-guard also survives an envelope response.
+    return flDocuments.list().then(function(r){
+      return (r && r.ok && Array.isArray(r.data)) ? r.data : [];
+    }).catch(function(){ return []; });
+  }
+
   function allDocs(){
-    // overlay docs name their folder by id OR display name — resolve both
+    // overlay/reference docs name their folder by id OR display name — resolve both
     var byName = {}; FOLDERS.forEach(function(f){ byName[f.name]=f.id; });
-    // TD-107 dedupe: a real record/entity suppresses its localStorage breadcrumb so folders don't
+    // TD-107 dedupe: a real record/entity suppresses its breadcrumb so folders don't
     // show phantom duplicates. Match on folder + name (case-insensitive). Real always wins.
     var realKeys = {};
     REAL.forEach(function(d){ realKeys[(d.folder||'')+'|'+String(d.name||'').trim().toLowerCase()] = true; });
-    var overlay = overlayDocs().map(function(d){
-      return { name:d.name, folder: byName[d.folder]||d.folder, meta:'added '+(d.added||'')+' · via '+(d.source_tile||'drop'), source_tile:d.source_tile };
+    // Signed in: references come from the SERVER docnav_notes ledger; signed out: local overlay.
+    var refs = AUTHED ? ((NOTES && NOTES.added) || []) : overlayDocs();
+    var overlay = refs.map(function(d){
+      return { name:d.name, folder: byName[d.folder]||d.folder, ref:true,
+        meta:'reference · '+(d.added||'')+' · via '+(d.source_tile||'drop'), source_tile:d.source_tile };
     }).filter(function(d){
       return !realKeys[(d.folder||'')+'|'+String(d.name||'').trim().toLowerCase()];
     });
@@ -113,30 +157,66 @@
     var q = document.getElementById('docsearch').value.trim().toLowerCase();
     if(q){ renderSearch(q); return; }
     document.getElementById('fview').innerHTML = '<div class="folderg">'+FOLDERS.map(function(f,i){
-      var n = Math.max(f.count_hint||0, docsIn(f.id).length);
+      // Signed in: the count is EXACTLY what's on file (0 = an honest zero). Signed out (public
+      // demo view): the sample count_hint survives, clearly framed by the standalone banner.
+      var n = AUTHED ? docsIn(f.id).length : Math.max(f.count_hint||0, docsIn(f.id).length);
       return '<div class="folder" onclick="openFolder('+i+')"><div class="fi">'+f.icon+'</div><div class="fn">'+esc(f.name)+'</div>'+
         '<div class="fc">'+n+' file'+(n===1?'':'s')+'</div><div style="margin-top:5px">'+srcChip(f.source_tile, f.source_label)+'</div></div>';
     }).join('')+'</div>';
+    mountDrop(null);
   }
 
   function docTile(d){
-    var del = '';
+    var del = '', dl = '';
     if(d.real && d.recordId) del = '<button class="rec-del-nav" type="button" data-del="'+esc(d.recordId)+'" title="Delete this record from your account">🗑 Delete</button>';
     else if(d.real && d.entityId) del = '<button class="rec-del-nav" type="button" data-del-entity="'+esc(d.entityId)+'" title="Soft-delete this entity">🗑 Delete</button>';
-    var badge = d.real ? '<span class="rec-badge">'+(d.entityId?'ENTITY':'RECORD')+'</span>' : '';
-    var foot = (d.source_tile||del) ? '<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+srcChip(d.source_tile)+del+'</div>' : '';
-    return '<div class="docit">📄 <b>'+esc(d.name)+'</b>'+badge+'<span class="dim">'+esc(d.meta||'')+'</span>'+foot+'</div>';
+    else if(d.real && d.docId){
+      dl = '<button class="rec-del-nav" style="background:#f0fdf4;border-color:#86efac;color:#16a34a" type="button" data-dl-doc="'+esc(d.docId)+'" title="Download (short-lived signed link)">⬇ Download</button>';
+      del = '<button class="rec-del-nav" type="button" data-del-doc="'+esc(d.docId)+'" title="Delete this file from storage">🗑 Delete</button>';
+    }
+    var badge = d.real ? '<span class="rec-badge">'+(d.entityId?'ENTITY':(d.docId?'FILE':'RECORD'))+'</span>' : '';
+    var foot = (d.source_tile||del||dl) ? '<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+srcChip(d.source_tile)+dl+del+'</div>' : '';
+    return '<div class="docit">'+(d.ref?'📝':'📄')+' <b>'+esc(d.name)+'</b>'+badge+'<span class="dim">'+esc(d.meta||'')+'</span>'+foot+'</div>';
   }
 
   function openFolder(i){
     openF = i; navMsg('');
     var f = FOLDERS[i], docs = docsIn(f.id);
-    var more = (f.count_hint||0) - docs.filter(function(d){ return DOCS.indexOf(d)>=0; }).length;
+    var more = AUTHED ? 0 : (f.count_hint||0) - docs.filter(function(d){ return DOCS.indexOf(d)>=0; }).length;
+    var empty = AUTHED ? 'No files here yet — drop one below and it stores to your account.'
+                       : 'No itemized files yet — drops from '+esc(f.source_label||'tiles')+' land here.';
     document.getElementById('fview').innerHTML =
       '<button class="fbtn" onclick="renderFolders()" style="margin-bottom:9px">← All folders</button> '+
       '<span class="small muted">'+f.icon+' <b>'+esc(f.name)+'</b> · from '+srcChip(f.source_tile, f.source_label)+'</span>'+
-      '<div class="docgrid" style="margin-top:9px">'+(docs.length?docs.map(docTile).join(''):'<div class="small dim">No itemized files yet — drops from '+esc(f.source_label||'tiles')+' land here.</div>')+'</div>'+
+      '<div class="docgrid" style="margin-top:9px">'+(docs.length?docs.map(docTile).join(''):'<div class="small dim">'+empty+'</div>')+'</div>'+
       (more>0?'<div class="small dim" style="margin-top:8px">+ '+more+' more in the vault — itemized rows land at vault wiring (honest sample).</div>':'');
+    mountDrop(f);
+  }
+
+  // In-place upload zone (signed in): files store under the open folder's kind, or 'general'
+  // from the all-folders view. Re-syncs the real list after every upload.
+  function mountDrop(folder){
+    var host = document.getElementById('navdrop');
+    if(!host) return;
+    if(!AUTHED || !window.FLDocDrop){ host.innerHTML=''; return; }
+    host.innerHTML = '';
+    FLDocDrop.mount(host, {
+      folder: folder ? folder.name : 'General',
+      source_tile: 'document-navigator',
+      label: folder ? ('Add to '+folder.name) : 'Drop files to store them',
+      sub: 'stored to your account (private, admin-visible)',
+      onAdd: function(){ reloadReal(); }
+    });
+  }
+  function reloadReal(){
+    Promise.all([loadRealRecords(), loadRealEntities(), loadRealDocuments(),
+                 (window.FLState ? FLState.load('docnav_notes', DOCKEY) : Promise.resolve({value:null}))])
+      .then(function(out){
+        // out[2] = RAW /api/documents rows; map here (FOLDERS + KIND2FOLDER already built at boot).
+        REAL = (out[0]||[]).concat(out[1]||[]).concat((out[2]||[]).map(fileToDoc));
+        NOTES = out[3] ? out[3].value : null;
+        if(openF!=null) openFolder(openF); else renderFolders();
+      });
   }
 
   function renderSearch(q){
@@ -180,11 +260,39 @@
     });
   }
 
+  // Download a real file: mint the short-lived signed URL, then open it (never a public link).
+  function dlDoc(id){
+    if(!id) return;
+    navMsg('<span class="dim">Preparing download…</span>');
+    flDocuments.downloadUrl(id).then(function(r){
+      if(!r || !r.ok){ navMsg('<span class="err">Download failed'+(r&&r.status?' (HTTP '+r.status+')':'')+' — try again shortly.</span>'); return; }
+      navMsg('');
+      window.open(r.data.url, '_blank', 'noopener');
+    });
+  }
+  // Delete a real file: removes the stored object + its row via DELETE /api/documents/{id}.
+  function delDoc(id){
+    if(!id) return;
+    if(!window.confirm('Delete this file from storage? This removes the stored file from your account — not just this view.')) return;
+    navMsg('<span class="dim">Deleting…</span>');
+    flDocuments.del(id).then(function(r){
+      if(!r || !r.ok){
+        navMsg('<span class="err">'+(r&&r.status===403?'Only the uploader or an admin can delete this file.':'Delete failed — nothing was removed; try again shortly.')+'</span>');
+        return;
+      }
+      REAL = REAL.filter(function(d){ return String(d.docId)!==String(id); });
+      if(openF!=null) openFolder(openF); else renderFolders();
+      navMsg('<span class="ok">✓ Deleted.</span> File removed from storage.');
+    });
+  }
+
   document.addEventListener('input', function(e){ if(e.target&&e.target.id==='docsearch') renderFolders(); });
   document.addEventListener('click', function(e){
     if(!e.target||!e.target.closest) return;
     var b=e.target.closest('[data-del]'); if(b){ e.preventDefault(); delRecord(b.getAttribute('data-del')); return; }
-    var be=e.target.closest('[data-del-entity]'); if(be){ e.preventDefault(); delEntity(be.getAttribute('data-del-entity')); }
+    var be=e.target.closest('[data-del-entity]'); if(be){ e.preventDefault(); delEntity(be.getAttribute('data-del-entity')); return; }
+    var bd=e.target.closest('[data-dl-doc]'); if(bd){ e.preventDefault(); dlDoc(bd.getAttribute('data-dl-doc')); return; }
+    var bx=e.target.closest('[data-del-doc]'); if(bx){ e.preventDefault(); delDoc(bx.getAttribute('data-del-doc')); }
   });
 
   // In-tile view config from the core: show/hide sections. Never touches data.
@@ -200,20 +308,31 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  // Boot: the sample index + the real records + real entities load together, so folder counts and
-  // the folder view reflect what's actually on file (when signed in). Unauthed -> REAL stays [].
+  // Boot (Part C): the folder STRUCTURE comes from the stub file, but a SIGNED-IN account shows
+  // ONLY what's really on file — real documents + reference notes + records + entities; the
+  // sample rows and count_hint fiction are suppressed so a fresh tenant reads an honest 0.
+  AUTHED = !!(window.flApi && flApi.authed && flApi.authed());
   Promise.all([
     fetch('../../../data/STUB_DOCUMENTS.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
     loadRealRecords(),
-    loadRealEntities()
+    loadRealEntities(),
+    loadRealDocuments(),
+    (AUTHED && window.FLState ? FLState.load('docnav_notes', DOCKEY) : Promise.resolve({value:null}))
   ]).then(function(out){
-    var d = out[0]; FOLDERS=d.folders||[]; DOCS=d.docs||[]; REAL=(out[1]||[]).concat(out[2]||[]);
+    var d = out[0]; FOLDERS=d.folders||[];
+    DOCS = AUTHED ? [] : (d.docs||[]);            // signed in -> samples suppressed, real only
+    buildKindMap();
+    // Now that FOLDERS + KIND2FOLDER exist, resolve each real document's folder (known kind -> its
+    // folder; unknown -> an 'Uploads' folder that now persists because FOLDERS is already assigned).
+    var realDocs = (out[3]||[]).map(fileToDoc);
+    REAL=(out[1]||[]).concat(out[2]||[]).concat(realDocs);
+    NOTES = out[4] ? out[4].value : null;
     if(!FOLDERS.length) throw 0;
     renderFolders();
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
   }).catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>FLSettings.mount({tileId:'document-navigator'});</script>
 </body>
 </html>

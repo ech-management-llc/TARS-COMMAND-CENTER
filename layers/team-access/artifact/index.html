@@ -22,7 +22,12 @@
   <div class="art-head">👥 Team &amp; Access</div>
 
   <div class="preview-banner" style="border-color:var(--yellowln,#caa53a)">
-    <b>⚠ FRONT-END SCOPING ONLY — this does NOT secure the app.</b> Granting here hides un-granted tiles in the UI; a determined user can unhide them. <b>Real access control is server-side</b> (Supabase row-level security + API authorization in Foundation Layer), and lands at the <b>auth phase</b>. Until then, do not treat anything here as locked. Grants persist to this browser (sample overlay) — no real accounts, emails, or texts are sent.
+    <b>⚠ FRONT-END SCOPING ONLY — this does NOT secure the app.</b> Granting here hides un-granted tiles in the UI; a determined user can unhide them. <b>Real access control is server-side</b> (Supabase row-level security + API authorization in Foundation Layer), and lands at the <b>auth phase</b>. Until then, do not treat anything here as locked. Grants here are scoping records — no real accounts, emails, or texts are sent.
+  </div>
+
+  <div class="preview-banner" style="border-color:var(--greenln,#1c4d3e)">
+    <b>💾 Roster record:</b> <span id="ta-persist">checking where this roster is saved…</span>
+    <b>Access enforcement (invites / sign-ins for these people) lands with the team-access build — an entry here is a record only and does not grant anyone access.</b>
   </div>
 
   <!-- ADD / CONFIGURE MEMBER ------------------------------------------------ -->
@@ -54,23 +59,51 @@
       <thead><tr><th>NAME</th><th>ROLE</th><th>CONTACTS</th><th>ACCESS</th><th>TARS</th><th></th></tr></thead>
       <tbody id="ta-team"></tbody>
     </table>
-    <div class="small dim" style="padding:8px 12px">Existing rows come from the shared connections record; new members save to this browser's team overlay (<code>fl_team_overlay_v1</code>) until the backend team table lands. Phone + email drive SMS dispatch (Rule 27), report email, and magic-link sign-in.</div>
+    <div class="small dim" style="padding:8px 12px">Existing rows come from the shared connections record; new members save to your <b>account's roster record</b> (server tile-state; this browser keeps an offline copy). Phone + email drive SMS dispatch (Rule 27), report email, and magic-link sign-in.</div>
   </div>
 
   <div class="wire-note" style="text-align:center;margin-top:14px">Roles + grants decide what the UI renders; <b>server-side authorization decides what's actually allowed</b> (auth phase). Per-tenant isolation + read-only-per-grant land with it.</div>
 </div>
 
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function telD(p){ var d=String(p==null?'':p).replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }
   // Consolidation section leads (matches consolidate.py). Layers carry section_lead; baseline is always granted.
   var SECTIONS=[['tars','Overview & Brief · TARS'],['portfolio','Portfolio · Reed'],['financials','Financials · Margo'],['market-deals','Market & Deals · Scout'],['operations','Build, Renovate & Maintenance · Jordan'],['legal','Legal · Dean'],['it','Website, IT & Marketing · Iris'],['admin','Admin · Quinn']];
   var BASELINE=['inbox','calendar'];
-  var LAYERS=[], BYSEC={}, OVERLAY=load(), CUR={sections:{}, tiles:{}};
+  var LAYERS=[], BYSEC={}, OVERLAY=load(), CUR={sections:{}, tiles:{}}, DIRTY=false;
 
   function load(){ try{ return JSON.parse(localStorage.getItem('fl_team_overlay_v1')||'null')||{members:[]}; }catch(e){ return {members:[]}; } }
-  function save(){ try{ localStorage.setItem('fl_team_overlay_v1', JSON.stringify(OVERLAY)); }catch(e){} }
+  // Real-Data Foundation Part B: the roster is a RECORD — server tile-state 'team_roster' is the
+  // home (survives browsers + cache clears), localStorage stays as the offline cache. Scoping is
+  // still front-end-only (the banner above stays true); persistence is what changed here.
+  function save(){
+    DIRTY = true;   // a local edit exists -> boot hydration must not clobber it (race guard)
+    try{ localStorage.setItem('fl_team_overlay_v1', JSON.stringify(OVERLAY)); }catch(e){}
+    if(window.FLState) FLState.save('team_roster', 'fl_team_overlay_v1', OVERLAY);
+    persistBadge();
+  }
+  function persistBadge(){
+    var el = document.getElementById('ta-persist'); if(!el) return;
+    var authed = !!(window.flApi && flApi.authed && flApi.authed());
+    el.innerHTML = authed
+      ? 'saved to your account (server roster record) — it follows you across browsers and cache clears.'
+      : 'saved on this device only — <b>sign in</b> and it will be stored to your account.';
+  }
+  // Boot hydration: prefer the server roster (migrates a legacy browser-only roster up once).
+  if (window.FLState){
+    FLState.load('team_roster', 'fl_team_overlay_v1').then(function(r){
+      if (!DIRTY && r.value && r.value.members){              // don't clobber an in-progress edit
+        OVERLAY = r.value;
+        if (LAYERS.length){ renderTeam(); renderPreview(); }   // layers already in -> repaint now
+      }
+      persistBadge();
+    });
+  } else { persistBadge(); }
 
   fetch('../../../config/layers.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
     LAYERS=(d&&d.layers)||[];

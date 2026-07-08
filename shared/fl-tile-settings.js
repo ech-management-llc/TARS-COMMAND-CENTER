@@ -19,7 +19,12 @@
    • Per-owner: ECH may manage for different owners, each with their own thresholds.
      Resolution order: per-owner localStorage answer -> file owner override -> tile default.
    • Employee-first: the tile's AI employee greets and asks; Manual form is the no-plug-in fallback.
-   • Honest stub: persists answers to localStorage per owner; backend replaces this at connector phase.
+   • SERVER-PERSISTED (Real-Data Foundation Part B): these knobs are REAL business rules
+     (covenant ceilings, approval thresholds), so for a signed-in user they live in
+     /api/tile-state under 'tile_settings::<tileId>' ({owners:{<owner>:{by,values,at}}}) and
+     survive browsers/cache clears; localStorage stays as the offline/signed-out cache and is
+     migrated up on first signed-in load (needs fl-auth.js + fl-api.js loaded first — degrades
+     to localStorage-only when they're absent).
    • Quote-safe: addEventListener + data-attributes — NO inline onclick / JSON.stringify (TD-096).
    ════════════════════════════════════════════════════════════════ */
 (function(){
@@ -93,6 +98,36 @@
     }
     var onChange= opts.onChange || function(){};
     var SETCFG=null, OWNER=null, EMP=true, MODE='guided';
+    var SRV=null;                                  // server copy: {owners:{<owner>:{by,values,at}}}
+
+    function srvKey(){ return 'tile_settings::'+tileId; }
+    function srvAuthed(){ return !!(window.flApi && flApi.authed && flApi.authed() && window.flTileState); }
+    function syncFromServer(){
+      // Server copy is authoritative for a signed-in user. Write-through into localStorage so the
+      // savedFor()/effective() reads keep working (LS = offline cache).
+      if(!srvAuthed()) return;
+      flTileState.get(srvKey()).then(function(r){
+        if(r && r.ok && r.data && r.data.state && r.data.state.owners){
+          SRV = r.data.state;
+          Object.keys(SRV.owners).forEach(function(o){
+            try{ localStorage.setItem(lsKey(o), JSON.stringify(SRV.owners[o])); }catch(e){}
+          });
+          renderSetbar(); onChange(effective(OWNER));
+        } else if(r && r.status === 404){
+          // No server row yet -> start EMPTY. We do NOT migrate stale localStorage thresholds up:
+          // that would repopulate a cleared/brand-new tenant with another context's covenant knobs.
+          // Only an explicit save() writes this tenant's server settings (Real-Data honest baseline).
+          SRV = { owners: {} };
+        }
+      });
+    }
+    function pushToServer(){
+      if(!srvAuthed()) return;
+      if(!SRV) SRV = { owners: {} };
+      var s = savedFor(OWNER);
+      if(s) SRV.owners[OWNER] = s; else delete SRV.owners[OWNER];
+      flTileState.put(srvKey(), SRV);
+    }
 
     function tileCfg(){ return (SETCFG && SETCFG.tiles && SETCFG.tiles[tileId]) || {params:[]}; }
     function params(){ return tileCfg().params || []; }
@@ -161,7 +196,7 @@
         return '<div class="fls-q"><label>'+prompt+unit+'</label><input class="fls-in" id="fls_set_'+esc(p.key)+'" type="number" value="'+esc(eff[p.key])+'"'+(p.min!=null?' min="'+p.min+'"':'')+(p.max!=null?' max="'+p.max+'"':'')+'></div>';
       }).join('');
       var note=guided
-        ? '<div class="fls-note">'+esc(e.name)+' writes your answers to this tile’s settings for '+esc(OWNER)+'. Change them anytime. (Saved on this device for now; syncs to your account when wired.)</div>'
+        ? '<div class="fls-note">'+esc(e.name)+' writes your answers to this tile’s settings for '+esc(OWNER)+'. Change them anytime. '+(srvAuthed()?'(Saved to your account — follows you across browsers.)':'(Saved on this device; sign in to save to your account.)')+'</div>'
         : '<div class="fls-note">Manual settings save to this tile for '+esc(OWNER)+'. '+(EMP?'Prefer questions? Switch to “Ask '+esc(e.name)+'.”':'The AI employee add-on can do this for you with a few questions.')+'</div>';
       var actions='<button class="fls-act" data-fls="save"><span class="ico">✅</span> Save settings</button>'+
         '<button class="fls-act" data-fls="defaults"><span class="ico">↩️</span> Use the defaults</button>';
@@ -187,9 +222,10 @@
     function saveSetup(){
       var vals={}; params().forEach(function(p){ var el=document.getElementById('fls_set_'+p.key); if(el){ var n=Number(el.value); vals[p.key]=isNaN(n)?p.default:n; } });
       try{ localStorage.setItem(lsKey(OWNER), JSON.stringify({by:(MODE==='guided'&&EMP)?emp().name:'manual', values:vals, at:new Date().toISOString()})); }catch(e){}
+      pushToServer();
       closeModal(); renderSetbar(); onChange(effective(OWNER));
     }
-    function useDefaults(){ try{ localStorage.removeItem(lsKey(OWNER)); }catch(e){} closeModal(); renderSetbar(); onChange(effective(OWNER)); }
+    function useDefaults(){ try{ localStorage.removeItem(lsKey(OWNER)); }catch(e){} pushToServer(); closeModal(); renderSetbar(); onChange(effective(OWNER)); }
 
     var ctrl = {
       get:     function(){ return effective(OWNER); },
@@ -204,6 +240,7 @@
       MODE = EMP ? 'guided' : 'manual';
       renderSetbar();
       onChange(effective(OWNER));                                   // initial effective params
+      syncFromServer();                                             // authoritative copy (Part B)
       if(opts.greet!==false && params().length && !configured(OWNER)) openSetup();  // employee greets first
       if(opts.onReady) opts.onReady(ctrl);
     });

@@ -5,8 +5,8 @@
 <script>
   /* Password-recovery redirect guard: Supabase's default Site URL redirect lands a recovery
      token on the site ROOT. Forward it (hash preserved) to the dedicated /reset-password/
-     handler before the app boots. Fires ONLY for an actual recovery hash and always targets one
-     fixed same-origin path, so it adds no open-redirect surface. */
+     handler before the app boots. Only fires for an actual recovery hash; never redirects on
+     any client-controlled query param, so it adds no open-redirect surface. */
   try {
     var _h = (location.hash || '').replace(/^#/, '');
     if (/(?:^|&)type=recovery(?:&|$)/.test(_h) && !/\/reset-password\/?$/.test(location.pathname)) {
@@ -108,12 +108,13 @@
 
 <!-- Supabase Auth: PUBLIC publishable (anon) key — safe to ship client-side (RLS + JWT verification enforce security). Disable public sign-ups in Supabase for a single-operator install. -->
 <script>window.FL_SUPABASE={url:'https://vnsbmzbnvszgsibttkot.supabase.co',anon:'sb_publishable_lAyX64SeqyQz8dyA25i91w_1jp7dxaL'};window.FL_API_BASE='https://api.foundationlayerhq.com';window.FL_AGENT_BASE='https://fl-agent.fly.dev';</script>
-<script src="shared/fl-auth.js?v=20260707a" defer></script>
-<script src="shared/fl-api.js?v=20260707a" defer></script>
-<script src="shared/fl-text-tars.js?v=20260707a" defer></script>
-<script src="agents.js?v=20260707a" defer></script>
-<script src="shared/fl-coach-companion.js?v=20260707a" defer></script>
-<script src="shared/fl-brief-router.js?v=20260707a" defer></script>
-<script src="app.js?v=20260707a" defer></script>
+<script src="shared/fl-auth.js?v=20260708a" defer></script>
+<script src="shared/fl-api.js?v=20260708a" defer></script>
+<script src="shared/fl-state.js?v=20260708a" defer></script>
+<script src="shared/fl-text-tars.js?v=20260708a" defer></script>
+<script src="agents.js?v=20260708a" defer></script>
+<script src="shared/fl-coach-companion.js?v=20260708a" defer></script>
+<script src="shared/fl-brief-router.js?v=20260708a" defer></script>
+<script src="app.js?v=20260708a" defer></script>
 </body>
 </html>

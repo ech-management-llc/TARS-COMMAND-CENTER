@@ -33,11 +33,17 @@
   </div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
 <script>
-  // toggle state overlays the stub via localStorage fl_connections_overlay_v1 {id:bool};
-  // the backend replaces the overlay with real connection state, same merge contract
+  // Toggle state overlays the stub via {id:bool}. Real-Data Foundation Part B: the overlay's
+  // home is server tile-state 'connections_overlay' (survives browsers + cache clears);
+  // localStorage stays as the offline cache. Real connector hookups still land later — this
+  // persists Jerry's connected/off record, it does not wire any integration.
   var OVKEY = 'fl_connections_overlay_v1';
   var DATA = null;
+  var DIRTY = false;   // a local toggle exists -> boot hydration must not clobber it (race guard)
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
@@ -89,7 +95,9 @@
     var ov = loadOv();
     var on = !el.classList.contains('on');
     ov[id] = on;
+    DIRTY = true;
     try{ localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){}
+    if(window.FLState) FLState.save('connections_overlay', OVKEY, ov);   // server record (Part B)
     el.classList.toggle('on', on);
     el.querySelector('.st2').textContent = on ? 'CONNECTED' : 'OFF';
   }
@@ -112,8 +120,18 @@
     .then(function(d){ DATA=d; render();
       try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){} })
     .catch(function(){ document.getElementById('conngrid').innerHTML='<div class="muted small">Awaiting connection record — shared source not reachable.</div>'; });
+  // Boot hydration: prefer the server overlay (migrates a legacy browser-only overlay up once),
+  // mirror it into the LS cache, and repaint if the stub data already rendered.
+  if (window.FLState){
+    FLState.load('connections_overlay', OVKEY).then(function(r){
+      if (!DIRTY && r.value){                                // don't clobber an in-progress toggle
+        try{ localStorage.setItem(OVKEY, JSON.stringify(r.value)); }catch(e){}
+        if (DATA) render();
+      }
+    });
+  }
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>FLSettings.mount({tileId:'connections'});</script>
 </body>
 </html>

@@ -41,10 +41,15 @@
   <div style="font-size:11px;color:var(--dim);margin-top:10px">Equity + values pull from Financial <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financials">Financials</button> and Lender; tax impact ties to Taxes. Recommendations are estimates — confirm with your team. Sample data.</div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
 <script>
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
 
-  // reno estimates from Build & Renovate inform ARV here (shared estimate record)
+  // reno estimates from Build & Renovate inform ARV here (shared estimate record). Real-Data
+  // Foundation Part B: read the SERVER copy (tile-state 'reno_estimates') so the carry survives
+  // browsers and cache clears; localStorage is only the offline cache, the stub only the demo.
   (function(){
     function esc2(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
     function show(list){
@@ -55,11 +60,22 @@
       }).join(' · ')+' <button class="xref" type="button" onclick="flOpen(\'build-renovate\')" title="Open Build &amp; Renovate">Build &amp; Renovate</button>';
       el.style.display='block';
     }
-    var ov=null; try{ ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){}
-    if(ov&&(ov.estimates||[]).length){ show(ov.estimates); return; }
-    fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
-      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(d){ show(d.estimates); }).catch(function(){});
+    function fallback(){
+      fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'})
+        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+        .then(function(d){ show(d.estimates); }).catch(function(){});
+    }
+    function pick(v){ return (v && (v.estimates||[]).length) ? v.estimates : null; }
+    if (window.FLState){
+      FLState.load('reno_estimates', 'fl_reno_estimate_v1').then(function(r){
+        var list = pick(r.value);
+        if (list) show(list); else fallback();
+      });
+    } else {
+      var ov=null; try{ ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){}
+      var list = pick(ov);
+      if (list) show(list); else fallback();
+    }
   })();
   // In-tile view config from the core: show/hide sections. Never touches data.
   var viewOps = [];
@@ -77,7 +93,7 @@
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>FLSettings.mount({tileId:'sell-exit'});</script>
 </body>
 </html>

@@ -83,9 +83,10 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260707a"></script>
-<script src="../../../shared/fl-api.js?v=20260707a"></script>
-<script src="../../../shared/fl-scope-select.js?v=20260707a"></script>
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
+<script src="../../../shared/fl-scope-select.js?v=20260708a"></script>
 <script>
   var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
   function scopedENTS(){ return SELE ? ENTS.filter(function(e){ return SELE.indexOf(e.id)>=0; }) : ENTS; }
@@ -392,7 +393,7 @@
 
   start();
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>try{ FLSettings.mount({tileId:'entities'}); }catch(e){}</script>
 </body>
 </html>
