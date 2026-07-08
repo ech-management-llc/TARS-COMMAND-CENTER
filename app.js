@@ -472,6 +472,7 @@ function renderLoginGate(){
       '<label>Password</label>'+
       '<input id="gate-pass" type="password" placeholder="••••••••" autocomplete="current-password">'+
       '<button class="gate-btn primary" type="button" id="gate-signin">Sign in</button>'+
+      (real ? '<button class="gate-link" type="button" id="gate-forgot" style="margin-top:4px">Forgot password?</button>' : '')+
       '<div class="gate-note" id="gate-err" style="display:none;color:var(--red)"></div>'+
       (real ? '<button class="gate-link" type="button" id="gate-create-toggle">Create an account ▾</button>'+
         '<div id="gate-create" style="display:none">'+
@@ -530,6 +531,7 @@ function renderLoginGate(){
     const email = (el.querySelector('#gate-email').value||'').trim();
     const pass = el.querySelector('#gate-pass').value||'';
     const err = el.querySelector('#gate-err');
+    err.style.color = 'var(--red)';   // a prior "Forgot password?"/demo note muted it; sign-in errors are red
     if(!email || !pass){ err.style.display='block'; err.textContent='Enter your email and password.'; return; }
     const btn = el.querySelector('#gate-signin'); btn.disabled=true; btn.textContent='Signing in…';
     const res = await flAuth.signIn(email, pass);
@@ -545,6 +547,27 @@ function renderLoginGate(){
     err.textContent = 'Auth not configured — use “Continue without an account (demo)”.';
   };
   el.querySelector('#gate-pass').addEventListener('keydown', e => { if (e.key==='Enter') signinBtn.click(); });
+
+  // "Forgot password?" — email a recovery link to the /reset-password/ handler. Enumeration-safe:
+  // GoTrue returns 200 whether or not the address has an account, and the confirmation below never
+  // confirms existence. Needs the email field filled (reuses it); focuses it if empty.
+  const forgotBtn = el.querySelector('#gate-forgot');
+  if (forgotBtn) forgotBtn.onclick = async () => {
+    const email = (el.querySelector('#gate-email').value||'').trim();
+    const err = el.querySelector('#gate-err'); err.style.display='block';
+    if(!email){ err.style.color='var(--mut)';
+      err.textContent='Enter your email above first — we’ll send a password-reset link there.';
+      el.querySelector('#gate-email').focus(); return; }
+    forgotBtn.disabled=true; const _t=forgotBtn.textContent; forgotBtn.textContent='Sending…';
+    const res = await flAuth.requestPasswordReset(email);
+    forgotBtn.disabled=false; forgotBtn.textContent=_t;
+    if(res && res.ok){ err.style.color='var(--mut)';
+      err.textContent='If an account exists for '+email+', a password-reset link is on its way. Check your email (and spam). If it doesn’t arrive in a few minutes, contact your administrator.';
+    } else if(res && res.error==='rate_limited'){ err.style.color='var(--red)';
+      err.textContent='Too many requests — wait a minute and try again.';
+    } else { err.style.color='var(--red)';
+      err.textContent='Couldn’t send a reset link just now. Try again in a moment.'; }
+  };
 
   // Create-account (access-code-gated → /api/signup). Reuses the email + password fields above and
   // adds the invitation code. On 201 it signs in through the SAME Supabase path (no token minted

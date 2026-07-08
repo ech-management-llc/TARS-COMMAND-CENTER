@@ -40,10 +40,10 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Standalone public view — sample structure only, no credentials or personal data. Live vault indexing wires to your chosen store.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260708a"></script>
-<script src="../../../shared/fl-api.js?v=20260708a"></script>
-<script src="../../../shared/fl-state.js?v=20260708a"></script>
-<script src="../../../shared/docdrop.js?v=20260708a"></script>
+<script src="../../../shared/fl-auth.js?v=20260708b"></script>
+<script src="../../../shared/fl-api.js?v=20260708b"></script>
+<script src="../../../shared/fl-state.js?v=20260708b"></script>
+<script src="../../../shared/docdrop.js?v=20260708b"></script>
 <script>
   // The indexed VIEW (Real-Data Foundation Part C). SIGNED IN = REAL ONLY: files from
   // GET /api/documents (private bucket; download = short-lived signed URL, delete = same API),
@@ -332,7 +332,7 @@
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
   }).catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708b"></script>
 <script>FLSettings.mount({tileId:'document-navigator'});</script>
 </body>
 </html>

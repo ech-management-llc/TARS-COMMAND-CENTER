@@ -3,13 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <script>
-  /* Password-recovery redirect guard: Supabase's default Site URL redirect lands a recovery
-     token on the site ROOT. Forward it (hash preserved) to the dedicated /reset-password/
-     handler before the app boots. Only fires for an actual recovery hash; never redirects on
-     any client-controlled query param, so it adds no open-redirect surface. */
+  /* Password-recovery redirect guard: Supabase's default Site URL redirect lands recovery
+     outcomes on the site ROOT as a URL hash. Forward them (hash preserved) to the dedicated
+     /reset-password/ handler before the app boots, so a recovery link — VALID or EXPIRED — never
+     dumps the user onto the board. Two cases:
+       • valid link  -> #access_token=…&type=recovery   (the reset form)
+       • dead link   -> #error=…&error_code=otp_expired… (the honest "expired, request a new one")
+     The dead-link hash carries NO type=recovery, so it needs its own match. The redirect target is
+     hard-coded (/reset-password/), never a client-supplied value, so this adds no open-redirect
+     surface; error_code= is a GoTrue-only param the app itself never routes on. */
   try {
     var _h = (location.hash || '').replace(/^#/, '');
-    if (/(?:^|&)type=recovery(?:&|$)/.test(_h) && !/\/reset-password\/?$/.test(location.pathname)) {
+    var _isRecovery = /(?:^|&)type=recovery(?:&|$)/.test(_h);
+    var _isAuthErr = /(?:^|&)error_code=/.test(_h) && /(?:^|&)error=/.test(_h);
+    if ((_isRecovery || _isAuthErr) && !/\/reset-password\/?$/.test(location.pathname)) {
       location.replace('/reset-password/' + location.hash);
     }
   } catch (e) {}
@@ -108,13 +115,13 @@
 
 <!-- Supabase Auth: PUBLIC publishable (anon) key — safe to ship client-side (RLS + JWT verification enforce security). Disable public sign-ups in Supabase for a single-operator install. -->
 <script>window.FL_SUPABASE={url:'https://vnsbmzbnvszgsibttkot.supabase.co',anon:'sb_publishable_lAyX64SeqyQz8dyA25i91w_1jp7dxaL'};window.FL_API_BASE='https://api.foundationlayerhq.com';window.FL_AGENT_BASE='https://fl-agent.fly.dev';</script>
-<script src="shared/fl-auth.js?v=20260708a" defer></script>
-<script src="shared/fl-api.js?v=20260708a" defer></script>
-<script src="shared/fl-state.js?v=20260708a" defer></script>
-<script src="shared/fl-text-tars.js?v=20260708a" defer></script>
-<script src="agents.js?v=20260708a" defer></script>
-<script src="shared/fl-coach-companion.js?v=20260708a" defer></script>
-<script src="shared/fl-brief-router.js?v=20260708a" defer></script>
-<script src="app.js?v=20260708a" defer></script>
+<script src="shared/fl-auth.js?v=20260708b" defer></script>
+<script src="shared/fl-api.js?v=20260708b" defer></script>
+<script src="shared/fl-state.js?v=20260708b" defer></script>
+<script src="shared/fl-text-tars.js?v=20260708b" defer></script>
+<script src="agents.js?v=20260708b" defer></script>
+<script src="shared/fl-coach-companion.js?v=20260708b" defer></script>
+<script src="shared/fl-brief-router.js?v=20260708b" defer></script>
+<script src="app.js?v=20260708b" defer></script>
 </body>
 </html>

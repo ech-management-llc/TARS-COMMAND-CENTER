@@ -67,17 +67,59 @@
   var token = p.access_token || '';
   function showState(html){ $('form-wrap').classList.add('hide');
     var s = $('state'); s.classList.remove('hide'); s.innerHTML = html; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
-  if(p.error || p.error_description){
-    showState('<span class="err">This link can\'t be used: ' +
-      (p.error_description || p.error).replace(/\+/g,' ') +
-      '</span><br><br>Password-reset links expire quickly and are single-use. ' +
-      'Ask your administrator for a fresh link.');
+  // Self-service "request a fresh link" — shown for every dead end (expired / used / invalid link,
+  // or a direct visit). Emails a new recovery link that lands right back on this handler. It is
+  // enumeration-safe: GoTrue returns 200 whether or not the address has an account, and the
+  // confirmation below never confirms existence.
+  function showRequestForm(prefaceHtml){
+    $('sub').textContent = 'Request a password-reset link.';
+    showState(
+      (prefaceHtml ? '<div style="margin-bottom:14px">' + prefaceHtml + '</div>' : '') +
+      '<label for="rq-email">Email</label>' +
+      '<input id="rq-email" type="email" autocomplete="username" placeholder="you@company.com" ' +
+        'style="width:100%;box-sizing:border-box;background:#0f1520;border:1.5px solid var(--line);' +
+        'border-radius:8px;padding:11px 12px;color:var(--fg);font-size:14px">' +
+      '<button id="rq-go" type="button" style="width:100%;margin-top:14px;background:var(--accent);' +
+        'color:#04110b;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:800;' +
+        'cursor:pointer">Email me a reset link</button>' +
+      '<div class="msg" id="rq-msg"></div>');
+    var go = $('rq-go'), msg = $('rq-msg'), input = $('rq-email');
+    function setMsg(cls, t){ msg.className = 'msg ' + cls; msg.innerHTML = t; }
+    go.addEventListener('click', function(){
+      var em = (input.value || '').trim();
+      if(em.indexOf('@') < 1){ setMsg('err', 'Enter your email address.'); return; }
+      go.disabled = true; setMsg('', 'Sending…');
+      fetch(SUPA.url + '/auth/v1/recover?redirect_to=' +
+            encodeURIComponent(location.origin + '/reset-password/'), {
+        method:'POST',
+        headers:{ 'apikey':SUPA.anon, 'Content-Type':'application/json' },
+        body: JSON.stringify({ email: em })
+      }).then(function(r){
+        go.disabled = false;
+        if(r.status === 429){ setMsg('err', 'Too many requests — wait a minute and try again.'); return; }
+        setMsg('ok', 'If an account exists for ' + esc(em) + ', a fresh reset link is on its way. ' +
+          'Check your email (and spam). If it doesn’t arrive in a few minutes, contact your administrator.');
+      }).catch(function(){
+        go.disabled = false;
+        setMsg('err', 'Network error reaching the auth service. Try again.');
+      });
+    });
+    input.addEventListener('keydown', function(e){ if(e.key === 'Enter') go.click(); });
+  }
+
+  if(p.error || p.error_description || p.error_code){
+    // Deliberately do NOT echo the raw error_description — it comes from the URL hash and is
+    // attacker-controllable, so rendering it into innerHTML would be a reflected-XSS sink. A fixed
+    // message is safer and clearer, and routes straight into self-service recovery.
+    showRequestForm('<span class="err">This reset link has expired or was already used.</span> ' +
+      'Links are single-use and expire quickly — request a fresh one:');
     return;
   }
   if(!token || p.type !== 'recovery'){
-    showState('Open this page from the <b>password-reset link</b> in your email. ' +
-      '<br><br>If you typed the address directly, there is nothing to do here.');
+    showRequestForm('To reset your password, request a link below and we’ll email you one:');
     return;
   }
 
@@ -109,7 +151,8 @@
       }
       var m = (res.body && (res.body.msg || res.body.error_description || res.body.error)) || '';
       if(res.status === 401 || res.status === 403 || /expired|invalid/i.test(m)){
-        setMsg('err', 'This reset link has expired or was already used. Ask your administrator for a fresh one.');
+        showRequestForm('<span class="err">This reset link has expired or was already used.</span> ' +
+          'Request a fresh one:');
       } else {
         setMsg('err', 'Could not set the password' + (res.status ? ' (HTTP ' + res.status + ')' : '') +
           (m ? ': ' + m : '.') + ' Try again.');
