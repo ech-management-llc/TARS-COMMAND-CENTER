@@ -78,7 +78,7 @@
 <div class="header">
   <div>
     <h1>📐 Deal Decider</h1>
-    <div class="sub">Auto-underwrite against Capital Rules · Saves last deal in browser</div>
+    <div class="sub" id="hdr-sub">Auto-underwrite against Capital Rules · Saves last deal in browser</div>
   </div>
   <div class="header-actions">
     <button class="btn-mini" onclick="exportMarkdown()">Export .md</button>
@@ -248,11 +248,14 @@
   Deal Decider · Capital Rules sourced from <code>MEGA_BRAIN/04_PORTFOLIO_LEVEL_REPORTING/04_CAPITAL_PLANNING/CAPITAL-RULES.md</code> · Built 2026-05-05 by TARS
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260707a"></script>
-<script src="../../../shared/fl-api.js?v=20260707a"></script>
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
 <script>
 const FIELDS = ['title','entity','type','units','year-built','asking','purchase','market-value','closing','rehab','reserves','down','loan','rents','vacancy','opex','debt','liq-current','liq-out','notes'];
 const STORAGE_KEY = 'ech-deal-screener-v1';
+var DIRTY = false;    // user typed this session — async hydration must never clobber their input
+var HYDRATED = false; // gate server writes until the server draft has been consulted (avoids clobbering it with a stale LS cache)
 
 function fmtMoney(n) {
   if (!isFinite(n) || n === null) return '—';
@@ -456,7 +459,10 @@ function saveState() {
   const state = {};
   FIELDS.forEach(f => { const el = document.getElementById(f); if (el) state[f] = el.value; });
   state._saved = new Date().toISOString();
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  // Part B: LS immediately + debounced server PUT when signed in (FLState); LS-only until the
+  // boot hydration has consulted the server draft, or if the bridge is absent (stale cache).
+  if (HYDRATED && window.FLState) FLState.save('screener_draft', STORAGE_KEY, state);
+  else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {} }
 }
 
 function loadState() {
@@ -631,9 +637,30 @@ function renderTakeoff(){
 // Wire up
 loadState();
 var __hadSavedDeal=false; try{ __hadSavedDeal=!!localStorage.getItem(STORAGE_KEY); }catch(e){} // capture BEFORE compute() saves
-FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEventListener('input', compute); el && el.addEventListener('change', compute); });
+function onEdit(){ DIRTY=true; compute(); }
+FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEventListener('input', onEdit); el && el.addEventListener('change', onEdit); });
 var __takeoffGo=document.getElementById('takeoff-go'); if(__takeoffGo) __takeoffGo.addEventListener('click', runTakeoff);
 compute();
+
+// Part B: server-first draft hydration. The synchronous loadState() above painted the LS cache;
+// the server copy (key 'screener_draft') wins over it unless the user has already typed.
+// Signed-out / API-down keeps the LS copy; a legacy LS draft migrates up exactly once.
+(window.FLState ? FLState.load('screener_draft', STORAGE_KEY) : Promise.resolve({value:null, source:'none'}))
+  .then(function(r){
+    if (r && r.value) {
+      __hadSavedDeal = true; // a draft exists somewhere — don't let the analyzer carry clobber it
+      if (r.source === 'server' && !DIRTY) {
+        const state = r.value;
+        FIELDS.forEach(f => { const el = document.getElementById(f); if (el && state[f] !== undefined) el.value = state[f]; });
+      }
+    }
+    HYDRATED = true;
+    var sub = document.getElementById('hdr-sub');
+    if (sub) sub.textContent = 'Auto-underwrite against Capital Rules · ' +
+      ((window.flApi && flApi.authed && flApi.authed()) ? 'Draft saved to your account' : 'Draft saved on this device — sign in to keep it');
+    compute();
+    analyzerCarry();
+  });
 
 // --- Backend sync: PATCH the decision to /api/deals when signed in (else no-op) ---
 var DEAL_ID=null, _decT=null;
@@ -668,7 +695,7 @@ function applyAnalysis(a){
   set('liq-out', a.cashIn!=null?Math.round(a.cashIn):null);
   compute();
 }
-(function analyzerCarry(){
+function analyzerCarry(){
   var a=null; try{ a=JSON.parse(localStorage.getItem('fl_deal_analysis_v1')); }catch(e){}
   if(!a) return;
   DEAL_ID = a.deal_id || null;
@@ -681,8 +708,8 @@ function applyAnalysis(a){
   }
   var btn=document.getElementById('analyzer-carry-load');
   if(btn) btn.addEventListener('click', function(){ applyAnalysis(a); });
-  if(!__hadSavedDeal) applyAnalysis(a); // first visit (no saved deal) with a carried analysis -> load it automatically
-})();
+  if(!__hadSavedDeal) applyAnalysis(a); // first visit (no saved deal anywhere) with a carried analysis -> load it automatically
+}
 </script>
 </body>
 </html>

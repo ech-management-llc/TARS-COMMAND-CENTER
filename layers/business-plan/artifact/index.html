@@ -34,6 +34,7 @@
         <button type="button" data-mode="auto" class="on">🔄 Employee (auto-updates)</button>
         <button type="button" data-mode="manual">✍️ Manual (you keep it current)</button>
       </span>
+      <span class="bp-src" id="bp-persist" style="margin-left:auto"></span>
     </div>
     <div id="bp-mode-note" style="font-size:11.5px;color:var(--dim);margin-top:6px"></div>
     <div class="row-sb" style="margin-top:10px">
@@ -49,9 +50,13 @@
   </div>
 </div>
 
+<script src="../../../shared/fl-auth.js?v=20260708a"></script>
+<script src="../../../shared/fl-api.js?v=20260708a"></script>
+<script src="../../../shared/fl-state.js?v=20260708a"></script>
 <script>
-  var MODE_KEY='fl_bizplan_mode', PLAN_KEY='fl_business_plan_v1';
+  var MODE_KEY='fl_bizplan_mode', PLAN_KEY='fl_business_plan_v1', STATE_KEY='business_plan';
   function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
 
   // section model: id, title, the live source the employee syncs from, a sample auto line, manual placeholder
@@ -66,12 +71,53 @@
     ['risks','Risks & Mitigants','Risk Watchlist','Key risks (rate, vacancy, capex, concentration) and how each is mitigated + the reserve floor.','The honest risks and how you protect against each.']
   ];
 
-  function mode(){ try{ return localStorage.getItem(MODE_KEY)||'auto'; }catch(e){ return 'auto'; } }
-  function plan(){ try{ return JSON.parse(localStorage.getItem(PLAN_KEY)||'{}'); }catch(e){ return {}; } }
-  function savePlanField(id,val){ var p=plan(); p[id]=val; try{ localStorage.setItem(PLAN_KEY, JSON.stringify(p)); }catch(e){} }
+  // ── state: one {mode, sections:{...}} object — server-first via FLState key 'business_plan',
+  //    localStorage PLAN_KEY as the instant first paint + offline cache. Legacy shapes (flat
+  //    {sectionId:text} plan, separate MODE_KEY) normalize in; MODE_KEY is read once only when
+  //    the loaded state carries no mode of its own.
+  function lsPlan(){ try{ return JSON.parse(localStorage.getItem(PLAN_KEY)||'null'); }catch(e){ return null; } }
+  function normalize(v){
+    var st={ mode:null, sections:{} };
+    if(v && typeof v==='object'){
+      if(v.sections && typeof v.sections==='object'){
+        st.sections=v.sections;
+        if(v.mode==='auto'||v.mode==='manual') st.mode=v.mode;
+      } else {
+        // legacy flat plan {sectionId:text}
+        SECTIONS.forEach(function(s){ if(typeof v[s[0]]==='string') st.sections[s[0]]=v[s[0]]; });
+      }
+    }
+    if(st.mode==null){
+      var m=null; try{ m=localStorage.getItem(MODE_KEY); }catch(e){}
+      st.mode=(m==='auto'||m==='manual')?m:'auto';
+    }
+    return st;
+  }
+  var ST = normalize(lsPlan());
+  function saveState(){
+    if(window.FLState && FLState.save){ FLState.save(STATE_KEY, PLAN_KEY, ST); }        // LS now + debounced server PUT
+    else { try{ localStorage.setItem(PLAN_KEY, JSON.stringify(ST)); }catch(e){} }        // stale-cached fl-api: pure-LS fallback
+  }
+
+  function updateBadge(source){
+    var el=$('bp-persist'); if(!el) return;
+    var canServer = !!(window.flApi && flApi.authed && flApi.authed() && window.FLState);
+    // Only claim a completed server save on an actual server ack. Signed-in-but-nothing-saved
+    // ('none') describes the behavior honestly, not a save that didn't happen.
+    if (source === 'server'){
+      el.textContent = '✓ saved to your account — follows you across browsers';
+      el.style.color = 'var(--ok,#4ade80)';
+    } else if (canServer){
+      el.textContent = 'signed in — your edits save to your account automatically';
+      el.style.color = 'var(--mut,#9aa3b2)';
+    } else {
+      el.textContent = 'saved on this device only — sign in to keep your plan';
+      el.style.color = 'var(--mut,#9aa3b2)';
+    }
+  }
 
   function render(){
-    var m=mode(), p=plan();
+    var m=ST.mode, p=ST.sections;
     // segment active state
     $('bp-seg').querySelectorAll('[data-mode]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')===m); });
     $('bp-mode-note').innerHTML = (m==='auto')
@@ -84,8 +130,8 @@
       if(m==='auto'){
         body = '<div class="bp-auto">'+auto+' <span style="color:var(--dim);font-size:11px">— auto-synced (sample)</span></div>';
       } else {
-        var val=(p[id]!=null?p[id]:'');
-        body = '<textarea class="bp-ta" rows="3" data-sec="'+id+'" placeholder="'+ph.replace(/"/g,'&quot;')+'">'+(val.replace(/</g,'&lt;'))+'</textarea>';
+        var val=(p[id]!=null?String(p[id]):'');
+        body = '<textarea class="bp-ta" rows="3" data-sec="'+id+'" placeholder="'+esc(ph)+'">'+esc(val)+'</textarea>';
       }
       return '<div class="card bp-sec"><div class="bp-h"><span class="bp-t">'+title+'</span>'+
              (m==='auto'?'<span class="bp-src">🔄 '+src+'</span>':'<span class="bp-src">✍️ manual</span>')+'</div>'+body+'</div>';
@@ -93,31 +139,42 @@
     $('bp-body').innerHTML = html;
     if(m==='manual'){
       $('bp-body').querySelectorAll('textarea[data-sec]').forEach(function(ta){
-        ta.addEventListener('input', function(){ savePlanField(ta.getAttribute('data-sec'), ta.value); });
+        ta.addEventListener('input', function(){ ST.sections[ta.getAttribute('data-sec')]=ta.value; saveState(); });
       });
     }
   }
 
   $('bp-seg').querySelectorAll('[data-mode]').forEach(function(b){
-    b.addEventListener('click', function(){ try{ localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); }catch(e){} render(); });
+    b.addEventListener('click', function(){ ST.mode=b.getAttribute('data-mode'); saveState(); render(); });
   });
   $('bp-resync').addEventListener('click', function(){
     $('bp-mode-note').innerHTML='<b>Re-synced (sample).</b> In production Quinn re-pulls each section from its source tile; here it confirms the wiring without inventing live numbers.';
   });
   $('bp-to-lender').addEventListener('click', function(){
-    // ensure the current plan is saved so the Lender Packet can attach it, then open the packet
-    var p=plan(); try{ localStorage.setItem(PLAN_KEY, JSON.stringify(p)); }catch(e){}
+    // ensure the current plan is saved (LS immediately; force the pending server PUT) so the Lender Packet can attach it
+    saveState();
+    if(window.FLState && FLState.flush) FLState.flush();
     flOpen('lender-packet');
   });
 
-  render();
+  render();               // instant first paint from the localStorage cache
+  updateBadge('local');   // honest until the server answers
+  if(window.FLState && FLState.load){
+    FLState.load(STATE_KEY, PLAN_KEY).then(function(r){
+      var hadNewShape = !!(r.value && typeof r.value==='object' && r.value.sections);
+      ST = normalize(r.value!=null ? r.value : ST);
+      if(r.value!=null && !hadNewShape) saveState();  // one-time shape+mode migration made durable
+      render();
+      updateBadge(r.source);
+    }).catch(function(){ updateBadge('local'); });
+  }
 
   // In-tile view config from the core: show/hide sections. Never touches data.
   window.addEventListener('message', function(e){ var d=e.data||{};
     if(d&&d.type==='tcc:viewcfg'){ /* whole-tile sections are dynamic; view-config is a no-op here */ } });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260707a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260708a"></script>
 <script>FLSettings.mount({tileId:'business-plan'});</script>
 </body>
 </html>

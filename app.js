@@ -165,14 +165,31 @@ function activateArea(g){ setAreaActiveFlag(g,true); refreshBoard(); }
 function hireArea(g,val){ setAreaHireFlag(g,val); refreshBoard(); }
 function completeSetup(){ try{ localStorage.setItem('fl_setup_complete','true'); }catch(e){} refreshBoard(); }
 
-// Files gathered setup info into Administration → Document Navigator (the canonical record), via the
-// same fl_documents_overlay_v1 overlay every tile's file-drop uses — so it's genuinely retrievable.
+// Files gathered setup info into Administration → Document Navigator (the canonical record).
+// These are NAME-ONLY reference notes (no file bytes). Real-Data Foundation Part B/C: for a
+// signed-in user they persist to the server 'docnav_notes' tile-state ledger (survives browsers
+// and cache clears, admin-visible); the fl_documents_overlay_v1 localStorage write remains as
+// the offline cache + signed-out fallback. Real FILES go through FLDocDrop -> /api/documents.
 function fileToDocNav(name, folder, sourceTile){
+  var entry = { name:name, folder:folder||'entity', source_tile:sourceTile||'document-navigator',
+                added:(new Date()).toISOString().slice(0,10) };
   try {
     var ov = JSON.parse(localStorage.getItem('fl_documents_overlay_v1')||'{"added":[]}');
     if (!ov.added) ov.added = [];
-    ov.added.push({ name:name, folder:folder||'entity', source_tile:sourceTile||'document-navigator', added:(new Date()).toISOString().slice(0,10) });
+    ov.added.push(entry);
     localStorage.setItem('fl_documents_overlay_v1', JSON.stringify(ov));
+  } catch(e){}
+  try {
+    if (window.FLState && window.flApi && flApi.authed()){
+      FLState.load('docnav_notes', 'fl_documents_overlay_v1').then(function(r){
+        var v = r.value || {added:[]};
+        if (!v.added) v.added = [];
+        var dup = v.added.some(function(d){ return d.name===entry.name && d.folder===entry.folder &&
+                                                   d.source_tile===entry.source_tile && d.added===entry.added; });
+        if (!dup) v.added.push(entry);
+        FLState.save('docnav_notes', 'fl_documents_overlay_v1', v);
+      });
+    }
   } catch(e){}
 }
 
