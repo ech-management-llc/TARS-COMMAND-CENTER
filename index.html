@@ -2,6 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+  /* Password-recovery redirect guard: Supabase's default Site URL redirect lands a recovery
+     token on the site ROOT. Forward it (hash preserved) to the dedicated /reset-password/
+     handler before the app boots. Fires ONLY for an actual recovery hash and always targets one
+     fixed same-origin path, so it adds no open-redirect surface. */
+  try {
+    var _h = (location.hash || '').replace(/^#/, '');
+    if (/(?:^|&)type=recovery(?:&|$)/.test(_h) && !/\/reset-password\/?$/.test(location.pathname)) {
+      location.replace('/reset-password/' + location.hash);
+    }
+  } catch (e) {}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a0b">
 <meta name="description" content="Foundation Layer — Command Center (FL CC). A tile-based real-estate operations command center.">
