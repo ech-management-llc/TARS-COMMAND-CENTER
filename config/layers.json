@@ -998,6 +998,31 @@
       "section_lead": "admin"
     },
     {
+      "id": "system-requirements",
+      "title": "System Requirements & Connections",
+      "icon": "🧩",
+      "desc": "what must be connected",
+      "group": "admin",
+      "tier": "L1",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/system-requirements/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "What still needs to be connected?",
+        "Is the bank live or still sandbox?"
+      ],
+      "section_lead": "admin"
+    },
+    {
       "id": "personal-information",
       "title": "Personal Information",
       "icon": "👤",
