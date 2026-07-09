@@ -314,6 +314,9 @@
   // No localStorage fallback (these ARE the source of truth): every method needs the signed-in JWT.
   window.flRecords = {
     list: function (kind) { return call('GET', '/api/admin-records?kind=' + encodeURIComponent(kind)); },
+    // Status-carrying list ({ok, status, data}) so the record tiles can tell an authed 403/5xx apart
+    // from a genuinely empty store — otherwise a transient error renders as a false "no records yet".
+    listX: function (kind) { return callX('GET', '/api/admin-records?kind=' + encodeURIComponent(kind)); },
     get: function (id) { return call('GET', '/api/admin-records/' + encodeURIComponent(id)); },
     create: function (rec) { return call('POST', '/api/admin-records', rec); },
     update: function (id, patch) { return call('PATCH', '/api/admin-records/' + encodeURIComponent(id), patch); },

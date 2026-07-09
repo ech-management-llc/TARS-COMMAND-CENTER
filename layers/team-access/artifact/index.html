@@ -65,10 +65,10 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Roles + grants decide what the UI renders; <b>server-side authorization decides what's actually allowed</b> (auth phase). Per-tenant isolation + read-only-per-grant land with it.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260708b"></script>
-<script src="../../../shared/fl-api.js?v=20260708b"></script>
-<script src="../../../shared/fl-state.js?v=20260708b"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260708b"></script>
+<script src="../../../shared/fl-auth.js?v=20260709a"></script>
+<script src="../../../shared/fl-api.js?v=20260709a"></script>
+<script src="../../../shared/fl-state.js?v=20260709a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260709a"></script>
 <script>
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function telD(p){ var d=String(p==null?'':p).replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }
@@ -169,7 +169,13 @@
       var phoneCell=m.phone?('<a href="tel:'+td+'" style="color:var(--fg);text-decoration:none">'+esc(m.phone)+'</a> <a href="sms:'+td+'" title="text" style="text-decoration:none">💬</a>'):'<span class="ta-req">no phone</span>';
       var emailCell=m.email?('<a href="mailto:'+esc(m.email)+'" class="small muted" style="text-decoration:none">'+esc(m.email)+'</a>'):'<span class="small muted"><span class="ta-req">no email</span></span>';
       var contacts=phoneCell+'<br>'+emailCell;
-      return '<tr><td>'+esc(m.name)+(m.status==='invited'?' <span class="tag b-yellow">invited</span>':'')+'</td><td>'+esc(m.role||'—')+'</td><td>'+contacts+'</td><td>'+esc(acc)+'</td><td>'+(m.can_command_tars?'<span class="tag b-green">text ✓</span>':'<span class="tag b-gray">no</span>')+'</td>'+
+      // Seed rows come from the shared SAMPLE connections record — mark them clearly and DON'T show a
+      // live-looking green "text ✓", so a viewer can't mistake a placeholder for a real, TARS-commanding
+      // team member during a gate-off pre-flight. Real (saved) members render normally.
+      var sampleTag = m.seed ? ' <span class="tag b-gray" title="Sample row from the shared connections record — not a saved team member">SAMPLE</span>' : '';
+      var tarsCell = m.seed ? '<span class="tag b-gray">sample</span>'
+        : (m.can_command_tars?'<span class="tag b-green">text ✓</span>':'<span class="tag b-gray">no</span>');
+      return '<tr><td>'+esc(m.name)+sampleTag+(m.status==='invited'?' <span class="tag b-yellow">invited</span>':'')+'</td><td>'+esc(m.role||'—')+'</td><td>'+contacts+'</td><td>'+esc(acc)+'</td><td>'+tarsCell+'</td>'+
         '<td>'+(m.access?'<button class="btn sm" data-prev="'+esc(m.id)+'">preview</button>':'')+'</td></tr>';
     }).join('');
     document.getElementById('ta-team').innerHTML=rows||'<tr><td colspan="6" class="muted small">No members yet.</td></tr>';

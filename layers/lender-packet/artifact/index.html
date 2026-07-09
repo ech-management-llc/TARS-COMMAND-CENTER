@@ -30,7 +30,7 @@
         <button data-mode="auto" onclick="setMode(this)">Full auto</button>
       </div>
     </div>
-    <div class="wire-note" id="emailnote">Type an address → one button builds the face sheet, one button emails it (PDF) to your lender. Default: draft for approval. Generated packets file in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator — a packet is a document">Document Navigator</button>. Your <button class="xref" type="button" onclick="flOpen('business-plan')" title="Open Business Plan">Business Plan ↗</button> attaches to this packet.</div>
+    <div class="wire-note" id="emailnote">Type an address → one button builds the face sheet, one button emails it (PDF) to your lender. Default: draft for approval. Generated packets file in <button class="xref" type="button" onclick="flOpen('document-navigator')" title="Open Document Navigator — a packet is a document">Document Navigator</button>. Your <button class="xref" type="button" onclick="flOpen('business-plan')" title="Open Business Plan">Business Plan ↗</button> is meant to feed this packet (link in progress).</div>
   </div>
 
   <!-- face sheet -->
@@ -113,10 +113,10 @@
   function emailLender(){ document.getElementById('emailnote').innerHTML = sendMode==='auto' ? '<b style="color:var(--green)">Would send now</b> (full auto). Live build: renders the PDF and sends to your lender in one click.' : '<b style="color:var(--green)">Draft prepared</b> for your approval. Live build: renders the PDF, you review, then it sends.'; }
   recompute();
 </script>
-<script src="../../../shared/fl-auth.js?v=20260708b"></script>
-<script src="../../../shared/fl-api.js?v=20260708b"></script>
-<script src="../../../shared/fl-state.js?v=20260708b"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260708b"></script>
+<script src="../../../shared/fl-auth.js?v=20260709a"></script>
+<script src="../../../shared/fl-api.js?v=20260709a"></script>
+<script src="../../../shared/fl-state.js?v=20260709a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260709a"></script>
 <script>FLSettings.mount({tileId:'lender-packet'});</script>
 </body>
 </html>

@@ -23,7 +23,7 @@
   <div class="art-head">📋 Business Plan</div>
 
   <div class="preview-banner">
-    <b>Your living business plan.</b> Quinn (your Business Plan employee) can write and <b>keep it updated automatically</b> from your live tiles — or you can fill it in by hand. It <b>attaches to your Lender Packet</b>, so a lender sees one coherent story.
+    <b>Your living business plan.</b> Quinn (your Business Plan employee) can write and <b>keep it updated automatically</b> from your live tiles — or you can fill it in by hand. It's built to <b>feed your Lender Packet</b> (link in progress), so a lender sees one coherent story.
   </div>
 
   <!-- MODE -->
@@ -39,7 +39,7 @@
     <div id="bp-mode-note" style="font-size:11.5px;color:var(--dim);margin-top:6px"></div>
     <div class="row-sb" style="margin-top:10px">
       <button class="btn" type="button" id="bp-resync">🔄 Re-sync now</button>
-      <button class="xref" type="button" id="bp-to-lender" title="Open Lender Packet">📎 Attach to Lender Packet ↗</button>
+      <button class="xref" type="button" id="bp-to-lender" title="Open Lender Packet">📎 Open Lender Packet ↗</button>
     </div>
   </div>
 
@@ -50,9 +50,9 @@
   </div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260708b"></script>
-<script src="../../../shared/fl-api.js?v=20260708b"></script>
-<script src="../../../shared/fl-state.js?v=20260708b"></script>
+<script src="../../../shared/fl-auth.js?v=20260709a"></script>
+<script src="../../../shared/fl-api.js?v=20260709a"></script>
+<script src="../../../shared/fl-state.js?v=20260709a"></script>
 <script>
   var MODE_KEY='fl_bizplan_mode', PLAN_KEY='fl_business_plan_v1', STATE_KEY='business_plan';
   function $(id){ return document.getElementById(id); }
@@ -174,7 +174,7 @@
     if(d&&d.type==='tcc:viewcfg'){ /* whole-tile sections are dynamic; view-config is a no-op here */ } });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260708b"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260709a"></script>
 <script>FLSettings.mount({tileId:'business-plan'});</script>
 </body>
 </html>
