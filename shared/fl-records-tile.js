@@ -108,9 +108,12 @@
     var rows = cfg.fields.map(function (f) { return detailRow(f, d[f.key]); }).join('');
     var ent = r.entity_code ? '<span class="rec-ent">' + esc(r.entity_code) + '</span>' : '';
     var ret = r.retention ? '<span class="rec-ret">retain: ' + esc(r.retention) + '</span>' : '';
+    // Honest today: documents are NOT auto-linked to a specific record (admin_records.documents is
+    // a static column nothing populates yet; uploads link by entity, not record). Say where files
+    // live rather than implying they'll appear here. Real per-record linkage is a flagged build.
     var docs = (r.documents && r.documents.length)
-      ? (r.documents.length + ' linked')
-      : 'none yet — file in Document Navigator';
+      ? (r.documents.length + ' attached')
+      : 'managed in Document Navigator';
     var del = r.id ? '<button type="button" class="rec-del" data-id="' + esc(r.id) + '" title="Delete this record">🗑 Delete</button>' : '';
     return '<div class="card rec-card">' +
       '<div class="rec-top"><span class="rec-label">' + esc(r.label || '(untitled)') + '</span>' + ent + ret + del + '</div>' +
@@ -122,6 +125,7 @@
 
   function buildPayload(cfg) {
     var p = { kind: cfg.kind };
+    var invalid = [];                                         // number fields that aren't a clean number
     var labelEl = document.getElementById('rec-label');
     if (labelEl && labelEl.value.trim()) p.label = labelEl.value.trim();
     var details = {};
@@ -130,15 +134,22 @@
       if (!el) return;
       var v = el.value == null ? '' : ('' + el.value).trim();
       if (v === '') return;                                   // blank -> omit -> UNKNOWN
-      if (f.type === 'number') { if (isFinite(+v)) details[f.key] = +v; }  // a typed 0 is kept
-      else details[f.key] = v;
+      if (f.type === 'number') {
+        // People type money/rates with $, commas, %, spaces. Tolerate those instead of SILENTLY
+        // dropping the value on parse failure — the old `if (isFinite(+v))` turned "1,250" into a
+        // dropped field while still reporting "✓ Saved" (silent data loss). Clean, then require a
+        // real number; anything else BLOCKS the save (below) rather than vanishing.
+        var cleaned = v.replace(/[$,\s%]/g, '');
+        if (/^-?\d*\.?\d+$/.test(cleaned)) details[f.key] = parseFloat(cleaned);  // a typed 0 kept
+        else invalid.push(f.label);
+      } else details[f.key] = v;
     });
     if (Object.keys(details).length) p.details = details;
     if (cfg.entityLink) { var e = document.getElementById('rec-entity'); if (e && e.value) p.entity_code = e.value; }
     if (cfg.retentionDefault) p.retention = cfg.retentionDefault;
     var notesEl = document.getElementById('rec-notes');
     if (notesEl && notesEl.value.trim()) p.notes = notesEl.value.trim();
-    return p;
+    return { payload: p, invalid: invalid };
   }
 
   function renderList(cfg, records) {
@@ -186,14 +197,23 @@
       return;
     }
 
-    var loaders = [window.flRecords.list(cfg.kind)];
+    var loaders = [window.flRecords.listX(cfg.kind)];
     loaders.push(cfg.entityLink && window.flEntities ? window.flEntities.list() : Promise.resolve(null));
 
     Promise.all(loaders).then(function (res) {
       document.getElementById('rec-loading').style.display = 'none';
-      var records = res[0], entities = res[1];
-      if (records == null && window.flApi && !flApi.authed()) { showAuth(cfg); return; }
-      var list = records || [];                       // one shared array: save + delete mutate it
+      var rx = res[0], entities = res[1];             // rx = {ok, status, data} (status-carrying)
+      if (!rx || !rx.ok) {
+        // Honest per-status — NEVER a false-empty "no records yet" on a transient error:
+        if (!rx || rx.status === 401 || rx.status === 403 || (window.flApi && !flApi.authed())) {
+          showAuth(cfg); return;                      // signed-out / expired / no grant
+        }
+        var eh = document.getElementById('rec-list');
+        if (eh) eh.innerHTML = '<div class="small err">Couldn\'t load your records just now (the ' +
+          'service didn\'t answer). Reload in a moment — nothing was lost.</div>';
+        return;
+      }
+      var list = rx.data || [];                       // one shared array: save + delete mutate it
       document.getElementById('rec-form-host').innerHTML = formHtml(cfg, entities || []);
       renderList(cfg, list);
       var saveBtn = document.getElementById('rec-save');
@@ -213,7 +233,13 @@
 
   function save(cfg, current) {
     var btn = document.getElementById('rec-save'), msg = document.getElementById('rec-msg');
-    var payload = buildPayload(cfg);
+    var built = buildPayload(cfg);
+    var payload = built.payload;
+    if (built.invalid.length) {                               // never save-and-drop a number field
+      msg.innerHTML = '<span class="err">Enter digits only for: ' + esc(built.invalid.join(', ')) +
+        '.</span> Use a plain number like 1250 or 3.75 — remove commas, $ and %. Nothing was saved.';
+      return;
+    }
     if (!payload.label) { msg.innerHTML = '<span class="err">A name/label is required.</span>'; return; }
     btn.disabled = true; msg.innerHTML = 'Saving…';
     window.flRecords.create(payload).then(function (res) {

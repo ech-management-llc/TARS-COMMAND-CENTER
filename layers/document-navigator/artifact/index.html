@@ -40,10 +40,10 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Standalone public view — sample structure only, no credentials or personal data. Live vault indexing wires to your chosen store.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260708b"></script>
-<script src="../../../shared/fl-api.js?v=20260708b"></script>
-<script src="../../../shared/fl-state.js?v=20260708b"></script>
-<script src="../../../shared/docdrop.js?v=20260708b"></script>
+<script src="../../../shared/fl-auth.js?v=20260709a"></script>
+<script src="../../../shared/fl-api.js?v=20260709a"></script>
+<script src="../../../shared/fl-state.js?v=20260709a"></script>
+<script src="../../../shared/docdrop.js?v=20260709a"></script>
 <script>
   // The indexed VIEW (Real-Data Foundation Part C). SIGNED IN = REAL ONLY: files from
   // GET /api/documents (private bucket; download = short-lived signed URL, delete = same API),
@@ -160,8 +160,10 @@
       // Signed in: the count is EXACTLY what's on file (0 = an honest zero). Signed out (public
       // demo view): the sample count_hint survives, clearly framed by the standalone banner.
       var n = AUTHED ? docsIn(f.id).length : Math.max(f.count_hint||0, docsIn(f.id).length);
+      // "items" not "files": a folder's entries can be real files, records, entities, or reference
+      // notes — the per-entry badge shows the true type. Calling them all "files" over-counts files.
       return '<div class="folder" onclick="openFolder('+i+')"><div class="fi">'+f.icon+'</div><div class="fn">'+esc(f.name)+'</div>'+
-        '<div class="fc">'+n+' file'+(n===1?'':'s')+'</div><div style="margin-top:5px">'+srcChip(f.source_tile, f.source_label)+'</div></div>';
+        '<div class="fc">'+n+' item'+(n===1?'':'s')+'</div><div style="margin-top:5px">'+srcChip(f.source_tile, f.source_label)+'</div></div>';
     }).join('')+'</div>';
     mountDrop(null);
   }
@@ -329,10 +331,15 @@
     NOTES = out[4] ? out[4].value : null;
     if(!FOLDERS.length) throw 0;
     renderFolders();
+    // Honest expired-session state: an expired-but-not-yet-cleared session makes every real loader
+    // 401 -> empty, which would read as a false "0 documents". Say so instead (their files are safe).
+    if(window.flApi && flApi.authExpired && flApi.authExpired()){
+      navMsg('Your session expired (sign-ins last about an hour). Sign in to the Command Center again to see your documents — nothing was lost.');
+    }
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
   }).catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260708b"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260709a"></script>
 <script>FLSettings.mount({tileId:'document-navigator'});</script>
 </body>
 </html>
