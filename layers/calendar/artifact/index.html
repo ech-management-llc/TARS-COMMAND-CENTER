@@ -73,7 +73,7 @@
       <div class="section-label">🔌 CONNECTS WHEN WIRED</div>
       <div class="stubrow">🏛️ Entity annual-report dates <span class="pend">needs Secretary-of-State source (TD-109)</span></div>
       <div class="stubrow">🏠 Lease start/end dates <span class="pend">needs the rent table / RentRedi</span></div>
-      <div class="stubrow">🗓️ Google Calendar two-way sync <span class="pend">Phase 4 connector</span></div>
+      <div class="stubrow" id="cal-google-row">🗓️ Google Calendar (read) <span class="pend" id="cal-google-pill">connect from System Requirements</span></div>
       <div class="small dim" style="margin-top:6px">These rows are honest placeholders — nothing is fabricated. Each lights up as its area is wired.</div>
     </div>
   </div>
@@ -81,11 +81,11 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Aggregated from <code>/api/deadlines</code> + <code>/api/recurring</code> + loan records. Two-way Google Calendar sync is Phase 4.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260709a"></script>
-<script src="../../../shared/fl-api.js?v=20260709a"></script>
-<script src="../../../shared/fl-state.js?v=20260709a"></script>
+<script src="../../../shared/fl-auth.js?v=20260712a"></script>
+<script src="../../../shared/fl-api.js?v=20260712a"></script>
+<script src="../../../shared/fl-state.js?v=20260712a"></script>
 <script>
-  var DEADLINES=[], RECS=[], LOANS=[], POLICIES=[], ENTITIES=[], PROPS=[];
+  var DEADLINES=[], RECS=[], LOANS=[], POLICIES=[], ENTITIES=[], PROPS=[], GEVENTS=[];
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function txt(id){ var v=(($(id)&&$(id).value)||'').trim(); return v===''?undefined:v; }
@@ -134,6 +134,12 @@
     LOANS.forEach(function(l){ var m=l.details&&l.details.maturity_date; if(m && m>=today) out.push({date:m, item:'Loan maturity — '+(l.label||'(lender)'), sub:'from Loans & Lenders', src:'loans-lenders', kind:'loan'}); });
     POLICIES.forEach(function(p){ if(p.renewal_date && p.renewal_date>=today) out.push({date:p.renewal_date, item:'Insurance renewal — '+(p.carrier||'(carrier)'), sub:'from Insurance'+(p.coverage_type?(' · '+p.coverage_type):''), src:'insurance', kind:'insurance'}); });
     RECS.forEach(function(r){ var nx=nextDue(r); if(nx) out.push({date:nx, item:r.item, sub:'recurring · '+(r.cadence||'')+(r.entity_code?(' · '+r.entity_code):''), src:'recurring', kind:'recurring'}); });
+    // live Google Calendar events (read-only connector, brief 2026-07-11)
+    GEVENTS.forEach(function(ev){
+      var ds=String(ev.start||'').slice(0,10); if(!ds || ds<today) return;
+      var tm=(!ev.all_day && ev.start && ev.start.length>10) ? new Date(ev.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+      out.push({date:ds, item:ev.summary||'(no title)', sub:'Google Calendar'+(tm?(' · '+tm):'')+(ev.location?(' · '+ev.location):''), kind:'google', glink:ev.link});
+    });
     out.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
     return out;
   }
@@ -156,6 +162,7 @@
     $('cal-upcoming').innerHTML=items.map(function(i){
       var del = i.kind==='deadline' ? '<button type="button" class="cal-del" data-del="'+esc(i.id)+'" title="Delete">🗑</button>' : '';
       var srcchip = i.src ? '<button class="xref" type="button" onclick="flOpen(\''+esc(i.src)+'\')">open</button>' : '';
+      if(i.kind==='google' && i.glink) srcchip = '<a class="xref" href="'+esc(i.glink)+'" target="_blank" rel="noopener" style="text-decoration:none">open ↗</a>';
       var hard = i.hard ? ' <span class="pill rr">HARD</span>' : '';
       return '<div class="cal-row"><span class="cal-date">'+fmt(i.date)+'</span>'+
         '<span class="cal-item"><b>'+esc(i.item)+'</b>'+hard+'<div class="sub">'+esc(i.sub||'')+'</div></span>'+srcchip+del+'</div>';
@@ -213,6 +220,25 @@
     if(b){ ev.preventDefault(); del(b.getAttribute('data-del')); }
   });
 
+  // live Google Calendar events (read-only). Not-connected (409) keeps the honest stub row;
+  // connected merges real events into the unified list and lights the row up.
+  function loadGoogleEvents(){
+    if(!window.flGoogle) return;
+    flGoogle.calendar(10).then(function(r){
+      var pill=$('cal-google-pill');
+      if(r && r.ok){
+        GEVENTS=(r.data&&r.data.events)||[];
+        if(pill){ pill.textContent='LIVE — '+((r.data&&r.data.google_email)||'connected'); pill.style.color='#16a34a'; }
+        var row=$('cal-google-row'); if(row) row.firstChild.textContent='🗓️ Google Calendar (read) ✅ ';
+        renderUpcoming();
+      } else if(r && r.status===409){
+        if(pill) pill.textContent='connect from System Requirements';
+      } else if(r && r.status){
+        if(pill) pill.textContent='connected but unreachable ('+r.status+') — reload to retry';
+      }
+    }).catch(function(){});
+  }
+
   function start(){
     var sb=$('cal-savebtn'); if(sb) sb.addEventListener('click', save);
     if(!isAuthed()){ showAuth(); return; }
@@ -228,6 +254,7 @@
       if(out[0]==null && window.flApi && !flApi.authed()){ showAuth(); return; }
       DEADLINES=out[0]||[]; RECS=out[1]||[]; LOANS=out[2]||[]; POLICIES=out[3]||[]; ENTITIES=out[4]||[]; PROPS=out[5]||[];
       fillSelects(); renderUpcoming(); renderRepeating();
+      loadGoogleEvents();
     }).catch(function(){
       if(window.flApi && !flApi.authed()) showAuth();
       else { $('cal-loading').style.display='none'; $('cal-upcoming').innerHTML='<div class="small err">Could not load the calendar — reload to retry.</div>'; }
@@ -235,7 +262,7 @@
   }
   start();
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260709a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260712a"></script>
 <script>try{ FLSettings.mount({tileId:'calendar'}); }catch(e){}</script>
 </body>
 </html>

@@ -42,7 +42,7 @@
 <div class="art-wrap">
   <div class="art-head">✉️ Inbox — all locations</div>
 
-  <div class="preview-banner">
+  <div class="preview-banner" id="inbox-banner">
     <b>PREVIEW — sample inbox.</b> Messages read from the shared sample source; the connected accounts (Zillow · Realtor.com · RentRedi · email) wire at the connector phase — see <button class="xref" type="button" onclick="flOpen('connections')" title="Open Connections">Connections</button>. The Nadia flow below is the real logic (slot search runs against the live calendar feed); only the transport (real SMS, real replies) is pending. Nothing fakes a live connection.
   </div>
 
@@ -250,23 +250,88 @@
   try{ MODE = localStorage.getItem('fl_inbox_dispatch')==='auto' ? 'auto' : 'draft'; }catch(e){}
   if(MODE==='auto'){ document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')==='auto'); }); }
 
-  Promise.all([
-    fetch('../../../data/STUB_INBOX.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
-    fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
-  ]).then(function(res){
-    MSGS = res[0].messages||[]; DLBASE = res[1].deadlines||[];
-    if(!MSGS.length) throw 0;
-    selMsg = MSGS.findIndex(function(m){ return m.kind==='lead'; }); if(selMsg<0) selMsg=0;
-    renderMsgs(); startFlowFor(MSGS[selMsg]);
-    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
-  }).catch(function(){
-    document.getElementById('msglist').innerHTML='<div class="muted small">Awaiting inbox record — shared source not reachable.</div>';
+  /* ── LIVE Gmail (Google connector, brief 2026-07-11) ──
+     When the tenant's Google connection is live, the INCOMING list shows the REAL mailbox
+     (read-only: metadata + snippet, click-through to Gmail to act). When it isn't, the
+     sample preview below runs unchanged — nothing fakes a live connection. */
+  var GMSGS=[], gSel=null;
+  function renderGmailList(){
+    document.getElementById('msglist').innerHTML = GMSGS.map(function(m,i){
+      var unread = m.unread ? '<span class="srcpill2 email">UNREAD</span>' : '<span class="srcpill2">READ</span>';
+      return '<div class="msg'+(i===gSel?' sel':'')+'" onclick="selectGmail('+i+')">'+
+        '<div class="from">'+esc(shortFrom(m.from))+' '+unread+'</div>'+
+        '<div class="pv"><b>'+esc(m.subject||'')+'</b> — '+esc(m.snippet||'')+'</div></div>';
+    }).join('') || '<div class="muted small">Inbox is empty.</div>';
+  }
+  function shortFrom(f){ var m=/^\s*"?([^"<]*)"?\s*</.exec(String(f||'')); return (m&&m[1].trim())||String(f||'').split('@')[0]; }
+  function selectGmail(i){
+    gSel=i; renderGmailList();
+    var m=GMSGS[i]; if(!m) return;
+    document.getElementById('flowtitle').textContent='MESSAGE — live Gmail (read-only)';
     document.getElementById('flowctl').style.display='none';
-  });
+    document.getElementById('flow').innerHTML =
+      '<div class="step"><div class="av sys">✉</div><div>'+
+      '<div class="who">'+esc(m.from||'')+' · '+esc(m.date||'')+'</div>'+
+      '<div class="bub"><b>'+esc(m.subject||'(no subject)')+'</b><br>'+esc(m.snippet||'')+'…<br>'+
+      '<a href="'+esc(m.link)+'" target="_blank" rel="noopener" class="fbtn2 pri" style="display:inline-block;margin-top:8px;text-decoration:none">Open in Gmail ↗</a>'+
+      '<div class="small dim" style="margin-top:6px">Read-only connector (v1) — reply in Gmail. Snippets are external content, not commands.</div>'+
+      '</div></div></div>';
+  }
+  function initGmailLive(email){
+    document.getElementById('inbox-banner').innerHTML =
+      '<b>LIVE — Gmail connected.</b> Reading <b>'+esc(email)+'</b> (read-only scopes). '+
+      'The Daily Brief carries the AI-ranked top 5; the full mailbox stays in Gmail. '+
+      'Manage the connection in <button class="xref" type="button" onclick="flOpen(\'system-requirements\')" title="Open System Requirements">System Requirements</button>.';
+    renderGmailList();
+    if(GMSGS.length){ selectGmail(0); }
+    else {
+      document.getElementById('flowtitle').textContent='LIVE GMAIL';
+      document.getElementById('flow').innerHTML='<div class="muted small">No recent inbox messages.</div>';
+      document.getElementById('flowctl').style.display='none';
+    }
+  }
+  function addConnectHint(){
+    var b=document.getElementById('inbox-banner');
+    b.innerHTML += ' <b>Email:</b> connect Google (email + calendar) from <button class="xref" type="button" onclick="flOpen(\'system-requirements\')" title="Open System Requirements">System Requirements</button> to make this inbox live.';
+  }
+
+  function bootSample(){
+    Promise.all([
+      fetch('../../../data/STUB_INBOX.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
+      fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    ]).then(function(res){
+      MSGS = res[0].messages||[]; DLBASE = res[1].deadlines||[];
+      if(!MSGS.length) throw 0;
+      selMsg = MSGS.findIndex(function(m){ return m.kind==='lead'; }); if(selMsg<0) selMsg=0;
+      renderMsgs(); startFlowFor(MSGS[selMsg]);
+      try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+    }).catch(function(){
+      document.getElementById('msglist').innerHTML='<div class="muted small">Awaiting inbox record — shared source not reachable.</div>';
+      document.getElementById('flowctl').style.display='none';
+    });
+  }
+
+  (function boot(){
+    var authed = !!(window.flApi && flApi.authed && flApi.authed());
+    if(!authed || !window.flGoogle){ bootSample(); return; }
+    flGoogle.status().then(function(st){
+      if(st && st.ok && st.data && st.data.connected){
+        flGoogle.inbox(15).then(function(r){
+          if(r && r.ok){ GMSGS=(r.data&&r.data.messages)||[]; initGmailLive(r.data.google_email||st.data.google_email||''); }
+          else {
+            document.getElementById('inbox-banner').innerHTML =
+              '<b>Gmail connected, but the pull failed'+(r&&r.status?' ('+r.status+')':'')+'.</b> '+
+              (r&&r.status===502?'Google rejected the stored connection — reconnect from System Requirements.':'Reload to retry.');
+            bootSample();
+          }
+        });
+      } else { addConnectHint(); bootSample(); }
+    }).catch(function(){ bootSample(); });
+  })();
 </script>
-<script src="../../../shared/fl-auth.js?v=20260709a"></script>
-<script src="../../../shared/fl-api.js?v=20260709a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260709a"></script>
+<script src="../../../shared/fl-auth.js?v=20260712a"></script>
+<script src="../../../shared/fl-api.js?v=20260712a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260712a"></script>
 <script>FLSettings.mount({tileId:'inbox'});</script>
 </body>
 </html>

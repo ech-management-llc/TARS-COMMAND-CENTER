@@ -68,9 +68,44 @@ async function boot(){
     return;
   }
   applyBranding();
+  noticeGoogleReturn();
   // Login gates the app (productized). If no session, show the light sign-in.
   if (!Auth.session()) { renderLoginGate(); return; }
   startApp();
+}
+
+/* ── post-callback landing (?google=connected|error&reason=…) from the Google connect flow.
+   One honest banner, then the query is scrubbed so a reload doesn't repeat it. ── */
+function noticeGoogleReturn(){
+  let q;
+  try { q = new URLSearchParams(location.search); } catch(e){ return; }
+  const g = q.get('google');
+  if (!g) return;
+  const REASONS = {
+    consent_denied: 'you backed out at the Google consent screen',
+    bad_state: 'the connect link expired — start again from System Requirements',
+    not_owner: 'only the Tenant-Owner can connect Google',
+    exchange_failed: 'Google rejected the exchange — try again',
+    no_refresh_token: 'Google returned no offline token — try again (re-consent)',
+    insufficient_scope: 'Gmail or Calendar access was unchecked at consent — reconnect and leave all boxes checked',
+    userinfo_failed: 'could not read the account identity from Google',
+    missing_params: 'the callback arrived incomplete — try again',
+    server_config: 'the server is missing its Google/encryption config',
+  };
+  const ok = g === 'connected';
+  const msg = ok
+    ? '✅ Google connected — the Inbox tile, Calendar rows, and the brief Email section are live.'
+    : '⚠️ Google connect failed — ' + (REASONS[q.get('reason')] || 'try again from System Requirements') + '.';
+  const bar = document.createElement('div');
+  bar.setAttribute('role','status');
+  bar.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9999;'+
+    'max-width:92vw;padding:10px 16px;border-radius:10px;font:600 13px/1.4 system-ui,sans-serif;'+
+    (ok ? 'background:#0d1f16;color:#34d399;border:1px solid #1c4d3e'
+        : 'background:#2a1215;color:#f87171;border:1px solid #5a1f1f');
+  bar.textContent = msg;
+  document.body.appendChild(bar);
+  setTimeout(() => { try{ bar.remove(); }catch(e){} }, 9000);
+  try { history.replaceState(null, '', location.pathname); } catch(e){}
 }
 
 function startApp(){
@@ -842,6 +877,65 @@ function renderHome(){
   bindMarketPicker();
   bindGroupHeaders();
   bindBrief();
+  loadBriefEmail();
+}
+
+/* ── Daily Brief "EMAIL" section (Google connector) — AI-ranked important unread + threads
+   awaiting the operator's reply, top ~5, click-through to Gmail. Skim on the brief, act in
+   Admin. Honest states: not signed in / not connected -> section stays empty; ranking or
+   Gmail trouble -> a plain one-line note, never an unranked list dressed up as ranked. ── */
+let _briefEmailBusy = false;
+let _briefEmailCache = null;   // {at, html} — a home re-render inside the TTL reuses the last
+const _BRIEF_EMAIL_TTL_MS = 5 * 60 * 1000;  // result instead of re-firing a live Opus ranking
+function loadBriefEmail(){
+  const box = document.getElementById('brief-email');
+  if (!box || _briefEmailBusy) return;
+  if (!(window.flApi && flApi.authed && flApi.authed() && window.flGoogle)) return;
+  if (_briefEmailCache && (Date.now() - _briefEmailCache.at) < _BRIEF_EMAIL_TTL_MS){
+    box.innerHTML = _briefEmailCache.html;
+    bindBrief();
+    return;
+  }
+  _briefEmailBusy = true;
+  flGoogle.briefEmail().then(r => {
+    _briefEmailBusy = false;
+    const el = document.getElementById('brief-email');
+    if (!el) return;
+    if (r && r.ok){
+      const items = (r.data && r.data.items) || [];
+      if (!items.length){
+        el.innerHTML = '<div class="brief-h">✉️ EMAIL</div><div class="src-note" style="margin:2px 2px 8px">Inbox clear — nothing important unread, nothing awaiting your reply.</div>';
+        _briefEmailCache = { at: Date.now(), html: el.innerHTML };
+        return;
+      }
+      el.innerHTML = '<div class="brief-h">✉️ EMAIL — important + awaiting your reply</div>' +
+        items.map(it => {
+          const cat = it.category === 'awaiting_reply'
+            ? '<span style="font-size:10px;font-weight:800;color:#fbbf24;border:1px solid #54470f;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap">OWES REPLY</span>'
+            : '<span style="font-size:10px;font-weight:800;color:#60a5fa;border:1px solid #2a4a78;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap">UNREAD</span>';
+          return '<div class="brief-item">' +
+            '<button type="button" class="bi-head">' +
+              '<span class="bi-dot"></span>' +
+              '<span class="bi-t">' + esc(it.summary || it.subject || '') + '</span>' + cat +
+              '<span class="bi-chev">▾</span>' +
+            '</button>' +
+            '<div class="bi-body">' +
+              '<p><b>' + esc(it.from || '') + '</b> — ' + esc(it.subject || '') +
+              (it.reason ? ' <span style="color:var(--mut,#9aa3b2)">(' + esc(it.reason) + ')</span>' : '') + '</p>' +
+              '<a href="' + esc(it.link || '#') + '" target="_blank" rel="noopener" class="bi-open" style="display:inline-block;margin-right:8px;background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none">Open in Gmail ↗</a>' +
+              '<button type="button" class="bi-open" data-open="inbox" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer">Open Inbox tile</button>' +
+            '</div></div>';
+        }).join('');
+      _briefEmailCache = { at: Date.now(), html: el.innerHTML };
+      bindBrief();
+    } else if (r && r.status === 409){
+      el.innerHTML = '';                          // not connected — the tiles carry the connect path
+    } else if (r && (r.status === 502 || r.status === 503)){
+      el.innerHTML = '<div class="brief-h">✉️ EMAIL</div><div class="src-note" style="margin:2px 2px 8px">Email section unavailable right now (' + r.status + ') — the Inbox tile still reads your mailbox directly.</div>';
+    } else {
+      el.innerHTML = '';
+    }
+  }).catch(() => { _briefEmailBusy = false; });
 }
 
 /* ── DAILY BRIEF lasso — bullet items (expand + discuss w/ TARS), a Needs-Attention
@@ -871,6 +965,10 @@ function renderBriefGroup(ls){
   if (rest.length){
     h += '<div class="brief-h urg">⚠ NEEDS ATTENTION</div>' + rest.map((it,i)=>briefItem(it,'a'+i,true)).join('');
   }
+  // Live Email section (Google connector, brief 2026-07-11) — REAL Gmail data, AI-ranked by
+  // fl-agent, so it renders independently of the ai_summary.live placeholder gate (TD-135 is
+  // about fabricated figures; this is the account's actual mail). Populated async after render.
+  h += '<div id="brief-email"></div>';
   if (brief.length) h += '<div class="brief-h">TODAY’S BRIEF</div>' + brief.map((it,i)=>briefItem(it,'b'+i,false)).join('');
   if (!live) h += '<div class="src-note" style="margin:8px 2px 4px">'+esc(ai.note||'The daily brief goes live once TARS is wired to your feeds — until then, the tiles below read your live data directly.')+'</div>';
   // Punch List + Recurring docked at the bottom
