@@ -44,8 +44,8 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>FL_SYSTEM_REQUIREMENTS_MANIFEST.md</code>. Live checks run where the app can see status; everything else shows the manifest's stated status (labeled). No secrets are shown here.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260709a"></script>
-<script src="../../../shared/fl-api.js?v=20260709a"></script>
+<script src="../../../shared/fl-auth.js?v=20260712a"></script>
+<script src="../../../shared/fl-api.js?v=20260712a"></script>
 <script>
 (function(){
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -65,6 +65,7 @@
       { nm:'Email sender (Postmark or similar)', fr:'Sends login links, alerts, reports to users', who:'Host', req:'required', status:'off' },
       { nm:'Market data feeds', fr:'Reventure · US Census · DealCheck · FRED — market/deal numbers', who:'Host', req:'required', status:'partial', note:'mixed / stub today' },
       { nm:'Your rent data (RentRedi)', fr:'Rent roll, who’s paid / late', who:'You', req:'if you use RentRedi', status:'partial', note:'CSV import today' },
+      { nm:'Your email + calendar (Google)', fr:'Live Inbox tile · Google events on the Calendar · Daily Brief Email section (read-only scopes)', who:'You', req:'optional', status:'off', check:'google', action:'google' },
       { nm:'Google Workspace (manager@)', fr:'Identity that gates the host tools', who:'Host', req:'required', status:'live' }
     ]},
     { tier:'Add-ons — optional', items:[
@@ -76,12 +77,18 @@
   function row(it){
     var whoCls = it.who==='You' ? 'sr-who-you' : 'sr-who-host';
     var srcTag = it._checked ? 'checked live' : 'per manifest';
+    var action = '';
+    if (it.action==='google' && window.flApi && flApi.authed && flApi.authed()){
+      action = it._gconnected
+        ? '<button type="button" class="sr-badge sr-who-host" style="cursor:pointer;border:1px solid #64748b" data-gact="disconnect">Disconnect</button>'
+        : '<button type="button" class="sr-badge sr-who-you" style="cursor:pointer" data-gact="connect">Connect Google</button>';
+    }
     return '<div class="sr-row"><div class="sr-st" title="'+esc(it.status)+'">'+(ICON[it.status]||'•')+'</div>'+
       '<div class="sr-main"><div class="sr-nm">'+esc(it.nm)+'</div>'+
         '<div class="sr-for">'+esc(it.fr)+(it.note?(' — <b>'+esc(it.note)+'</b>'):'')+'</div>'+
-        '<div class="sr-src">'+srcTag+'</div></div>'+
+        '<div class="sr-src">'+srcTag+(it.action==='google'?'<span id="sr-google-msg" style="color:#dc2626;font-weight:700"></span>':'')+'</div></div>'+
       '<div class="sr-tags"><span class="sr-badge '+whoCls+'">'+esc(it.who)+'</span>'+
-        '<span class="sr-req">'+esc(it.req)+'</span></div></div>';
+        '<span class="sr-req">'+esc(it.req)+'</span>'+action+'</div></div>';
   }
   function render(){
     document.getElementById('sr-body').innerHTML = TIERS.map(function(t){
@@ -125,10 +132,49 @@
       else set('twilio','optional','not set up (optional)');
     }).catch(function(){ set('twilio','optional','not set up (optional)'); }));
   }
+  if(authed && window.flGoogle){
+    // Google connector — live when THIS tenant has a connection (read-only scopes, brief 2026-07-11).
+    jobs.push(flGoogle.status().then(function(r){
+      var it=find('google'); if(!it) return;
+      if(r && r.ok && r.data && r.data.connected){
+        set('google','live', r.data.google_email); it._gconnected=true;
+      } else if(r && (r.ok || r.status)){
+        set('google','off','not connected'); it._gconnected=false;
+      }
+    }).catch(function(){}));
+  }
   Promise.all(jobs).then(render).catch(render);
+
+  // Connect / Disconnect (owner-only server-side; a member's click gets an honest 403 message).
+  function gmsg(t){ var el=document.getElementById('sr-google-msg'); if(el) el.textContent=t?(' · '+t):''; }
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('[data-gact]') : null;
+    if(!b || !window.flGoogle) return;
+    ev.preventDefault();
+    var act = b.getAttribute('data-gact');
+    if(act==='connect'){
+      gmsg('opening Google consent…');
+      flGoogle.start().then(function(r){
+        if(r && r.ok && r.data && r.data.auth_url){
+          try{ (window.top||window).location.href = r.data.auth_url; }
+          catch(e){ window.open(r.data.auth_url, '_blank', 'noopener'); }
+        }
+        else if(r && r.status===403) gmsg('only the Tenant-Owner can connect Google');
+        else if(r && r.status===503) gmsg('Google OAuth is not configured on the server yet');
+        else gmsg('could not start the connect flow'+(r&&r.status?(' ('+r.status+')'):''));
+      });
+    } else if(act==='disconnect'){
+      if(!window.confirm('Disconnect Google? The Inbox tile, Google calendar rows, and the brief Email section go dark until reconnected.')) return;
+      flGoogle.disconnect().then(function(r){
+        if(r && r.ok){ var it=find('google'); if(it){ set('google','off','not connected'); it._gconnected=false; } render(); }
+        else if(r && r.status===403) gmsg('only the Tenant-Owner can disconnect');
+        else gmsg('disconnect failed'+(r&&r.status?(' ('+r.status+')'):''));
+      });
+    }
+  });
 })();
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260709a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260712a"></script>
 <script>try{ FLSettings.mount({tileId:'system-requirements'}); }catch(e){}</script>
 </body>
 </html>

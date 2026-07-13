@@ -348,6 +348,25 @@
     removeNumber: function (id) { return call('DELETE', '/api/sms/numbers/' + encodeURIComponent(id)); },
   };
 
+  // ── Google Workspace connector (read-only Gmail + Calendar — brief 2026-07-11) ──
+  // status/start/disconnect ride /api/oauth/google; data pulls ride /api/google. All status-
+  // carrying: 409 = not connected (honest state, not an error), 502 = Google/agent trouble,
+  // 503 = server not configured. start() resolves to {auth_url} — the caller navigates the TOP
+  // window there (Google consent), and the backend callback redirects back to this origin with
+  // ?google=connected|error. The refresh token NEVER reaches the browser.
+  window.flGoogle = {
+    status: function () { return callX('GET', '/api/oauth/google/status'); },
+    start: function () { return callX('GET', '/api/oauth/google/start'); },
+    disconnect: function () { return callX('POST', '/api/oauth/google/disconnect'); },
+    inbox: function (max) {
+      return callX('GET', '/api/google/inbox' + (max ? ('?max_results=' + max) : ''));
+    },
+    calendar: function (max) {
+      return callX('GET', '/api/google/calendar' + (max ? ('?max_results=' + max) : ''));
+    },
+    briefEmail: function () { return callX('GET', '/api/google/brief-email'); },
+  };
+
   // Access-code-gated sign-up (pre-auth — NO token; public Supabase sign-up stays OFF). POSTs to
   // /api/signup; returns {ok, status, body} so the caller can show honest per-status messages
   // (403 bad code · 409 email exists · 429 slow down · 503 not enabled). On ok, the caller signs
