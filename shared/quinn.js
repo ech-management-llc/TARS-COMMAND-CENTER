@@ -44,7 +44,7 @@
   }
 
   function kindSelect(id, selected, allowAuto) {
-    var h = '<select id="' + id + '" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--txt,#e8e8ea);border-radius:7px;padding:6px 8px;font:inherit;font-size:12px">';
+    var h = '<select id="' + id + '" data-qkindsel="1" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--txt,#e8e8ea);border-radius:7px;padding:6px 8px;font:inherit;font-size:12px">';
     if (allowAuto) h += '<option value="">— let Quinn classify (you confirm after) —</option>';
     Object.keys(KIND_LABEL).forEach(function (k) {
       h += '<option value="' + k + '"' + (selected === k ? ' selected' : '') + '>' + KIND_LABEL[k] + '</option>';
@@ -52,7 +52,7 @@
     return h + '</select>';
   }
   function entitySelect(id, entities, selected) {
-    var h = '<select id="' + id + '" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--txt,#e8e8ea);border-radius:7px;padding:6px 8px;font:inherit;font-size:12px">';
+    var h = '<select id="' + id + '" data-qent="1" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--txt,#e8e8ea);border-radius:7px;padding:6px 8px;font:inherit;font-size:12px">';
     h += '<option value="">— no entity (filed to you) —</option>';
     (entities || []).forEach(function (e) {
       h += '<option value="' + esc(e.code) + '"' + (selected === e.code ? ' selected' : '') + '>' + esc(e.name || e.code) + ' (' + esc(e.code) + ')</option>';
@@ -83,7 +83,7 @@
 
     var fieldRows = '<div style="display:grid;grid-template-columns:130px 1fr;gap:6px 10px;align-items:center;margin:6px 0">' +
       '<span class="small dim">label</span>' +
-      '<input id="' + cid + '_label" value="' + esc(args.label || '') + '" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--txt,#e8e8ea);border-radius:7px;padding:6px 8px;font:inherit;font-size:12px">';
+      '<input data-qlabel="1" id="' + cid + '_label" value="' + esc(args.label || '') + '" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--txt,#e8e8ea);border-radius:7px;padding:6px 8px;font:inherit;font-size:12px">';
     Object.keys(details).forEach(function (k) {
       var flag = problems[k] ? ' <span style="color:#f87171;font-weight:700" title="' + esc(problems[k]) + '">✖ ' + esc(problems[k]) + '</span>'
         : (low[k] ? ' <span style="color:#fbbf24;font-weight:700" title="low confidence — verify">⚠ verify</span>' : '');
@@ -125,12 +125,12 @@
 
   function collect(cardEl) {
     var edits = { details: {} };
-    var label = cardEl.querySelector('[id$="_label"]');
+    var label = cardEl.querySelector('[data-qlabel]');
     if (label) edits.label = label.value;
     cardEl.querySelectorAll('[data-qfield]').forEach(function (inp) {
       edits.details[inp.getAttribute('data-qfield')] = inp.value;
     });
-    var ent = cardEl.querySelector('[id$="_ent"]');
+    var ent = cardEl.querySelector('[data-qent]');
     if (ent) edits.entity_code = ent.value || null;
     var acks = [];
     cardEl.querySelectorAll('[data-qack]').forEach(function (cb) {
@@ -258,7 +258,7 @@
               else { btn.disabled = false; msgFor(id, '<span class="err">' + esc(statusText(r, 'reject failed')) + '</span>'); }
             });
           } else if (act === 'affirm') {
-            var kindSel = cardEl.querySelector('[id$="_kind"]');
+            var kindSel = cardEl.querySelector('[data-qkindsel]');
             flQuinn.affirm(id, {
               kind: kindSel ? kindSel.value : null,
               entity_code: got.edits.entity_code,
