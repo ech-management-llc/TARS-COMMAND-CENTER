@@ -367,6 +367,35 @@
     briefEmail: function () { return callX('GET', '/api/google/brief-email'); },
   };
 
+  // ── Quinn Auto-File (4c L1 — propose→operator-approves, never auto-commit) ──
+  // intake() drafts a proposal from an uploaded document; NOTHING saves until approve().
+  // All status-carrying: 403 = not hired / not allowed, 409 = draft not in that state,
+  // 422 = validation/acks missing, 502 = document reader trouble.
+  window.flQuinn = {
+    employees: function () { return callX('GET', '/api/ai/employees'); },
+    hire: function (key, hired) {
+      return callX('POST', '/api/ai/employees/' + encodeURIComponent(key) + '/hire',
+                   { hired: !!hired });
+    },
+    intake: function (documentId, kind, entityCode) {
+      return callX('POST', '/api/ai/intake', {
+        document_id: documentId, kind: kind || null, entity_code: entityCode || null,
+      });
+    },
+    pending: function (status) {
+      return callX('GET', '/api/ai/pending' + (status ? ('?status=' + encodeURIComponent(status)) : ''));
+    },
+    affirm: function (id, body) {
+      return callX('POST', '/api/ai/pending/' + encodeURIComponent(id) + '/affirm', body);
+    },
+    approve: function (id, body) {
+      return callX('POST', '/api/ai/pending/' + encodeURIComponent(id) + '/approve', body || {});
+    },
+    reject: function (id) {
+      return callX('POST', '/api/ai/pending/' + encodeURIComponent(id) + '/reject', {});
+    },
+  };
+
   // Access-code-gated sign-up (pre-auth — NO token; public Supabase sign-up stays OFF). POSTs to
   // /api/signup; returns {ok, status, body} so the caller can show honest per-status messages
   // (403 bad code · 409 email exists · 429 slow down · 503 not enabled). On ok, the caller signs
