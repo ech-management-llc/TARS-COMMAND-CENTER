@@ -893,6 +893,12 @@ function loadBriefEmail(){
   if (!(window.flApi && flApi.authed && flApi.authed() && window.flGoogle)) return;
   if (_briefEmailCache && (Date.now() - _briefEmailCache.at) < _BRIEF_EMAIL_TTL_MS){
     box.innerHTML = _briefEmailCache.html;
+    // Only a LIVE-ITEMS render hides the gate note. An empty ("Inbox clear") section does NOT —
+    // the note is the only disclosure that the rest of the brief (ops/attention feeds) isn't wired.
+    if (_briefEmailCache.live){
+      const gate = document.getElementById('brief-gate-note');
+      if (gate) gate.style.display = 'none';
+    }
     bindBrief();
     return;
   }
@@ -904,10 +910,15 @@ function loadBriefEmail(){
     if (r && r.ok){
       const items = (r.data && r.data.items) || [];
       if (!items.length){
+        // Email is live but empty — keep the gate note visible; hiding it would make the whole
+        // (still-unwired) brief read as "live and all-quiet". Narrow the section, not the note.
         el.innerHTML = '<div class="brief-h">✉️ EMAIL</div><div class="src-note" style="margin:2px 2px 8px">Inbox clear — nothing important unread, nothing awaiting your reply.</div>';
-        _briefEmailCache = { at: Date.now(), html: el.innerHTML };
+        _briefEmailCache = { at: Date.now(), html: el.innerHTML, live: false };
         return;
       }
+      // real ranked items are rendering — the "goes live once wired" note would contradict them
+      const gate = document.getElementById('brief-gate-note');
+      if (gate) gate.style.display = 'none';
       el.innerHTML = '<div class="brief-h">✉️ EMAIL — important + awaiting your reply</div>' +
         items.map(it => {
           const cat = it.category === 'awaiting_reply'
@@ -926,7 +937,7 @@ function loadBriefEmail(){
               '<button type="button" class="bi-open" data-open="inbox" style="background:var(--surf2,#1a1d27);border:1px solid var(--line,#2a2d3a);color:var(--fg,#e8e8ea);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer">Open Inbox tile</button>' +
             '</div></div>';
         }).join('');
-      _briefEmailCache = { at: Date.now(), html: el.innerHTML };
+      _briefEmailCache = { at: Date.now(), html: el.innerHTML, live: true };
       bindBrief();
     } else if (r && r.status === 409){
       el.innerHTML = '';                          // not connected — the tiles carry the connect path
@@ -970,7 +981,9 @@ function renderBriefGroup(ls){
   // about fabricated figures; this is the account's actual mail). Populated async after render.
   h += '<div id="brief-email"></div>';
   if (brief.length) h += '<div class="brief-h">TODAY’S BRIEF</div>' + brief.map((it,i)=>briefItem(it,'b'+i,false)).join('');
-  if (!live) h += '<div class="src-note" style="margin:8px 2px 4px">'+esc(ai.note||'The daily brief goes live once TARS is wired to your feeds — until then, the tiles below read your live data directly.')+'</div>';
+  // The gate note gets an id so a LIVE async section (the Email section) can hide it — showing
+  // "goes live once wired" directly under real ranked mail is a contradiction (2026-07-13 verify).
+  if (!live) h += '<div class="src-note" id="brief-gate-note" style="margin:8px 2px 4px">'+esc(ai.note||'The daily brief goes live once TARS is wired to your feeds — until then, the tiles below read your live data directly.')+'</div>';
   // Punch List + Recurring docked at the bottom
   if (ls.length) h += '<div class="gridA" style="margin-top:12px">'+ls.map(artTile).join('')+'</div>';
   return h;
