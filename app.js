@@ -924,10 +924,15 @@ function loadBriefEmail(){
           const cat = it.category === 'awaiting_reply'
             ? '<span style="font-size:10px;font-weight:800;color:#fbbf24;border:1px solid #54470f;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap">OWES REPLY</span>'
             : '<span style="font-size:10px;font-weight:800;color:#60a5fa;border:1px solid #2a4a78;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap">UNREAD</span>';
+          // Build 3: the operator's rule/signal that floated this item (VIP/keyword/starred/important)
+          const impMap = { VIP:'#c4b5fd', keyword:'#fbbf24', starred:'#fbbf24', important:'#f87171' };
+          const imp = it.importance_badge && impMap[it.importance_badge]
+            ? '<span style="font-size:10px;font-weight:800;color:' + impMap[it.importance_badge] + ';border:1px solid currentColor;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap">' + esc(String(it.importance_badge).toUpperCase()) + '</span>'
+            : '';
           return '<div class="brief-item">' +
             '<button type="button" class="bi-head">' +
               '<span class="bi-dot"></span>' +
-              '<span class="bi-t">' + esc(it.summary || it.subject || '') + '</span>' + cat +
+              '<span class="bi-t">' + esc(it.summary || it.subject || '') + '</span>' + imp + cat +
               '<span class="bi-chev">▾</span>' +
             '</button>' +
             '<div class="bi-body">' +

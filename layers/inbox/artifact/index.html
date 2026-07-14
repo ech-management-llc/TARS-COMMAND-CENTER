@@ -19,6 +19,15 @@
 .srcpill2.realtor{color:#f87171;border-color:#5a1f1f}
 .srcpill2.rentredi{color:#34d399;border-color:#1c4d3e}
 .srcpill2.email{color:#fbbf24;border-color:#54470f}
+.impb{font-size:9px;font-weight:800;border-radius:5px;padding:1px 6px;border:1px solid;white-space:nowrap}
+.impb.vip{color:#c4b5fd;border-color:#5b4b8a;background:rgba(139,127,240,.12)}
+.impb.keyword{color:#fbbf24;border-color:#54470f}.impb.starred{color:#fbbf24;border-color:#54470f}
+.impb.important{color:#f87171;border-color:#5a1f1f}
+.imp-panel{background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.imp-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:7px}
+.imp-in{flex:1;min-width:160px;background:var(--surf);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px 9px;font:inherit;font-size:12px}
+.imp-lab{font-size:11px;font-weight:700;color:var(--dim);min-width:120px}
+.imp-save{background:var(--purplebg,#1c1830);border:1px solid var(--purpleln,#5b4b8a);color:var(--purple,#b9a7ff);font-weight:800;border-radius:16px;padding:6px 13px;font-size:12px;cursor:pointer;font-family:inherit}
 .flowbox{flex:1;min-width:0}
 .step{display:flex;gap:9px;margin-bottom:10px;align-items:flex-start}
 .step .av{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
@@ -59,6 +68,8 @@
     </div>
     <div class="wire-note" id="modenote">Default: <b>draft dispatch</b> — external sends hold for your approval inside the flow. Flip to auto once you trust it.</div>
   </div>
+
+  <div id="imp-host" style="display:none"></div>
 
   <div class="card" data-view-section="messages">
     <div class="split">
@@ -255,13 +266,63 @@
      (read-only: metadata + snippet, click-through to Gmail to act). When it isn't, the
      sample preview below runs unchanged — nothing fakes a live connection. */
   var GMSGS=[], gSel=null;
+  // Build 3: the caller's importance rules (loaded from the server). Client-side steer mirrors
+  // the server's email_ranking.steer for BADGING only — the authoritative float is server-side
+  // in the Brief. { vips:[], keywords:[], use_gmail_signals:bool }
+  var GCFG={ vips:[], keywords:[], use_gmail_signals:true };
+  function impBadge(m){
+    var frm=String(m.from||'').toLowerCase();
+    var em=(/(<([^>]+)>)/.exec(frm)||[])[2] || frm; em=em.trim();
+    var dom=em.indexOf('@')>=0?em.split('@')[1]:'';
+    var nm=frm.indexOf('<')>=0?frm.split('<')[0].replace(/"/g,'').trim():'';
+    for(var i=0;i<GCFG.vips.length;i++){ var r=GCFG.vips[i];
+      if(r.indexOf('@')>=0){ if(em===r) return 'vip'; }
+      else if(r.indexOf('.')>=0 && r.indexOf(' ')<0){ if(dom===r||dom.slice(-(r.length+1))==='.'+r) return 'vip'; }
+      else if(r && nm && nm.indexOf(r)>=0){ return 'vip'; }
+    }
+    var hay=((m.subject||'')+' '+(m.snippet||'')).toLowerCase();
+    for(var k=0;k<GCFG.keywords.length;k++){ if(GCFG.keywords[k] && hay.indexOf(GCFG.keywords[k])>=0) return 'keyword'; }
+    if(GCFG.use_gmail_signals){ if(m.starred) return 'starred'; if(m.important) return 'important'; }
+    return '';
+  }
+  var IMP_LABEL={ vip:'VIP', keyword:'KEYWORD', starred:'★', important:'IMPORTANT' };
   function renderGmailList(){
-    document.getElementById('msglist').innerHTML = GMSGS.map(function(m,i){
+    // pinned (rule/signal-matched) first, then the rest — mirrors the Brief's float, honestly
+    var order=GMSGS.map(function(m,i){ return {m:m,i:i,b:impBadge(m)}; });
+    order.sort(function(a,b){ return (b.b?1:0)-(a.b?1:0); });
+    document.getElementById('msglist').innerHTML = order.map(function(o){
+      var m=o.m, i=o.i;
       var unread = m.unread ? '<span class="srcpill2 email">UNREAD</span>' : '<span class="srcpill2">READ</span>';
+      var imp = o.b ? ' <span class="impb '+o.b+'">'+IMP_LABEL[o.b]+'</span>' : '';
       return '<div class="msg'+(i===gSel?' sel':'')+'" onclick="selectGmail('+i+')">'+
-        '<div class="from">'+esc(shortFrom(m.from))+' '+unread+'</div>'+
+        '<div class="from">'+esc(shortFrom(m.from))+' <span>'+imp+unread+'</span></div>'+
         '<div class="pv"><b>'+esc(m.subject||'')+'</b> — '+esc(m.snippet||'')+'</div></div>';
     }).join('') || '<div class="muted small">Inbox is empty.</div>';
+  }
+  function renderImpPanel(){
+    var host=document.getElementById('imp-host'); if(!host) return;
+    host.style.display='';
+    host.innerHTML='<div class="imp-panel">'+
+      '<div class="section-label" style="margin:0">⭐ IMPORTANCE RULES <span class="small dim" style="font-weight:400">— float VIPs & keywords to the top of the Daily Brief and this inbox</span></div>'+
+      '<div class="imp-row"><span class="imp-lab">VIP senders / domains</span><input class="imp-in" id="imp-vips" placeholder="jane@acme.com, acme.com, Bob Vance" value="'+esc(GCFG.vips.join(', '))+'"></div>'+
+      '<div class="imp-row"><span class="imp-lab">Keywords</span><input class="imp-in" id="imp-kw" placeholder="wire, urgent, lease" value="'+esc(GCFG.keywords.join(', '))+'"></div>'+
+      '<div class="imp-row"><label class="small" style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="imp-sig"'+(GCFG.use_gmail_signals?' checked':'')+'> Honor Gmail’s own Starred / Important markers</label>'+
+      '<button type="button" class="imp-save" id="imp-save" style="margin-left:auto">Save rules</button>'+
+      '<span class="small" id="imp-msg"></span></div></div>';
+    document.getElementById('imp-save').addEventListener('click', saveImpRules);
+  }
+  function splitList(v){ return String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
+  function saveImpRules(){
+    var cfg={ vips:splitList(document.getElementById('imp-vips').value),
+      keywords:splitList(document.getElementById('imp-kw').value),
+      use_gmail_signals:document.getElementById('imp-sig').checked };
+    var msg=document.getElementById('imp-msg'); msg.innerHTML='<span class="dim">Saving…</span>';
+    if(!window.flGoogle){ msg.innerHTML='<span class="err">unavailable</span>'; return; }
+    flGoogle.setImportance(cfg).then(function(r){
+      if(r && r.ok){ GCFG=r.data; renderImpPanel(); renderGmailList();
+        document.getElementById('imp-msg').innerHTML='<span class="ok">✓ Saved — applied to the Brief + inbox.</span>'; }
+      else { msg.innerHTML='<span class="err">save failed'+(r&&r.status?(' ('+r.status+')'):'')+'</span>'; }
+    });
   }
   function shortFrom(f){ var m=/^\s*"?([^"<]*)"?\s*</.exec(String(f||'')); return (m&&m[1].trim())||String(f||'').split('@')[0]; }
   function selectGmail(i){
@@ -286,6 +347,7 @@
     // card whose "Auto — Nadia sends on her own" copy would otherwise claim outbound is live
     // (its sample-mode disclaimer lived in the banner we just replaced).
     var sc=document.querySelector('[data-view-section="sendmode"]'); if(sc) sc.style.display='none';
+    renderImpPanel();
     renderGmailList();
     if(GMSGS.length){ selectGmail(0); }
     else {
@@ -330,6 +392,9 @@
     flGoogle.status().then(function(st){
       if(st && st.ok && st.data){
         if(st.data.connected){
+          // load the importance rules first (best-effort) so the live list badges on first paint
+          var cfgP = (flGoogle.importance ? flGoogle.importance() : Promise.resolve(null));
+          cfgP.then(function(cr){ if(cr && cr.ok && cr.data) GCFG=cr.data; }).catch(function(){}).then(function(){
           flGoogle.inbox(15).then(function(r){
             if(r && r.ok){ GMSGS=(r.data&&r.data.messages)||[]; initGmailLive(r.data.google_email||st.data.google_email||''); }
             else {
@@ -338,6 +403,7 @@
                 (r&&r.status===502?'Google may have revoked access — reconnect from System Requirements.':'Reload to retry.')+SAMPLE_TAG);
             }
           });
+          });   // end cfgP chain
         } else { addConnectHint(); bootSample(); }   // genuinely not connected (status says so)
       } else {
         // the status CHECK itself failed (API down / session expired) — do NOT claim "not
@@ -348,9 +414,9 @@
     }).catch(function(){ bootSample(); });
   }
 </script>
-<script src="../../../shared/fl-auth.js?v=20260713a"></script>
-<script src="../../../shared/fl-api.js?v=20260713a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260713a"></script>
+<script src="../../../shared/fl-auth.js?v=20260714b"></script>
+<script src="../../../shared/fl-api.js?v=20260714b"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260714b"></script>
 <script>FLSettings.mount({tileId:'inbox'});</script>
 <script>bootInbox(); /* AFTER fl-auth/fl-api so the live-Gmail path can actually run */</script>
 </body>
