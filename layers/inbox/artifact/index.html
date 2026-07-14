@@ -282,6 +282,10 @@
       '<b>LIVE — Gmail connected.</b> Reading <b>'+esc(email)+'</b> (read-only scopes). '+
       'The Daily Brief carries the AI-ranked top 5; the full mailbox stays in Gmail. '+
       'Manage the connection in <button class="xref" type="button" onclick="flOpen(\'system-requirements\')" title="Open System Requirements">System Requirements</button>.';
+    // Read-only connector (v1) sends NOTHING — hide the EXTERNAL SENDS / Draft-vs-Auto dispatch
+    // card whose "Auto — Nadia sends on her own" copy would otherwise claim outbound is live
+    // (its sample-mode disclaimer lived in the banner we just replaced).
+    var sc=document.querySelector('[data-view-section="sendmode"]'); if(sc) sc.style.display='none';
     renderGmailList();
     if(GMSGS.length){ selectGmail(0); }
     else {
@@ -295,7 +299,11 @@
     b.innerHTML += ' <b>Email:</b> connect Google (email + calendar) from <button class="xref" type="button" onclick="flOpen(\'system-requirements\')" title="Open System Requirements">System Requirements</button> to make this inbox live.';
   }
 
-  function bootSample(){
+  // Sample preview. `bannerHtml` (optional) sets a context banner that MUST itself carry the
+  // sample label — passed on any live-context failure so the demo data below is never left
+  // sitting under a bare "Gmail connected" banner (honest-state: sample data always disclosed).
+  function bootSample(bannerHtml){
+    if(bannerHtml){ var b=document.getElementById('inbox-banner'); if(b) b.innerHTML=bannerHtml; }
     Promise.all([
       fetch('../../../data/STUB_INBOX.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); }),
       fetch('../../../data/STUB_DEADLINES.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
@@ -311,27 +319,39 @@
     });
   }
 
-  (function boot(){
+  // DEFECT FIX (2026-07-13 live verify): this must NOT self-invoke here — fl-auth/fl-api load at
+  // the BOTTOM of this page, so window.flApi/flGoogle are undefined at this point in the parse and
+  // an IIFE would fall back to the sample preview on every load, even when Google is connected.
+  // bootInbox() is called from a script tag AFTER the includes (end of body).
+  function bootInbox(){
     var authed = !!(window.flApi && flApi.authed && flApi.authed());
     if(!authed || !window.flGoogle){ bootSample(); return; }
+    var SAMPLE_TAG = ' Showing the labeled SAMPLE preview below — not your mailbox.';
     flGoogle.status().then(function(st){
-      if(st && st.ok && st.data && st.data.connected){
-        flGoogle.inbox(15).then(function(r){
-          if(r && r.ok){ GMSGS=(r.data&&r.data.messages)||[]; initGmailLive(r.data.google_email||st.data.google_email||''); }
-          else {
-            document.getElementById('inbox-banner').innerHTML =
-              '<b>Gmail connected, but the pull failed'+(r&&r.status?' ('+r.status+')':'')+'.</b> '+
-              (r&&r.status===502?'Google rejected the stored connection — reconnect from System Requirements.':'Reload to retry.');
-            bootSample();
-          }
-        });
-      } else { addConnectHint(); bootSample(); }
+      if(st && st.ok && st.data){
+        if(st.data.connected){
+          flGoogle.inbox(15).then(function(r){
+            if(r && r.ok){ GMSGS=(r.data&&r.data.messages)||[]; initGmailLive(r.data.google_email||st.data.google_email||''); }
+            else {
+              // connected, but the mailbox pull failed — keep the sample LABELED (never bare).
+              bootSample('<b>Gmail connected, but the inbox pull failed'+(r&&r.status?' ('+r.status+')':'')+'.</b> '+
+                (r&&r.status===502?'Google may have revoked access — reconnect from System Requirements.':'Reload to retry.')+SAMPLE_TAG);
+            }
+          });
+        } else { addConnectHint(); bootSample(); }   // genuinely not connected (status says so)
+      } else {
+        // the status CHECK itself failed (API down / session expired) — do NOT claim "not
+        // connected" to a possibly-connected user; honest "couldn't check", labeled sample.
+        bootSample('<b>PREVIEW — sample inbox.</b> Couldn\'t check your Google connection'+
+          (st&&st.status?' ('+st.status+')':'')+' — reload to retry.'+SAMPLE_TAG);
+      }
     }).catch(function(){ bootSample(); });
-  })();
+  }
 </script>
-<script src="../../../shared/fl-auth.js?v=20260712a"></script>
-<script src="../../../shared/fl-api.js?v=20260712a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260712a"></script>
+<script src="../../../shared/fl-auth.js?v=20260713a"></script>
+<script src="../../../shared/fl-api.js?v=20260713a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260713a"></script>
 <script>FLSettings.mount({tileId:'inbox'});</script>
+<script>bootInbox(); /* AFTER fl-auth/fl-api so the live-Gmail path can actually run */</script>
 </body>
 </html>
