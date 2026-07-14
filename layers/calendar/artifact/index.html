@@ -25,6 +25,29 @@
   .stubrow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mut);padding:6px 2px;border-bottom:1px dotted var(--line)}
   .stubrow .pend{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--dim);background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:1px 8px}
   .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+  /* ── month grid (Build 2, read-only; same feed as the Upcoming list) ── */
+  .mg-head{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+  .mg-head .mg-caret{font-size:12px;color:var(--dim,#8a8a93);transition:transform .15s}
+  .mg-nav{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .mg-navbtn{background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:6px;width:26px;height:26px;font-size:14px;font-weight:800;cursor:pointer;line-height:1;font-family:inherit}
+  .mg-navbtn:hover{border-color:var(--blue)}
+  .mg-title{font-size:12.5px;font-weight:800;min-width:118px;text-align:center;color:var(--txt)}
+  .mg-today{background:var(--surf2);border:1px solid var(--line);color:var(--mut);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}
+  .mg-wrap{margin-top:10px}
+  .mg-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+  .mg-dow span{font-size:10px;font-weight:800;letter-spacing:.4px;color:var(--dim,#8a8a93);text-align:center;text-transform:uppercase}
+  .mg-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .mg-cell{min-height:74px;background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:4px 5px;overflow:hidden}
+  .mg-cell.mg-out{opacity:.4}
+  .mg-cell.mg-today-cell{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+  .mg-daynum{font-size:11px;font-weight:800;color:var(--mut);margin-bottom:3px}
+  .mg-ev{display:block;width:100%;text-align:left;font-size:10.5px;line-height:1.25;border-radius:4px;padding:2px 5px;margin-bottom:3px;border:1px solid var(--line);background:var(--surf);color:var(--txt);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit;text-decoration:none}
+  .mg-ev.k-deadline{border-color:#4a5578}.mg-ev.k-loan{border-color:#5a1f1f;color:#f8a9a9}
+  .mg-ev.k-insurance{border-color:#1c4d3e;color:#6ee7b7}.mg-ev.k-recurring{border-color:#54470f;color:#fbbf24}
+  .mg-ev.k-google{border-color:#2a4a78;color:#93c5fd}.mg-ev.hard{box-shadow:inset 3px 0 0 #ef4444}
+  .mg-more{font-size:9.5px;color:var(--dim,#8a8a93);font-weight:700}
+  .mg-empty{font-size:12px;color:var(--mut);padding:8px 2px}
+  @media(max-width:640px){ .mg-cell{min-height:52px} .mg-ev{font-size:9.5px} }
 </style>
 </head>
 <body>
@@ -42,6 +65,24 @@
 
   <div id="cal-live" style="display:none">
     <div class="ruleg" id="cal-kpis"></div>
+
+    <div class="card">
+      <div class="mg-head" id="mg-toggle" role="button" tabindex="0" aria-expanded="false">
+        <span class="mg-caret" id="mg-caret">▸</span>
+        <span class="section-label" style="margin:0">🗓️ MONTH VIEW</span>
+        <div class="mg-nav" id="mg-nav" style="display:none">
+          <button type="button" class="mg-today" id="mg-today" title="Jump to this month">Today</button>
+          <button type="button" class="mg-navbtn" id="mg-prev" title="Previous month" aria-label="Previous month">‹</button>
+          <span class="mg-title" id="mg-title">—</span>
+          <button type="button" class="mg-navbtn" id="mg-next" title="Next month" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="mg-wrap" id="mg-wrap" style="display:none">
+        <div class="mg-dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+        <div class="mg-grid" id="mg-grid"></div>
+        <div class="small dim" style="margin-top:6px">Same items as the list below — deadlines · loan maturities · recurring · live Google events. Read-only; add or delete in the list.</div>
+      </div>
+    </div>
 
     <div class="card">
       <div class="section-label">📅 UPCOMING — dated (deadlines · loan maturities · monthly recurring)</div>
@@ -81,11 +122,14 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Aggregated from <code>/api/deadlines</code> + <code>/api/recurring</code> + loan records. Two-way Google Calendar sync is Phase 4.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260713a"></script>
-<script src="../../../shared/fl-api.js?v=20260713a"></script>
-<script src="../../../shared/fl-state.js?v=20260713a"></script>
+<script src="../../../shared/fl-auth.js?v=20260714a"></script>
+<script src="../../../shared/fl-api.js?v=20260714a"></script>
+<script src="../../../shared/fl-state.js?v=20260714a"></script>
 <script>
   var DEADLINES=[], RECS=[], LOANS=[], POLICIES=[], ENTITIES=[], PROPS=[], GEVENTS=[];
+  // Build 2 — month grid state. `collapsed` persists per user via tile-state (FLState).
+  var MG={ year:null, month:null, collapsed:true, ready:false };
+  var MG_KEY='calendar_grid', MG_LSKEY='fl_calendar_grid_v1';
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function txt(id){ var v=(($(id)&&$(id).value)||'').trim(); return v===''?undefined:v; }
@@ -167,6 +211,102 @@
       return '<div class="cal-row"><span class="cal-date">'+fmt(i.date)+'</span>'+
         '<span class="cal-item"><b>'+esc(i.item)+'</b>'+hard+'<div class="sub">'+esc(i.sub||'')+'</div></span>'+srcchip+del+'</div>';
     }).join('');
+    // keep the month grid in sync with the list (same feed) whenever it's open
+    if(MG.ready && !MG.collapsed) renderMonthGrid();
+  }
+
+  // ── Build 2: month grid — renders the SAME datedItems() feed into day cells ──
+  var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function itemsByDate(){
+    var map={};
+    datedItems().forEach(function(i){ (map[i.date]=map[i.date]||[]).push(i); });
+    return map;
+  }
+  function gridChip(i){
+    var cls='mg-ev k-'+esc(i.kind||'')+(i.hard?' hard':'');
+    var label=esc(i.item||'');
+    if(i.kind==='google' && i.glink){
+      return '<a class="'+cls+'" href="'+esc(i.glink)+'" target="_blank" rel="noopener" title="'+label+' — open in Google Calendar">'+label+'</a>';
+    }
+    if(i.src){
+      return '<button type="button" class="'+cls+'" data-mgopen="'+esc(i.src)+'" title="'+label+' — open '+esc(i.src)+'">'+label+'</button>';
+    }
+    // deadline (lives on THIS tile) — non-navigating chip, full text on hover
+    return '<span class="'+cls+'" title="'+label+'">'+label+'</span>';
+  }
+  function renderMonthGrid(){
+    if(MG.year==null){ var t=new Date(); MG.year=t.getFullYear(); MG.month=t.getMonth(); }
+    var g=$('mg-grid'); if(!g) return;
+    $('mg-title').textContent=MONTHS[MG.month]+' '+MG.year;
+    var byDate=itemsByDate();
+    var first=new Date(MG.year, MG.month, 1);
+    var startDow=first.getDay();                       // 0=Sun
+    var daysInMonth=new Date(MG.year, MG.month+1, 0).getDate();
+    var todayS=todayStr();
+    var cells='';
+    // leading blanks (prev-month days, dimmed + empty)
+    for(var b=0;b<startDow;b++){ cells+='<div class="mg-cell mg-out"></div>'; }
+    for(var d=1; d<=daysInMonth; d++){
+      var ds=MG.year+'-'+pad(MG.month+1)+'-'+pad(d);
+      var evs=byDate[ds]||[];
+      var isToday = ds===todayS;
+      var chips=evs.slice(0,3).map(gridChip).join('');
+      var more=evs.length>3 ? '<div class="mg-more">+'+(evs.length-3)+' more</div>' : '';
+      cells+='<div class="mg-cell'+(isToday?' mg-today-cell':'')+'">'+
+        '<div class="mg-daynum">'+d+'</div>'+chips+more+'</div>';
+    }
+    // trailing blanks to complete the final week row
+    var total=startDow+daysInMonth, trail=(7-(total%7))%7;
+    for(var tb=0;tb<trail;tb++){ cells+='<div class="mg-cell mg-out"></div>'; }
+    g.innerHTML=cells;
+  }
+  function applyGridCollapse(){
+    var wrap=$('mg-wrap'), nav=$('mg-nav'), caret=$('mg-caret'), head=$('mg-toggle');
+    if(!wrap) return;
+    var open=!MG.collapsed;
+    wrap.style.display=open?'':'none';
+    nav.style.display=open?'':'none';
+    caret.textContent=open?'▾':'▸';
+    caret.style.transform='';
+    if(head) head.setAttribute('aria-expanded', open?'true':'false');
+    if(open) renderMonthGrid();
+  }
+  function toggleGrid(){
+    MG.collapsed=!MG.collapsed;
+    applyGridCollapse();
+    if(window.FLState) FLState.save(MG_KEY, MG_LSKEY, {collapsed:MG.collapsed});
+  }
+  function shiftMonth(delta){
+    var m=MG.month+delta, y=MG.year;
+    MG.year=y+Math.floor(m/12); MG.month=((m%12)+12)%12;
+    renderMonthGrid();
+  }
+  function initMonthGrid(){
+    if(MG.ready){ if(!MG.collapsed) renderMonthGrid(); return; }
+    MG.ready=true;
+    var head=$('mg-toggle');
+    if(head){
+      head.addEventListener('click', function(e){
+        // don't toggle when interacting with the nav controls inside the header
+        if(e.target.closest && e.target.closest('.mg-nav')) return;
+        toggleGrid();
+      });
+      head.addEventListener('keydown', function(e){
+        // Only the header itself toggles — NOT a keyboard activation of a nested nav button
+        // (Enter/Space on Prev/Next/Today must navigate, not collapse the grid + steal focus).
+        if(e.target!==head) return;
+        if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleGrid(); }
+      });
+    }
+    if($('mg-prev')) $('mg-prev').addEventListener('click', function(e){ e.stopPropagation(); shiftMonth(-1); });
+    if($('mg-next')) $('mg-next').addEventListener('click', function(e){ e.stopPropagation(); shiftMonth(1); });
+    if($('mg-today')) $('mg-today').addEventListener('click', function(e){ e.stopPropagation(); var t=new Date(); MG.year=t.getFullYear(); MG.month=t.getMonth(); renderMonthGrid(); });
+    // grid chip navigation (event delegation)
+    if($('mg-grid')) $('mg-grid').addEventListener('click', function(e){
+      var b=e.target&&e.target.closest?e.target.closest('[data-mgopen]'):null;
+      if(b) flOpen(b.getAttribute('data-mgopen'));
+    });
+    applyGridCollapse();
   }
 
   function renderRepeating(){
@@ -255,6 +395,11 @@
       DEADLINES=out[0]||[]; RECS=out[1]||[]; LOANS=out[2]||[]; POLICIES=out[3]||[]; ENTITIES=out[4]||[]; PROPS=out[5]||[];
       fillSelects(); renderUpcoming(); renderRepeating();
       loadGoogleEvents();
+      // Build 2: restore the per-user month-grid collapse preference, then wire the grid.
+      var gp=(window.FLState ? FLState.load(MG_KEY, MG_LSKEY) : Promise.resolve({value:null}));
+      gp.then(function(r){ if(r && r.value && typeof r.value.collapsed==='boolean') MG.collapsed=r.value.collapsed; })
+        .catch(function(){})
+        .then(function(){ initMonthGrid(); });
     }).catch(function(){
       if(window.flApi && !flApi.authed()) showAuth();
       else { $('cal-loading').style.display='none'; $('cal-upcoming').innerHTML='<div class="small err">Could not load the calendar — reload to retry.</div>'; }
@@ -262,7 +407,7 @@
   }
   start();
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260713a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260714a"></script>
 <script>try{ FLSettings.mount({tileId:'calendar'}); }catch(e){}</script>
 </body>
 </html>
