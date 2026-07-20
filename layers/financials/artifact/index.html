@@ -60,10 +60,10 @@
   <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260713a"></script>
-<script src="../../../shared/fl-api.js?v=20260713a"></script>
-<script src="../../../shared/fl-state.js?v=20260713a"></script>
-<script src="../../../shared/fl-scope-select.js?v=20260713a"></script>
+<script src="../../../shared/fl-auth.js?v=20260714a"></script>
+<script src="../../../shared/fl-api.js?v=20260714a"></script>
+<script src="../../../shared/fl-state.js?v=20260714a"></script>
+<script src="../../../shared/fl-scope-select.js?v=20260714a"></script>
 <script>
   // H5: the financial dashboard now reads the AUTHED, per-principal /api/dashboard/scoped (was the
   // unauth global /latest, now admin-only). flApi.call carries the caller's JWT + returns null on
@@ -234,7 +234,7 @@
     fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
   ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api:scoped'); }).catch(fail);
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260713a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260714a"></script>
 <script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
 </body>
 </html>
