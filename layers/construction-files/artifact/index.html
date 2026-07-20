@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Construction Files — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  .cf-intro{font-size:13px;color:var(--dim,#8a8a93);margin:6px 0 14px;max-width:640px;line-height:1.5}
+  .cf-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin-bottom:14px}
+  .cf-field{display:flex;flex-direction:column}
+  .cf-lab{font-size:11.5px;font-weight:600;color:var(--dim,#8a8a93);margin-bottom:4px}
+  .cf-in{background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a}
+  .cf-up{background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+  .cf-up:hover{filter:brightness(1.06)}.cf-up:disabled{opacity:.6;cursor:default}
+  .cf-msg{font-size:12px;min-height:16px;margin:2px 0 12px}
+  .cf-note{font-size:11.5px;color:var(--dim,#8a8a93);margin-top:4px}
+  .cf-tier{display:inline-block;font-size:11px;color:#b26a00;font-weight:700}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🏗️ Construction Files</div>
+  <div class="cf-intro">
+    Blueprints, drawings, renderings, permits, and specs for your builds — stored once and
+    surfaced wherever they’re relevant (a blueprint on the Property File, a quote on the Deal).
+    Plans and permits are readable by your crew; <span class="cf-tier">cost documents
+    (quotes, takeoffs, change orders)</span> are limited to cleared principals.
+  </div>
+
+  <div class="cf-bar">
+    <div class="cf-field">
+      <label class="cf-lab" for="cf-kind">Document type</label>
+      <select id="cf-kind" class="cf-in">
+        <optgroup label="Crew-readable">
+          <option value="blueprint">Blueprint</option>
+          <option value="arch_drawing">Architectural drawing</option>
+          <option value="rendering">Rendering</option>
+          <option value="permit">Permit</option>
+          <option value="spec">Spec</option>
+          <option value="submittal">Submittal</option>
+          <option value="site_photo">Site photo</option>
+        </optgroup>
+        <optgroup label="Cost — needs financial clearance">
+          <option value="quote">Quote</option>
+          <option value="takeoff">Takeoff</option>
+          <option value="change_order">Change order</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="cf-field">
+      <label class="cf-lab" for="cf-entity">Entity code (optional)</label>
+      <input id="cf-entity" class="cf-in" placeholder="e.g. ECH_MABANK" autocomplete="off">
+    </div>
+    <div class="cf-field">
+      <label class="cf-lab" for="cf-file">File</label>
+      <input id="cf-file" type="file" class="cf-in">
+    </div>
+    <button id="cf-upload" class="cf-up" type="button">Upload</button>
+  </div>
+  <div id="cf-msg" class="cf-msg" role="status" aria-live="polite"></div>
+
+  <div id="cf-list"></div>
+  <div class="cf-note">
+    Uploads are stored in Foundation Layer’s private document store and attach to this
+    Construction Files category. To surface a file on a specific Property, Deal, or work order,
+    use the “linked documents” strip on that record (same store, one link).
+  </div>
+</div>
+
+<script src="../../../shared/fl-auth.js?v=20260719a"></script>
+<script src="../../../shared/fl-api.js?v=20260719a"></script>
+<script src="../../../shared/fl-linked-docs.js?v=20260719a"></script>
+<script>
+(function () {
+  var listEl = document.getElementById('cf-list');
+  var msg = document.getElementById('cf-msg');
+  var view = window.flLinkedDocs.mountCategory(listEl, { category: 'construction' });
+
+  var btn = document.getElementById('cf-upload');
+  btn.addEventListener('click', async function () {
+    var f = document.getElementById('cf-file').files[0];
+    if (!f) { msg.className = 'cf-msg err'; msg.textContent = 'Choose a file first.'; return; }
+    if (!(window.flApi && flApi.authed && flApi.authed())) {
+      msg.className = 'cf-msg err'; msg.textContent = 'Sign in to upload.'; return;
+    }
+    var kind = document.getElementById('cf-kind').value;
+    var entity = document.getElementById('cf-entity').value.trim();
+    btn.disabled = true; msg.className = 'cf-msg'; msg.textContent = 'Uploading…';
+    try {
+      var meta = { kind: kind, notes: 'via Construction Files' };
+      if (entity) meta.entity_code = entity;
+      var up = await flDocuments.upload(f, meta);
+      if (up && up.ok && up.data && up.data.id) {
+        msg.className = 'cf-msg ok'; msg.textContent = 'Uploaded.';
+        document.getElementById('cf-file').value = '';
+        view.reload();
+      } else if (up && up.status === 403) {
+        msg.className = 'cf-msg err';
+        msg.textContent = 'That document type needs financial clearance — ask an owner.';
+      } else {
+        msg.className = 'cf-msg err';
+        msg.textContent = 'Upload failed (HTTP ' + ((up && up.status) || '?') + ').';
+      }
+    } catch (e) {
+      msg.className = 'cf-msg err'; msg.textContent = 'Upload failed.';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

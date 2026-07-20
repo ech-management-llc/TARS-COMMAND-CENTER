@@ -133,6 +133,9 @@
       var q = [];
       if (filters.entity_code) q.push('entity_code=' + encodeURIComponent(filters.entity_code));
       if (filters.kind) q.push('kind=' + encodeURIComponent(filters.kind));
+      // patch 030 — Construction Files category view + doc→record linkage surface.
+      if (filters.category) q.push('category=' + encodeURIComponent(filters.category));
+      if (filters.target) q.push('target=' + encodeURIComponent(filters.target));
       return callX('GET', '/api/documents' + (q.length ? ('?' + q.join('&')) : ''));
     },
     upload: function (file, meta) {
@@ -148,6 +151,18 @@
       return callX('GET', '/api/documents/' + encodeURIComponent(id) + '/download');
     },
     del: function (id) { return callX('DELETE', '/api/documents/' + encodeURIComponent(id)); },
+    // patch 030 — doc→record links ("store once, surface everywhere"). target = "<type>:<id>".
+    listLinks: function (id) {
+      return callX('GET', '/api/documents/' + encodeURIComponent(id) + '/links');
+    },
+    link: function (id, targetType, targetId) {
+      return callX('POST', '/api/documents/' + encodeURIComponent(id) + '/links',
+                   { target_type: targetType, target_id: targetId });
+    },
+    unlink: function (id, linkId) {
+      return callX('DELETE', '/api/documents/' + encodeURIComponent(id)
+                   + '/links/' + encodeURIComponent(linkId));
+    },
   };
 
   // Per-user tile working-state (Part B) — the server home for what used to be localStorage-only
