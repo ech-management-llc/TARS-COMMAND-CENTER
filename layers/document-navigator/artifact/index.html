@@ -22,6 +22,10 @@
     <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Dana</b> and say "make a folder for warranties" — the employee reshapes the view and it sticks.</div>
   </div>
 
+  <div class="card" data-view-section="quinn" id="quinn-card" style="display:none">
+    <div id="quinn-box"></div>
+  </div>
+
   <div class="card" data-view-section="browse">
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <input type="text" id="docsearch" placeholder="🔎 Search every document… (e.g. 415 Skiles lease)" style="flex:1;background:var(--surf2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 11px;font:inherit;font-size:12.5px">
@@ -338,6 +342,20 @@
     }
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
   }).catch(function(){ document.getElementById('fview').innerHTML='<div class="muted small">Awaiting document index — shared source not reachable.</div>'; });
+</script>
+<script src="../../../shared/quinn.js?v=20260712a"></script>
+<script>
+  // Quinn Auto-File (4c L1): drop box + proposal/ask cards. Renders ONLY for a signed-in
+  // tenant; hidden entirely unless Quinn is hired (owner sees the hire control). On an
+  // approved commit the navigator re-syncs so the new record appears in its folder.
+  (function(){
+    var cardEl = document.getElementById('quinn-card');
+    var box = document.getElementById('quinn-box');
+    if(cardEl && box && window.FLQuinn && window.flApi && flApi.authed()){
+      cardEl.style.display = '';
+      FLQuinn.mount(box, { onCommit: function(){ try{ reloadReal(); }catch(e){} } });
+    }
+  })();
 </script>
 <script src="../../../shared/fl-tile-settings.js?v=20260713a"></script>
 <script>FLSettings.mount({tileId:'document-navigator'});</script>
