@@ -36,9 +36,9 @@
 
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260714b"></script>
-<script src="../../../shared/fl-api.js?v=20260714b"></script>
-<script src="../../../shared/fl-state.js?v=20260714b"></script>
+<script src="../../../shared/fl-auth.js?v=20260720a"></script>
+<script src="../../../shared/fl-api.js?v=20260720a"></script>
+<script src="../../../shared/fl-state.js?v=20260720a"></script>
 <script>
   // cross-tile nav: ask the shell to open the source tile (inert when viewed standalone)
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
@@ -83,7 +83,7 @@
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260714b"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260720a"></script>
 <script>FLSettings.mount({tileId:'reserves-capex'});</script>
 </body>
 </html>

@@ -998,6 +998,30 @@
       "section_lead": "admin"
     },
     {
+      "id": "construction-files",
+      "title": "Construction Files",
+      "icon": "🏗️",
+      "desc": "blueprints · permits · quotes — stored once, surfaced everywhere",
+      "group": "admin",
+      "tier": "L2",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/construction-files/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Upload the 412 Oakmont blueprints",
+        "Show permits for the Mabank build"
+      ]
+    },
+    {
       "id": "system-requirements",
       "title": "System Requirements & Connections",
       "icon": "🧩",

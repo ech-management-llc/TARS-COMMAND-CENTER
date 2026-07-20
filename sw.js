@@ -3,7 +3,7 @@
 // Cache-first for same-origin assets; live sources (FL API, data snapshots) fall
 // through to the network when online.
 
-const CACHE_NAME = 'tcc-tilehome-live-20260714b';
+const CACHE_NAME = 'tcc-tilehome-live-20260720a';
 
 const ASSETS = [
   './',
@@ -37,6 +37,7 @@ const ASSETS = [
   './layers/team-access/artifact/index.html',
   './layers/plans-billing/artifact/index.html',
   './layers/investor-reporting/artifact/index.html',
+  './layers/construction-files/artifact/index.html',
   './layers/tenant-portal/artifact/index.html'
 ];
 
