@@ -365,6 +365,10 @@
       return callX('GET', '/api/google/calendar' + (max ? ('?max_results=' + max) : ''));
     },
     briefEmail: function () { return callX('GET', '/api/google/brief-email'); },
+    // Build 3: per-user email-importance rules (VIP/keyword/Gmail-signals). GET returns the
+    // normalized config; PUT upserts it. Drives the Brief Email float + Inbox highlighting.
+    importance: function () { return callX('GET', '/api/google/importance'); },
+    setImportance: function (cfg) { return callX('PUT', '/api/google/importance', cfg); },
   };
 
   // ── Quinn Auto-File (4c L1 — propose→operator-approves, never auto-commit) ──
