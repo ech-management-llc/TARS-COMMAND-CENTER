@@ -1022,6 +1022,31 @@
       ]
     },
     {
+      "id": "sensitive-documents",
+      "title": "Sensitive Documents",
+      "icon": "🔒",
+      "desc": "EINs · tax forms · IDs — principal-only, step-up to open",
+      "group": "admin",
+      "tier": "L2",
+      "enabled": true,
+      "entitled": true,
+      "data": {
+        "type": "static"
+      },
+      "status_rules": "neutral",
+      "drilldown": "./layers/sensitive-documents/artifact/index.html",
+      "employee": {
+        "name": "Quinn",
+        "role": "Admin lead",
+        "avatar": "Q"
+      },
+      "chips": [
+        "Show my EIN letter",
+        "Open the 2025 tax return"
+      ],
+      "section_lead": "admin"
+    },
+    {
       "id": "system-requirements",
       "title": "System Requirements & Connections",
       "icon": "🧩",
