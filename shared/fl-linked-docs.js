@@ -28,19 +28,22 @@
     return k === 'quote' || k === 'takeoff' || k === 'change_order';
   }
 
-  async function openDownload(id, btn) {
+  async function openDownload(id, btn, opts) {
     var prev = btn.textContent;
     btn.disabled = true; btn.textContent = '…';
     try {
-      var r = await flDocuments.downloadUrl(id);
-      if (r && r.ok && r.data && r.data.url) {
-        window.open(r.data.url, '_blank', 'noopener');
-      } else if (r && r.status === 404) {
-        btn.textContent = 'unavailable';
-        return;
+      // opts.onOpen (Sensitive tile / step-up): the caller owns the open flow and returns
+      // { ok, url } or { ok:false, message }. Absent -> the plain signed-URL download.
+      if (opts && typeof opts.onOpen === 'function') {
+        var o = await opts.onOpen(id);
+        if (o && o.ok && o.url) { window.open(o.url, '_blank', 'noopener'); }
+        else { btn.textContent = (o && o.message) ? 'locked' : 'retry';
+               if (o && o.message) { msgBelow(btn, o.message); } return; }
       } else {
-        btn.textContent = 'retry';
-        return;
+        var r = await flDocuments.downloadUrl(id);
+        if (r && r.ok && r.data && r.data.url) { window.open(r.data.url, '_blank', 'noopener'); }
+        else if (r && r.status === 404) { btn.textContent = 'unavailable'; return; }
+        else { btn.textContent = 'retry'; return; }
       }
     } catch (e) {
       btn.textContent = 'retry';
@@ -51,17 +54,26 @@
     btn.disabled = false; btn.textContent = prev;
   }
 
+  function msgBelow(btn, text) {
+    var r = btn.closest('.fl-ldoc-row') || btn.parentNode;
+    var m = r.querySelector('.fl-ldoc-inline');
+    if (!m) { m = document.createElement('div'); m.className = 'fl-ldoc-inline fl-ldoc-msg';
+              r.appendChild(m); }
+    m.textContent = text;
+  }
+
   function row(doc, opts) {
     var wrap = document.createElement('div');
     wrap.className = 'fl-ldoc-row';
     var cost = isCost(doc.kind);
+    var openLabel = (opts && typeof opts.onOpen === 'function') ? 'Open' : 'Download';
     wrap.innerHTML =
       '<span class="fl-ldoc-kind' + (cost ? ' fl-ldoc-cost' : '') + '">'
         + esc(kindLabel(doc.kind)) + '</span>'
       + '<span class="fl-ldoc-name">' + esc(doc.name) + '</span>'
-      + '<button type="button" class="fl-ldoc-dl">Download</button>';
+      + '<button type="button" class="fl-ldoc-dl">' + openLabel + '</button>';
     wrap.querySelector('.fl-ldoc-dl').addEventListener('click', function (e) {
-      openDownload(doc.id, e.currentTarget);
+      openDownload(doc.id, e.currentTarget, opts);
     });
     return wrap;
   }

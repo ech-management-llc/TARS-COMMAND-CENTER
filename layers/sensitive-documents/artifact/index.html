@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sensitive Documents — Foundation Layer Command Center</title>
+<link rel="stylesheet" href="../../../artifact.css">
+<style>
+  /* ≥16px body type, ≥44px targets, plain language — the FL UX floor. */
+  .sd-intro{font-size:16px;color:var(--dim,#8a8a93);margin:6px 0 14px;max-width:660px;line-height:1.6}
+  .sd-lock{display:inline-flex;align-items:center;gap:6px;background:#fef3c7;color:#92400e;
+    border:1.5px solid #fcd34d;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:700;
+    margin-bottom:14px}
+  .sd-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin-bottom:14px}
+  .sd-field{display:flex;flex-direction:column}
+  .sd-lab{font-size:13px;font-weight:600;color:var(--dim,#8a8a93);margin-bottom:4px}
+  .sd-in{background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:11px 12px;
+    font-size:16px;font-family:inherit;color:#0f172a;min-height:44px}
+  .sd-up{background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:12px 18px;
+    font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;min-height:44px}
+  .sd-up:hover{filter:brightness(1.06)}.sd-up:disabled{opacity:.6;cursor:default}
+  .sd-msg{font-size:14px;min-height:18px;margin:2px 0 12px}
+  .sd-note{font-size:13px;color:var(--dim,#8a8a93);margin-top:10px;line-height:1.5;max-width:660px}
+  .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
+</style>
+</head>
+<body>
+<div class="art-wrap">
+  <div class="art-head">🔒 Sensitive Documents</div>
+  <div class="sd-lock">🔒 Principal-only · re-authenticate (step-up) to open</div>
+  <div class="sd-intro">
+    Your most sensitive paperwork — EIN letters, tax returns and forms (1099 / W-2 / W-4 / I-9 /
+    K-1), Social-Security/TIN pages, and owner ID. These are limited to cleared principals, and
+    opening one asks you to re-authenticate first. They surface on their related record (a
+    vendor, an entity, a person) only as a <b>locked reference</b> — never as readable content —
+    until you unlock them here.
+  </div>
+
+  <div class="sd-bar">
+    <div class="sd-field">
+      <label class="sd-lab" for="sd-kind">Document type</label>
+      <select id="sd-kind" class="sd-in">
+        <option value="ein_letter">EIN letter / CP-575</option>
+        <option value="tax_return">Tax return (1040 / 1065 / 1120)</option>
+        <option value="tax_form_1099">1099</option>
+        <option value="tax_form_w2">W-2</option>
+        <option value="tax_form_w4">W-4</option>
+        <option value="tax_form_i9">I-9</option>
+        <option value="tax_form_k1">Schedule K-1</option>
+        <option value="ssn_tin_doc">SSN / TIN page</option>
+        <option value="owner_pii">Owner ID / PII</option>
+      </select>
+    </div>
+    <div class="sd-field">
+      <label class="sd-lab" for="sd-entity">Entity code (optional)</label>
+      <input id="sd-entity" class="sd-in" placeholder="e.g. ECH_MABANK" autocomplete="off">
+    </div>
+    <div class="sd-field">
+      <label class="sd-lab" for="sd-file">File</label>
+      <input id="sd-file" type="file" class="sd-in">
+    </div>
+    <button id="sd-upload" class="sd-up" type="button">Upload securely</button>
+  </div>
+  <div id="sd-msg" class="sd-msg" role="status" aria-live="polite"></div>
+
+  <div id="sd-list"></div>
+  <div class="sd-note">
+    Uploads go straight into Foundation Layer’s private, principal-only store. A tester or team
+    member without financial clearance can’t see these at all. Opening a document requires a
+    fresh sign-in (step-up) — if you haven’t re-authenticated recently you’ll be asked to.
+  </div>
+</div>
+
+<script src="../../../shared/fl-auth.js?v=20260721a"></script>
+<script src="../../../shared/fl-api.js?v=20260721a"></script>
+<script src="../../../shared/fl-linked-docs.js?v=20260721a"></script>
+<script>
+(function () {
+  var listEl = document.getElementById('sd-list');
+  var msg = document.getElementById('sd-msg');
+
+  // The shared strip renders whatever the cage returns for ?category=sensitive: a cleared
+  // principal sees the list; a non-cleared member gets an honest empty/locked state (the tier
+  // folds server-side). It never decides visibility itself.
+  var view = window.flLinkedDocs.mountCategory(listEl, {
+    category: 'sensitive',
+    // Opening a sensitive doc needs step-up: mint a token, then download WITH it. A stale
+    // session (no recent re-auth) returns reauth_required — surfaced honestly, not as an error.
+    onOpen: async function (docId) {
+      if (!(window.flApi && flApi.authed && flApi.authed())) {
+        return { ok: false, message: 'Sign in to open.' };
+      }
+      var su = await flDocuments.stepUp();
+      if (!su || !su.ok || !su.data || !su.data.token) {
+        if (su && su.status === 401) {
+          return { ok: false, message: 'Re-authenticate to open this document (step-up '
+                   + 'required). Fresh sign-in coming with the next release.' };
+        }
+        if (su && su.status === 403) {
+          return { ok: false, message: 'Limited to cleared principals.' };
+        }
+        return { ok: false, message: 'Could not start step-up (HTTP '
+                 + ((su && su.status) || '?') + ').' };
+      }
+      var dl = await flDocuments.downloadUrlSensitive(docId, su.data.token);
+      if (dl && dl.ok && dl.data && dl.data.url) return { ok: true, url: dl.data.url };
+      if (dl && dl.status === 401) {
+        return { ok: false, message: 'Step-up expired — re-authenticate and try again.' };
+      }
+      return { ok: false, message: 'Could not open (HTTP ' + ((dl && dl.status) || '?') + ').' };
+    },
+  });
+
+  var btn = document.getElementById('sd-upload');
+  btn.addEventListener('click', async function () {
+    var f = document.getElementById('sd-file').files[0];
+    if (!f) { msg.className = 'sd-msg err'; msg.textContent = 'Choose a file first.'; return; }
+    if (!(window.flApi && flApi.authed && flApi.authed())) {
+      msg.className = 'sd-msg err'; msg.textContent = 'Sign in to upload.'; return;
+    }
+    var kind = document.getElementById('sd-kind').value;
+    var entity = document.getElementById('sd-entity').value.trim();
+    btn.disabled = true; msg.className = 'sd-msg'; msg.textContent = 'Uploading securely…';
+    try {
+      var meta = { kind: kind, notes: 'via Sensitive Documents' };
+      if (entity) meta.entity_code = entity;
+      var up = await flDocuments.upload(f, meta);
+      if (up && up.ok && up.data && up.data.id) {
+        msg.className = 'sd-msg ok'; msg.textContent = 'Uploaded to the secure store.';
+        document.getElementById('sd-file').value = '';
+        if (view && view.reload) view.reload();
+      } else if (up && up.status === 403) {
+        msg.className = 'sd-msg err';
+        msg.textContent = 'Sensitive documents are limited to cleared principals — ask an owner.';
+      } else {
+        msg.className = 'sd-msg err';
+        msg.textContent = 'Upload failed (HTTP ' + ((up && up.status) || '?') + ').';
+      }
+    } catch (e) {
+      msg.className = 'sd-msg err'; msg.textContent = 'Upload failed.';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

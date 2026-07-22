@@ -150,6 +150,24 @@
     downloadUrl: function (id) {
       return callX('GET', '/api/documents/' + encodeURIComponent(id) + '/download');
     },
+    // Sensitive Documents tile (Quinn P2b): mint a short-lived STEP-UP token — the backend
+    // requires a FRESH Supabase JWT, so the caller must have just re-authenticated (the FE
+    // re-auth UI is the follow-on; until then a stale session gets 401 reauth_required, which
+    // the tile surfaces honestly). Then open the sensitive doc passing X-Step-Up-Token.
+    stepUp: function () {
+      return callX('POST', '/api/documents/sensitive/step-up');
+    },
+    downloadUrlSensitive: function (id, stepUpToken) {
+      var t = token();
+      if (!t) return Promise.resolve({ ok: false, status: 0, data: null });
+      return fetch(BASE + '/api/documents/' + encodeURIComponent(id) + '/download', {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer ' + t, 'X-Step-Up-Token': stepUpToken || '' },
+      }).then(function (res) {
+        return res.json().then(function (d) { return { ok: res.ok, status: res.status, data: d }; },
+                               function () { return { ok: res.ok, status: res.status, data: null }; });
+      }, function () { return { ok: false, status: 0, data: null }; });
+    },
     del: function (id) { return callX('DELETE', '/api/documents/' + encodeURIComponent(id)); },
     // patch 030 — doc→record links ("store once, surface everywhere"). target = "<type>:<id>".
     listLinks: function (id) {
