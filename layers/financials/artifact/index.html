@@ -191,8 +191,13 @@
     if(isAll()||!SEL){ note.innerHTML='Showing <b>all entities, consolidated</b>. Tap a company below to scope the metrics + reports; tap more for a combo. Capital Rules are measured per <b>owner</b> at the consolidated level.'; return; }
     if(n===0){ note.innerHTML='<b>No entities selected.</b> Tap a company below, or ★ All (consolidated).'; return; }
     var ents=scopeEntities(); var selCash=sum(ents,'cash');
-    var cr=(DATA&&DATA.capital_rules)||{}; var consolCash=(cr.liquidity&&cr.liquidity.value)||0;
-    note.innerHTML='Scoped to <b>'+n+' of '+total+'</b>. Headline metrics + reports reflect this selection. <b>Capital Rules stay owner-level</b> ('+esc(ownersInScope().join(', '))+'): these entities hold '+money(selCash)+' of the '+money(consolCash)+' owner liquidity. A different owner’s rule set applies automatically when an entity is managed for a third party (data/STUB_CAPITAL_PROFILES.json).';
+    var cr=(DATA&&DATA.capital_rules)||{}; var liq=cr.liquidity||{};
+    // Read owner liquidity from STATUS, never a bare value. UNKNOWN carries value:null (FL 2.3b);
+    // the old `(...value)||0` printed "$0 owner liquidity", which reads as "the owner has no cash"
+    // instead of "not measured yet" — and `||0` would fold a genuine $0 the same way.
+    var liqKnown=(liq.status && liq.status!=='UNKNOWN' && liq.value!=null);
+    var liqTxt=liqKnown?(' of the '+money(liq.value)+' owner liquidity'):'; owner liquidity is not measured yet';
+    note.innerHTML='Scoped to <b>'+n+' of '+total+'</b>. Headline metrics + reports reflect this selection. <b>Capital Rules stay owner-level</b> ('+esc(ownersInScope().join(', '))+'): these entities hold '+money(selCash)+liqTxt+'. A different owner’s rule set applies automatically when an entity is managed for a third party (data/STUB_CAPITAL_PROFILES.json).';
   }
 
   function renderAll(){ renderRules(); renderHeadline(); renderEntities(); renderScopeNote(); }
