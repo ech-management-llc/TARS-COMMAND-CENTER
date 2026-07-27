@@ -1,9 +1,14 @@
 # TCC Last Bump
 
-**Last activity:** 2026-06-05 PM2 — v0.6.3 production rebuild (branch `v0.6.3`, NOT merged)
-**Session:** Claude Code — TCC v0.6.3 cutover-ready build (flip GATED on Jerry + Phase 1d step 3 ledger data)
+**Last activity:** 2026-07-27 — EOD signoff bump (FL BUILD QUEUE session: blocks 2.1→2.4b merged+live, 2.4c built+held)
+**Session:** Claude Code — FL Tier-B build run. TCC change this session: financials artifact owner-liquidity
+prose now status-gated (never "$0 owner liquidity" on UNKNOWN — FL 2.3b pair), sw cache gen `20260727a`,
+merged to main `5dba203` and auto-deployed. Full FL state: `99_INBOX/CODE_RESUME_2026-07-27_FL_BUILD_QUEUE_STATE.md`.
 **Operator:** Jerry Eads
-**Branch discipline:** all work on `v0.6.3`. `main` (live production) untouched.
+**Branch discipline:** main is live production; this bump commits directly to main (stamp only).
+
+## Prior bump (2026-06-05 PM2, preserved)
+v0.6.3 production rebuild (branch `v0.6.3`, NOT merged) — flip GATED on Jerry + Phase 1d step 3 ledger data.
 
 ## What v0.6.3 did
 
