@@ -132,7 +132,12 @@
         var st=r.status||'UNKNOWN'; var cls=ruleColor(st);
         var profKey={ltv:'ltv_max',dscr:'dscr_min',liquidity:'liquidity_floor',per_door:'per_door_floor'}[o[0]];
         var thr=(prof&&prof[profKey]!=null)?prof[profKey]:r.threshold;   // knob target if set, else API threshold (status + value stay from the API)
-        var sub=st==='UNKNOWN'?(FLS_OVR&&thr!=null?('thresh '+o[2](thr)+' · pending (sandbox)'):'pending (sandbox)'):('thresh '+o[2](thr)+(r.headroom!=null?' · head '+o[2](r.headroom):''));
+        // TD-142: `threshold` is now the COVENANT ceiling (LTV 65%, was 50%) and the 45-50% goal
+        // arrives as its own `target` field, so show both rather than letting the target vanish
+        // from the UI. Rendered ONLY when the API sends it, so a pre-TD-142 payload displays
+        // exactly as before and deploy order does not matter (the 2.3b liquidity-prose pattern).
+        var tgt=(r.target!=null)?(' · target '+o[2](r.target)):'';
+        var sub=st==='UNKNOWN'?(FLS_OVR&&thr!=null?('thresh '+o[2](thr)+tgt+' · pending (sandbox)'):'pending (sandbox)'):('thresh '+o[2](thr)+tgt+(r.headroom!=null?' · head '+o[2](r.headroom):''));
         var click=o[0]==='per_door'?' onclick="flOpen(\'property-file\')" style="cursor:pointer" title="Open Property File — per-door numbers"':'';
         return '<div class="rule '+cls+'"'+click+'><div class="rn">'+o[1]+'</div><div class="rv">'+(st==='UNKNOWN'?'—':o[2](r.value))+'</div><div class="rt">'+esc(sub)+(o[0]==='per_door'?' ↗':'')+'</div></div>';
       }).join('');
