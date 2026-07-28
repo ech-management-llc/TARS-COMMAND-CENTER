@@ -3,7 +3,7 @@
 // Cache-first for same-origin assets; live sources (FL API, data snapshots) fall
 // through to the network when online.
 
-const CACHE_NAME = 'tcc-tilehome-live-20260727a';
+const CACHE_NAME = 'tcc-tilehome-live-20260728a';   // TD-142: financials artifact shows thresh 65% · target 50%
 
 const ASSETS = [
   './',
