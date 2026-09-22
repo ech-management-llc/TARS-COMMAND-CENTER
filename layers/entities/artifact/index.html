@@ -17,6 +17,13 @@
   .ent-save{margin-top:12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
   .ent-save:hover{filter:brightness(1.06)}.ent-save:disabled{opacity:.6;cursor:default}
   .ent-msg{font-size:12px;margin-top:8px;min-height:16px}
+  .ent-own-edit{display:inline-flex;gap:6px;align-items:center;margin-left:10px;vertical-align:middle}
+  .ent-own-in{width:104px;padding:4px 8px;font-size:12px}
+  .ent-own-save{background:#eef2ff;border:1.5px solid #a5b4fc;color:#3730a3;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
+  .ent-own-save:hover{background:#e0e7ff;border-color:#818cf8}
+  .ent-own-clear{background:#f8fafc;border:1.5px solid #cbd5e0;color:#475569;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.4}
+  .ent-own-clear:hover{background:#f1f5f9}
+  .ent-in:disabled{background:#f1f5f9;color:#94a3b8;cursor:not-allowed}
   .ent-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
   .ent-del:hover{background:#fee2e2;border-color:#f87171}
   .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
@@ -71,8 +78,11 @@
           <select class="ent-in" id="ent-legal"><option value="LLC">LLC</option><option value="Inc">Inc</option></select></div>
         <div class="ent-field"><span class="ent-lab">Primary bank</span>
           <input class="ent-in" id="ent-bank" value="Altra"></div>
-        <div class="ent-field full"><span class="ent-lab">Parent entity (optional)</span>
+        <div class="ent-field"><span class="ent-lab">Parent entity (optional)</span>
           <select class="ent-in" id="ent-parent"><option value="">— top-level (no parent) —</option></select></div>
+        <div class="ent-field"><span class="ent-lab">Ownership % held by parent</span>
+          <input class="ent-in" id="ent-own" inputmode="decimal" autocomplete="off" placeholder="pick a parent first" disabled>
+          <div class="ent-hint">Blank = <b>not established</b> (never assumed 100). Above 0, at most 100, two decimals. Only 100.00 consolidates into the parent&rsquo;s rollup.</div></div>
       </div>
       <div class="ent-hint" style="margin-top:8px">Code must be unique. New entities are created under your signed-in account and scoped by RLS.</div>
       <button type="button" class="ent-save" id="ent-save">Save entity</button>
@@ -80,7 +90,7 @@
     </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped); ownership writes <code>PATCH /api/entities/{id}</code> (<code>ownership_pct</code>, patch 049 — the wholly-owned rollup consolidates a child only at 100.00). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
 </div>
 
 <script src="../../../shared/fl-auth.js?v=20260721a"></script>
@@ -105,6 +115,9 @@
       type: e.legal_form || 'LLC',          // real
       bank: e.primary_bank || null,          // real
       parent_entity_id: e.parent_entity_id || null,   // real
+      // real (patch 049): % of THIS entity held by parent_entity_id. Kept as the server's string
+      // ("100.00") — never coerced to a float, never defaulted: null = not established.
+      ownership_pct: (e.ownership_pct==null || e.ownership_pct==='') ? null : String(e.ownership_pct),
       created_at: e.created_at || null,      // real
       // not yet backed by the entities table — honest unknowns:
       role: null, role_tag: null, state: null, doors: null,
@@ -116,6 +129,43 @@
     if(!pid) return null;
     for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===pid) return ENTS[i].name; }
     return null;
+  }
+
+  // Ownership % mirrors patch 049's CHECK exactly: NULL, or 0 < x <= 100 with at most two decimals.
+  // -> {value:null} for blank (= not established — NEVER assumed 100), {value:'NN.NN'} when valid,
+  //    {error:msg} otherwise. The server re-validates (422) — this only shapes the request honestly.
+  function parseOwnership(raw){
+    var s = String(raw==null?'':raw).trim().replace(/%$/,'').trim();
+    if(s==='') return {value:null};
+    if(!/^\d*\.?\d*$/.test(s) || s==='.') return {error:'Ownership must be a plain number, e.g. 100 or 33.33.'};
+    if(((s.split('.')[1])||'').length > 2) return {error:'Ownership allows at most two decimals (e.g. 33.33).'};
+    var n = Number(s);
+    if(!isFinite(n) || !(n>0 && n<=100)) return {error:'Ownership must be above 0 and at most 100.'};
+    return {value:n.toFixed(2)};
+  }
+  // FastAPI/pydantic 422 detail -> one readable line (field: message), so the server's ruling is shown, not guessed.
+  function detail422(data){
+    var d = data && data.detail;
+    if(typeof d === 'string') return d;
+    if(Array.isArray(d)) return d.map(function(x){ var loc=(x.loc||[]).slice(-1)[0]; return (loc?loc+': ':'')+(x.msg||''); }).join(' · ');
+    return '';
+  }
+  // Detail-view Ownership cell (beside Parent). Top-level -> n/a (nothing owns it). NULL -> "not
+  // established" — shown as unknown, never as 100. Editable inline -> PATCH /api/entities/{id}.
+  function ownershipCell(e){
+    if(!e.parent_entity_id) return '<span class="muted">n/a — top-level entity</span>';
+    var pn = esc(parentName(e.parent_entity_id)||'parent');
+    var shown = e.ownership_pct==null
+      ? '<span class="muted">— not established</span> <span class="pill">excluded from '+pn+'&rsquo;s rollup until recorded</span>'
+      : '<b>'+esc(e.ownership_pct)+'%</b> held by '+pn+' '+(e.ownership_pct==='100.00'
+          ? '<span class="pill rg">wholly owned · consolidates</span>'
+          : '<span class="pill ry">partner stake · not consolidated</span>');
+    if(e._sample) return shown;
+    return shown+
+      '<span class="ent-own-edit"><input class="ent-in ent-own-in" data-own-in="'+esc(e.id)+'" inputmode="decimal" autocomplete="off" placeholder="e.g. 100.00" value="'+esc(e.ownership_pct==null?'':e.ownership_pct)+'">'+
+      '<button type="button" class="ent-own-save" data-own="'+esc(e.id)+'" title="Save ownership %">Set</button>'+
+      '<button type="button" class="ent-own-clear" data-own-clear="'+esc(e.id)+'" title="Back to not established (NULL)">Clear</button></span>'+
+      '<div class="ent-msg" id="ent-own-msg"></div>';
   }
 
   function arStatus(ar){
@@ -140,6 +190,7 @@
       ['Code', esc(e.code)],
       ['Type', esc(e.type)],
       ['Parent', dash(parentName(e.parent_entity_id))],
+      ['Ownership', ownershipCell(e)],
       ['Formed', dash(e.formed)+' '+xref('Document Navigator','document-navigator')],
       ['Registered agent', dash(e.registered_agent)],
       ['EIN', dash(e.ein)],
@@ -188,6 +239,17 @@
     if(!sel) return;
     sel.innerHTML = '<option value="">— top-level (no parent) —</option>' +
       ENTS.map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>'; }).join('');
+    sel.onchange = syncOwnershipInput;
+    syncOwnershipInput();
+  }
+  // Ownership is meaningless without a parent: disabled + cleared while none is chosen.
+  function syncOwnershipInput(){
+    var own = document.getElementById('ent-own'), sel = document.getElementById('ent-parent');
+    if(!own || !sel) return;
+    var has = !!sel.value;
+    own.disabled = !has;
+    own.placeholder = has ? 'e.g. 100.00 — blank = not established' : 'pick a parent first';
+    if(!has) own.value = '';
   }
 
   // In-tile view config from the core: show/hide sections + roster rows. Never touches data.
@@ -243,6 +305,13 @@
     };
     var parent = document.getElementById('ent-parent').value;
     if(parent) payload.parent_entity_id = parent;
+    var ownEl = document.getElementById('ent-own');
+    var own = parseOwnership(ownEl ? ownEl.value : '');
+    if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
+    if(own.value!=null){
+      if(!parent){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> Pick the parent entity, or leave ownership blank.'; return; }
+      payload.ownership_pct = own.value;   // two-decimal string; blank is OMITTED -> stored NULL (not established)
+    }
     btn.disabled = true; msg.innerHTML = 'Saving…';
     var createP = (window.flEntities.createX ? window.flEntities.createX(payload)
       : window.flEntities.create(payload).then(function(res){   // stale-cached fl-api safety net
@@ -255,13 +324,13 @@
         if(window.flApi && !flApi.authed()) msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then re-save — your entries are still here.';
         else if(r.status === 409) msg.innerHTML='<span class="err">That code already exists.</span> Pick a different code and re-save.';
         else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'That code prefix is reserved, or the parent is outside your access.');
-        else if(r.status === 422) msg.innerHTML='<span class="err">Check the fields.</span> Code and legal name are both required.';
+        else if(r.status === 422) msg.innerHTML='<span class="err">Check the fields.</span> '+esc(detail422(r.data)||'Code and legal name are both required.');
         else msg.innerHTML='<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status?'Try again.':'The service looks unreachable — your entries are still here; retry in a moment.');
         return;
       }
       var res = r.data;
       msg.innerHTML='<span class="ok">✓ Saved.</span> '+esc(res.name||name)+' created — you own it.';
-      ['ent-code','ent-name','ent-bank'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=(id==='ent-bank'?'Altra':''); });
+      ['ent-code','ent-name','ent-bank','ent-own'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=(id==='ent-bank'?'Altra':''); });
       document.getElementById('ent-legal').selectedIndex=0;
       codeTouched = false;
       // First entity just created? The owner-grant now exists, so a re-list returns 200 and the
@@ -282,6 +351,57 @@
       boot();
     });
   }
+
+  // ── OWNERSHIP (PATCH /api/entities/{id}) ────────────────────────────
+  // Status-carrying PATCH through the shared client (flApi.callX); falls back to flEntities.update
+  // if a stale-cached fl-api.js predates callX — same safety net as create/list above.
+  function patchEntityX(id, body){
+    var path = '/api/entities/'+encodeURIComponent(id);
+    if(window.flApi && flApi.callX) return flApi.callX('PATCH', path, body);
+    return window.flEntities.update(id, body).then(function(res){
+      return res == null ? {ok:false, status:0, data:null} : {ok:true, status:200, data:res};
+    });
+  }
+  function setOwnership(id, raw){
+    var msg = document.getElementById('ent-own-msg') || document.getElementById('ent-msg');
+    var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
+    if(!ent || ent._sample) return;
+    if(!ent.parent_entity_id){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> A top-level entity has no owner to record.'; return; }
+    var own = parseOwnership(raw);
+    if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
+    msg.innerHTML='<span class="muted">Saving…</span>';
+    patchEntityX(id, {ownership_pct: own.value}).then(function(r){   // own.value null -> JSON null -> stored NULL
+      if(!r.ok){
+        if(window.flApi && !flApi.authed()) msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.';
+        else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'Only the owner (or an admin) can set ownership on this entity.');
+        else if(r.status === 422) msg.innerHTML='<span class="err">Rejected.</span> '+esc(detail422(r.data)||'Ownership must be above 0 and at most 100, two decimals.');
+        else if(r.status === 404) msg.innerHTML='<span class="err">Entity not found.</span> Reload the tile.';
+        else msg.innerHTML='<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status?'Try again.':'The service looks unreachable — nothing was changed.');
+        return;
+      }
+      // Trust the server's echo, not the input — the stored value is what the B7b rollup reads.
+      var srv = r.data||{};
+      ent.ownership_pct = (srv.ownership_pct==null || srv.ownership_pct==='') ? null : String(srv.ownership_pct);
+      render();
+      var m2 = document.getElementById('ent-own-msg');
+      if(m2) m2.innerHTML = ent.ownership_pct==null
+        ? '<span class="ok">✓ Cleared.</span> Ownership is not established — excluded from the rollup until recorded.'
+        : '<span class="ok">✓ Saved.</span> '+esc(ent.ownership_pct)+'% held by '+esc(parentName(ent.parent_entity_id)||'parent')+'.';
+    });
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target && ev.target.closest ? ev.target : null;
+    if(!t) return;
+    var sv = t.closest('.ent-own-save');
+    if(sv){ ev.preventDefault(); var id=sv.getAttribute('data-own'); var inp=document.querySelector('[data-own-in="'+id+'"]'); setOwnership(id, inp?inp.value:''); return; }
+    var cl = t.closest('.ent-own-clear');
+    if(cl){ ev.preventDefault(); setOwnership(cl.getAttribute('data-own-clear'), ''); }
+  });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key!=='Enter') return;
+    var inp = ev.target && ev.target.getAttribute ? ev.target : null;
+    if(inp && inp.hasAttribute('data-own-in')){ ev.preventDefault(); setOwnership(inp.getAttribute('data-own-in'), inp.value); }
+  });
 
   // ── DELETE ──────────────────────────────────────────────────────────
   function deleteEntity(id){
