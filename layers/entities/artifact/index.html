@@ -100,7 +100,9 @@
 <script src="../../../shared/fl-scope-select.js?v=20260721a"></script>
 <script>
   var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
-  var OWN_INFLIGHT = {};   // entity id -> true while its ownership PATCH is pending (Set, Clear and Enter all funnel through it)
+  // entity id -> {raw: pendingValue} while its ownership PATCH is pending (Set, Clear and Enter all funnel through
+  // it; the busy row renders from it), else false/undefined
+  var OWN_INFLIGHT = {};
   function scopedENTS(){ return SELE ? ENTS.filter(function(e){ return SELE.indexOf(e.id)>=0; }) : ENTS; }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   // dash(): honest UNKNOWN — a missing/blank value renders as "—" and is NEVER fabricated.
