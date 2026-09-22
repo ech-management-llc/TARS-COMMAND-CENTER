@@ -170,9 +170,10 @@
     // a re-render while this entity's PATCH is pending must not hand back live controls: render them
     // disabled with the pending state showing, exactly as setOwnership left them
     var busy = !!OWN_INFLIGHT[e.id], dis = busy ? ' disabled' : '';
+    var shownVal = busy ? String(OWN_INFLIGHT[e.id].raw==null ? '' : OWN_INFLIGHT[e.id].raw) : (e.ownership_pct==null ? '' : e.ownership_pct);
     function editor(withSet){
       return '<span class="ent-own-edit">'+(withSet
-          ? '<input class="ent-in ent-own-in" data-own-in="'+esc(e.id)+'" inputmode="decimal" autocomplete="off" placeholder="e.g. 100.00" value="'+esc(e.ownership_pct==null?'':e.ownership_pct)+'"'+dis+'>'+
+          ? '<input class="ent-in ent-own-in" data-own-in="'+esc(e.id)+'" inputmode="decimal" autocomplete="off" placeholder="e.g. 100.00" value="'+esc(shownVal)+'"'+dis+'>'+
             '<button type="button" class="ent-own-save" data-own="'+esc(e.id)+'" title="Save ownership %"'+dis+'>Set</button>'
           : '')+
         '<button type="button" class="ent-own-clear" data-own-clear="'+esc(e.id)+'" title="Back to not established (NULL)"'+dis+'>Clear</button></span>'+
@@ -405,8 +406,9 @@
   }
   // the server's value as the tile keeps it: null, or a string — a numeric echo becomes two decimals
   function pctStr(v){
-    if(v==null || v==='') return null;
-    var n = (typeof v==='number' || typeof v==='string') ? Number(v) : NaN;
+    if(v==null || String(v).trim()==='') return null;
+    var n = typeof v==='number' ? v
+          : (typeof v==='string' && /^\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?\s*$/.test(v)) ? Number(v) : NaN;
     return isFinite(n) ? n.toFixed(2) : String(v);
   }
   function setOwnership(id, raw){
@@ -419,9 +421,14 @@
     if(!ent.parent_entity_id && own.value!=null){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> A top-level entity has no owner to record (a stale value can still be cleared).'; return; }
     msg.innerHTML='<span class="muted">Saving…</span>';
     var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
-    OWN_INFLIGHT[id] = true;                            // set only once the selectors resolved — a throw above leaves nothing stuck
+    OWN_INFLIGHT[id] = {raw: own.value==null ? '' : own.value};   // set only once the selectors resolved (a throw above leaves nothing stuck); carries the pending value for a mid-flight re-render
     ctl.forEach(function(b){ b.disabled = true; });
-    function release(){ OWN_INFLIGHT[id] = false; ctl.forEach(function(b){ b.disabled = false; }); }
+    // re-query on release: a re-render while pending rebuilt the row (disabled), so the captured list is stale
+    function release(){
+      OWN_INFLIGHT[id] = false;
+      document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id))
+        .forEach(function(b){ b.disabled = false; });
+    }
     // speak in this row while the user is still on this entity (re-queried: render() may have rebuilt it);
     // otherwise APPEND to the form's message so an earlier message there is not overwritten
     function say(html){
@@ -457,7 +464,9 @@
       }
       OWN_INFLIGHT[id] = false;
       ent.ownership_pct = pctStr(r.data.ownership_pct);
-      render();                                          // rebuilds this row's controls, enabled
+      // re-render only while this entity is on screen: ownership shows nowhere else, and a render() here
+      // would wipe a fresh message on whichever row the user is looking at now (its row rebuilds when picked)
+      if(ENTS[current]===ent) render();                  // rebuilds this row's controls, enabled
       var pn = parentName(ent.parent_entity_id);
       say(ent.ownership_pct==null
         ? (ent.parent_entity_id
