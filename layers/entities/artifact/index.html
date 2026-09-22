@@ -23,6 +23,7 @@
   .ent-own-save:hover{background:#e0e7ff;border-color:#818cf8}
   .ent-own-clear{background:#f8fafc;border:1.5px solid #cbd5e0;color:#475569;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.4}
   .ent-own-clear:hover{background:#f1f5f9}
+  .ent-own-save:disabled,.ent-own-clear:disabled{opacity:.55;cursor:default}
   .ent-in:disabled{background:#f1f5f9;color:#94a3b8;cursor:not-allowed}
   .ent-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
   .ent-del:hover{background:#fee2e2;border-color:#f87171}
@@ -157,7 +158,7 @@
     var pn = esc(parentName(e.parent_entity_id)||'parent');
     var shown = e.ownership_pct==null
       ? '<span class="muted">— not established</span> <span class="pill">excluded from '+pn+'&rsquo;s rollup until recorded</span>'
-      : '<b>'+esc(e.ownership_pct)+'%</b> held by '+pn+' '+(e.ownership_pct==='100.00'
+      : '<b>'+esc(e.ownership_pct)+'%</b> held by '+pn+' '+(Number(e.ownership_pct)===100   // numeric: B7b's rule is == 100 exactly
           ? '<span class="pill rg">wholly owned · consolidates</span>'
           : '<span class="pill ry">partner stake · not consolidated</span>');
     if(e._sample) return shown;
@@ -370,8 +371,11 @@
     var own = parseOwnership(raw);
     if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
     msg.innerHTML='<span class="muted">Saving…</span>';
+    var btns = document.querySelectorAll('[data-own="'+id+'"],[data-own-clear="'+id+'"]');
+    btns.forEach(function(b){ b.disabled = true; });   // one PATCH in flight at a time (render() rebuilds them on success)
     patchEntityX(id, {ownership_pct: own.value}).then(function(r){   // own.value null -> JSON null -> stored NULL
       if(!r.ok){
+        btns.forEach(function(b){ b.disabled = false; });
         if(window.flApi && !flApi.authed()) msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.';
         else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'Only the owner (or an admin) can set ownership on this entity.');
         else if(r.status === 422) msg.innerHTML='<span class="err">Rejected.</span> '+esc(detail422(r.data)||'Ownership must be above 0 and at most 100, two decimals.');
