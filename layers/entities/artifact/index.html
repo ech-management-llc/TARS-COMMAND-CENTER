@@ -17,6 +17,14 @@
   .ent-save{margin-top:12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
   .ent-save:hover{filter:brightness(1.06)}.ent-save:disabled{opacity:.6;cursor:default}
   .ent-msg{font-size:12px;margin-top:8px;min-height:16px}
+  .ent-own-edit{display:inline-flex;gap:6px;align-items:center;margin-left:10px;vertical-align:middle}
+  .ent-own-in{width:104px;padding:4px 8px;font-size:12px}
+  .ent-own-save{background:#eef2ff;border:1.5px solid #a5b4fc;color:#3730a3;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
+  .ent-own-save:hover{background:#e0e7ff;border-color:#818cf8}
+  .ent-own-clear{background:#f8fafc;border:1.5px solid #cbd5e0;color:#475569;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.4}
+  .ent-own-clear:hover{background:#f1f5f9}
+  .ent-own-save:disabled,.ent-own-clear:disabled{opacity:.55;cursor:default}
+  .ent-in:disabled{background:#f1f5f9;color:#94a3b8;cursor:not-allowed}
   .ent-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
   .ent-del:hover{background:#fee2e2;border-color:#f87171}
   .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
@@ -29,7 +37,7 @@
 
   <div class="preview-banner">
     <b>Your companies — one place.</b> Every row is a <b>live read</b> from the Foundation Layer
-    backend (<code>/api/entities</code>, RLS-scoped to your access). Legal name, type, parent, and
+    backend (<code>/api/entities</code>, RLS-scoped to your access). Legal name, type, parent, ownership %, and
     primary bank are <b>real</b>. EIN, formation date, registered agent, door count, and annual-report
     status are <b>not in the entities table yet</b> — they show as <b>“—” (UNKNOWN)</b>, never faked,
     until the Secretary-of-State / records source is wired.
@@ -71,8 +79,11 @@
           <select class="ent-in" id="ent-legal"><option value="LLC">LLC</option><option value="Inc">Inc</option></select></div>
         <div class="ent-field"><span class="ent-lab">Primary bank</span>
           <input class="ent-in" id="ent-bank" value="Altra"></div>
-        <div class="ent-field full"><span class="ent-lab">Parent entity (optional)</span>
+        <div class="ent-field"><span class="ent-lab">Parent entity (optional)</span>
           <select class="ent-in" id="ent-parent"><option value="">— top-level (no parent) —</option></select></div>
+        <div class="ent-field"><span class="ent-lab">Ownership % held by parent</span>
+          <input class="ent-in" id="ent-own" inputmode="decimal" autocomplete="off" placeholder="pick a parent first" disabled>
+          <div class="ent-hint">Blank = <b>not established</b> (never assumed 100). Above 0, at most 100, two decimals. Only 100.00 consolidates into the parent&rsquo;s rollup.</div></div>
       </div>
       <div class="ent-hint" style="margin-top:8px">Code must be unique. New entities are created under your signed-in account and scoped by RLS.</div>
       <button type="button" class="ent-save" id="ent-save">Save entity</button>
@@ -80,7 +91,7 @@
     </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped); ownership writes <code>PATCH /api/entities/{id}</code> (<code>ownership_pct</code>, patch 049 — the wholly-owned rollup consolidates a child only at 100.00). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
 </div>
 
 <script src="../../../shared/fl-auth.js?v=20260721a"></script>
@@ -89,6 +100,9 @@
 <script src="../../../shared/fl-scope-select.js?v=20260721a"></script>
 <script>
   var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
+  // entity id -> {raw: pendingValue} while its ownership PATCH is pending (Set, Clear and Enter all funnel through
+  // it; the busy row renders from it), else false/undefined
+  var OWN_INFLIGHT = {};
   function scopedENTS(){ return SELE ? ENTS.filter(function(e){ return SELE.indexOf(e.id)>=0; }) : ENTS; }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   // dash(): honest UNKNOWN — a missing/blank value renders as "—" and is NEVER fabricated.
@@ -105,6 +119,9 @@
       type: e.legal_form || 'LLC',          // real
       bank: e.primary_bank || null,          // real
       parent_entity_id: e.parent_entity_id || null,   // real
+      // real (patch 049): % of THIS entity held by parent_entity_id. Kept as the server's string
+      // ("100.00") — never coerced to a float, never defaulted: null = not established.
+      ownership_pct: pctStr(e.ownership_pct),
       created_at: e.created_at || null,      // real
       // not yet backed by the entities table — honest unknowns:
       role: null, role_tag: null, state: null, doors: null,
@@ -116,6 +133,73 @@
     if(!pid) return null;
     for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===pid) return ENTS[i].name; }
     return null;
+  }
+  // Parent cell: the name when the parent is in the caller's list; an honest note when the edge is
+  // set but the row is not (outside your access, or inactive) — never "—", which the footnote
+  // defines as UNKNOWN.
+  function parentLabel(pid){
+    if(!pid) return '—';
+    var n = parentName(pid);
+    return n ? esc(n) : '<span class="muted">not in your list (outside your access, or inactive)</span>';
+  }
+
+  // Ownership % mirrors patch 049's CHECK exactly: NULL, or 0 < x <= 100 with at most two decimals.
+  // -> {value:null} for blank (= not established — NEVER assumed 100), {value:'NN.NN'} when valid,
+  //    {error:msg} otherwise. The server re-validates (422) — this only shapes the request honestly.
+  function parseOwnership(raw){
+    var s0 = String(raw==null?'':raw).trim();
+    var s = s0.replace(/%$/,'').trim();
+    if(s0==='') return {value:null};                 // blank = not established (the ONLY way to mean NULL)
+    if(s==='') return {error:'Ownership must be a plain number, e.g. 100 or 33.33.'};   // a bare % is a typo, not blank
+    if(!/^\d*\.?\d*$/.test(s) || s==='.') return {error:'Ownership must be a plain number, e.g. 100 or 33.33.'};
+    if(((s.split('.')[1])||'').length > 2) return {error:'Ownership allows at most two decimals (e.g. 33.33).'};
+    var n = Number(s);
+    if(!isFinite(n) || !(n>0 && n<=100)) return {error:'Ownership must be above 0 and at most 100.'};
+    return {value:n.toFixed(2)};
+  }
+  // FastAPI/pydantic 422 detail -> one readable line (field: message), so the server's ruling is shown, not guessed.
+  function detail422(data){
+    var d = data && data.detail;
+    if(typeof d === 'string') return d;
+    if(Array.isArray(d)) return d.map(function(x){ var locs=Array.isArray(x&&x.loc)?x.loc:[]; var loc=locs.filter(function(l){ return typeof l==='string'; }).slice(-1)[0]; return (loc?loc+': ':'')+((x&&x.msg)||''); }).join(' · ');
+    return '';
+  }
+  // Detail-view Ownership cell (beside Parent). Top-level -> n/a (nothing owns it). NULL -> "not
+  // established" — shown as unknown, never as 100. Editable inline -> PATCH /api/entities/{id}.
+  // The pills RESTATE B7b's rule (== 100.00 at the link to the parent); the tile does not read the
+  // rollup itself, so when the parent is not in this caller's list it says so instead of claiming.
+  function ownershipCell(e){
+    // a re-render while this entity's PATCH is pending must not hand back live controls: render them
+    // disabled with the pending state showing, exactly as setOwnership left them
+    var busy = !!OWN_INFLIGHT[e.id], dis = busy ? ' disabled' : '';
+    var shownVal = busy ? String(OWN_INFLIGHT[e.id].raw==null ? '' : OWN_INFLIGHT[e.id].raw) : (e.ownership_pct==null ? '' : e.ownership_pct);
+    function editor(withSet){
+      return '<span class="ent-own-edit">'+(withSet
+          ? '<input class="ent-in ent-own-in" data-own-in="'+esc(e.id)+'" inputmode="decimal" autocomplete="off" placeholder="e.g. 100.00" value="'+esc(shownVal)+'"'+dis+'>'+
+            '<button type="button" class="ent-own-save" data-own="'+esc(e.id)+'" title="Save ownership %"'+dis+'>Set</button>'
+          : '')+
+        '<button type="button" class="ent-own-clear" data-own-clear="'+esc(e.id)+'" title="Back to not established (NULL)"'+dis+'>Clear</button></span>'+
+        '<div class="ent-msg" id="ent-own-msg">'+(busy?'<span class="muted">Saving…</span>':'')+'</div>';
+    }
+    if(!e.parent_entity_id){
+      // the plain top-level row still carries the message slot, so a just-cleared stale value can say so here
+      if(e.ownership_pct==null) return '<span class="muted">n/a — top-level entity</span>'+(e._sample?'':'<div class="ent-msg" id="ent-own-msg"></div>');
+      // a value survived a promote-to-top-level (the server keeps it): say so, and let it be cleared
+      return '<span class="muted">n/a — top-level entity</span> <span class="pill ry">a stale '+esc(e.ownership_pct)+'% is still recorded</span>'+(e._sample?'':editor(false));
+    }
+    var known = parentName(e.parent_entity_id);
+    var pn = known ? esc(known) : null;
+    var shown;
+    if(e.ownership_pct==null){
+      shown = '<span class="muted">— not established</span> <span class="pill">excluded from '+(pn ? pn+'&rsquo;s' : 'the parent&rsquo;s')+' rollup (never assumed 100)</span>';
+    } else if(!pn){
+      shown = '<b>'+esc(e.ownership_pct)+'%</b> held by a parent not in your list <span class="pill">consolidation is decided in that parent&rsquo;s view — not visible here</span>';
+    } else {
+      shown = '<b>'+esc(e.ownership_pct)+'%</b> held by '+pn+' '+(Number(e.ownership_pct)===100   // numeric: B7b's rule is == 100 exactly
+          ? '<span class="pill rg">wholly owned · consolidates into '+pn+'&rsquo;s rollup</span>'
+          : '<span class="pill ry">partner stake · excluded from '+pn+'&rsquo;s rollup</span>');
+    }
+    return e._sample ? shown : shown+editor(true);
   }
 
   function arStatus(ar){
@@ -139,7 +223,8 @@
     var det = [
       ['Code', esc(e.code)],
       ['Type', esc(e.type)],
-      ['Parent', dash(parentName(e.parent_entity_id))],
+      ['Parent', parentLabel(e.parent_entity_id)],
+      ['Ownership', ownershipCell(e)],
       ['Formed', dash(e.formed)+' '+xref('Document Navigator','document-navigator')],
       ['Registered agent', dash(e.registered_agent)],
       ['EIN', dash(e.ein)],
@@ -155,7 +240,7 @@
       var a = arStatus(x.annual_report);
       return '<tr data-view-row="'+esc(x.id)+'"><td style="font-weight:700">'+esc(x.name)+'</td>'+
         '<td>'+esc(x.type)+'</td>'+
-        '<td class="small muted">'+dash(parentName(x.parent_entity_id))+'</td>'+
+        '<td class="small muted">'+parentLabel(x.parent_entity_id)+'</td>'+
         '<td>'+dash(x.doors)+'</td>'+
         '<td>'+dash(x.bank)+'</td>'+
         '<td><span class="pill '+a.cls+'">'+a.txt+'</span></td>'+
@@ -186,8 +271,21 @@
   function buildParentSelect(){
     var sel = document.getElementById('ent-parent');
     if(!sel) return;
+    var keep = sel.value;      // a rebuild after an unrelated save/delete must not drop a half-filled form's parent
     sel.innerHTML = '<option value="">— top-level (no parent) —</option>' +
       ENTS.map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.name)+' ('+esc(e.code)+')</option>'; }).join('');
+    if(keep && ENTS.some(function(e){ return e.id===keep; })) sel.value = keep;
+    sel.onchange = syncOwnershipInput;
+    syncOwnershipInput();
+  }
+  // Ownership is meaningless without a parent: disabled + cleared while none is chosen.
+  function syncOwnershipInput(){
+    var own = document.getElementById('ent-own'), sel = document.getElementById('ent-parent');
+    if(!own || !sel) return;
+    var has = !!sel.value;
+    own.disabled = !has;
+    own.placeholder = has ? 'e.g. 100.00 — blank = not established' : 'pick a parent first';
+    if(!has) own.value = '';
   }
 
   // In-tile view config from the core: show/hide sections + roster rows. Never touches data.
@@ -243,6 +341,13 @@
     };
     var parent = document.getElementById('ent-parent').value;
     if(parent) payload.parent_entity_id = parent;
+    var ownEl = document.getElementById('ent-own');
+    var own = parseOwnership(ownEl ? ownEl.value : '');
+    if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
+    if(own.value!=null){
+      if(!parent){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> Pick the parent entity, or leave ownership blank.'; return; }
+      payload.ownership_pct = own.value;   // two-decimal string; blank is OMITTED -> stored NULL (not established)
+    }
     btn.disabled = true; msg.innerHTML = 'Saving…';
     var createP = (window.flEntities.createX ? window.flEntities.createX(payload)
       : window.flEntities.create(payload).then(function(res){   // stale-cached fl-api safety net
@@ -254,14 +359,16 @@
         // Honest per-status message — never blame the network for a policy refusal or vice versa.
         if(window.flApi && !flApi.authed()) msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then re-save — your entries are still here.';
         else if(r.status === 409) msg.innerHTML='<span class="err">That code already exists.</span> Pick a different code and re-save.';
-        else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'That code prefix is reserved, or the parent is outside your access.');
-        else if(r.status === 422) msg.innerHTML='<span class="err">Check the fields.</span> Code and legal name are both required.';
+        else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'Only a tenant-owner (or genesis) can create a company, or the parent is outside your access.');
+        else if(r.status === 404) msg.innerHTML='<span class="err">Parent not found.</span> '+esc((r.data&&r.data.detail)||'')+' Reload the tile and pick the parent again — your entries are still here.';
+        else if(r.status === 422) msg.innerHTML='<span class="err">Check the fields.</span> '+esc(detail422(r.data)||'Code and legal name are both required.');
         else msg.innerHTML='<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status?'Try again.':'The service looks unreachable — your entries are still here; retry in a moment.');
         return;
       }
       var res = r.data;
       msg.innerHTML='<span class="ok">✓ Saved.</span> '+esc(res.name||name)+' created — you own it.';
-      ['ent-code','ent-name','ent-bank'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=(id==='ent-bank'?'Altra':''); });
+      ['ent-code','ent-name','ent-bank','ent-own'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=(id==='ent-bank'?'Altra':''); });
+      var ps = document.getElementById('ent-parent'); if(ps) ps.value = '';   // a finished save starts the next one top-level
       document.getElementById('ent-legal').selectedIndex=0;
       codeTouched = false;
       // First entity just created? The owner-grant now exists, so a re-list returns 200 and the
@@ -282,6 +389,107 @@
       boot();
     });
   }
+
+  // ── OWNERSHIP (PATCH /api/entities/{id}) ────────────────────────────
+  // Status-carrying PATCH through the shared client (flApi.callX); falls back to flEntities.update
+  // if a stale-cached fl-api.js predates callX — same safety net as create/list above.
+  function patchEntityX(id, body){
+    var path = '/api/entities/'+encodeURIComponent(id);
+    if(window.flApi && flApi.callX) return flApi.callX('PATCH', path, body);
+    return window.flEntities.update(id, body).then(function(res){
+      return res == null ? {ok:false, status:0, data:null} : {ok:true, status:200, data:res};
+    });
+  }
+  // attribute selector with the value escaped for CSS (CSS.escape where available; ids are UUIDs today)
+  function ownSel(attr, id){
+    var v = (window.CSS && CSS.escape) ? CSS.escape(String(id))
+          : String(id).replace(/[\\"\n\r\f]/g, function(c){ return '\\'+c.charCodeAt(0).toString(16)+' '; });
+    return '['+attr+'="'+v+'"]';
+  }
+  // the server's value as the tile keeps it: null, or a string — a numeric echo becomes two decimals
+  function pctStr(v){
+    if(v==null || String(v).trim()==='') return null;
+    var n = typeof v==='number' ? v
+          : (typeof v==='string' && /^\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?\s*$/.test(v)) ? Number(v) : NaN;
+    return isFinite(n) ? n.toFixed(2) : String(v);
+  }
+  function setOwnership(id, raw){
+    var msg = document.getElementById('ent-own-msg') || document.getElementById('ent-msg');
+    var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
+    if(!ent || ent._sample) return;
+    if(OWN_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — wait for the response.</span>'; return; }   // one PATCH per entity at a time, whatever the trigger
+    var own = parseOwnership(raw);
+    if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
+    if(!ent.parent_entity_id && own.value!=null){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> A top-level entity has no owner to record (a stale value can still be cleared).'; return; }
+    msg.innerHTML='<span class="muted">Saving…</span>';
+    var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
+    OWN_INFLIGHT[id] = {raw: own.value==null ? '' : own.value};   // set only once the selectors resolved (a throw above leaves nothing stuck); carries the pending value for a mid-flight re-render
+    ctl.forEach(function(b){ b.disabled = true; });
+    // re-query on release: a re-render while pending rebuilt the row (disabled), so the captured list is stale
+    function release(){
+      OWN_INFLIGHT[id] = false;
+      document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id))
+        .forEach(function(b){ b.disabled = false; });
+    }
+    // speak in this row while the user is still on this entity (re-queried: render() may have rebuilt it);
+    // otherwise APPEND to the form's message so an earlier message there is not overwritten
+    function say(html){
+      var own = (ENTS[current]===ent) ? document.getElementById('ent-own-msg') : null;
+      if(own){ own.innerHTML = html; return; }
+      var m = document.getElementById('ent-msg');
+      if(m) m.innerHTML = (m.innerHTML ? m.innerHTML+'<br>' : '') + html;
+    }
+    var who = '<b>'+esc(ent.name)+'</b>: ';
+    patchEntityX(id, {ownership_pct: own.value}).then(function(r){   // own.value null -> JSON null -> stored NULL
+      if(!r.ok){
+        release();
+        if(window.flApi && !flApi.authed()) say(who+'<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.');
+        else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'The server refused this change (HTTP 403).'));
+        else if(r.status === 422) say(who+'<span class="err">Rejected.</span> '+esc(detail422(r.data)||'Ownership must be above 0 and at most 100, two decimals.'));
+        else if(r.status === 404) say(who+'<span class="err">Entity not found.</span> Reload the tile.');
+        // 400 here is the route's "no updatable fields" — a server build without ownership support (patch 049)
+        // drops the key before it reaches the update; retrying cannot help, so say that.
+        else if(r.status === 400) say(who+'<span class="err">Not applied.</span> '+esc((r.data&&typeof r.data.detail==='string'&&r.data.detail)||'HTTP 400')+' — the server did not accept this field; it may be running a build without ownership support.');
+        // status 0 = transport (or no token): the write MAY have landed — never claim it did not.
+        else say(who+'<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status
+          ? (esc(detail422(r.data))||'Try again.')
+          : 'The service did not confirm the change — it may or may not have reached it. Reload the tile to see the stored value.'));
+        return;
+      }
+      // Trust the server's ECHO, not the input — the stored value is what the B7b rollup reads. An echo
+      // WITHOUT the field (a server build that predates patch 049 ignores the key and answers 200; a 204)
+      // is NOT a clearing — it is unverified: the model is left alone and the user is told to reload.
+      if(!r.data || typeof r.data !== 'object' || !('ownership_pct' in r.data)){
+        release();
+        say(who+'<span class="err">Unverified.</span> The server accepted the request but did not echo ownership_pct — it may be running a build without ownership support (patch 049). Reload the tile to see the stored value.');
+        return;
+      }
+      OWN_INFLIGHT[id] = false;
+      ent.ownership_pct = pctStr(r.data.ownership_pct);
+      // re-render only while this entity is on screen: ownership shows nowhere else, and a render() here
+      // would wipe a fresh message on whichever row the user is looking at now (its row rebuilds when picked)
+      if(ENTS[current]===ent) render();                  // rebuilds this row's controls, enabled
+      var pn = parentName(ent.parent_entity_id);
+      say(ent.ownership_pct==null
+        ? (ent.parent_entity_id
+            ? '<span class="ok">✓ Cleared.</span> '+who+'ownership is not established — excluded from '+(pn ? esc(pn)+'&rsquo;s' : 'the parent&rsquo;s')+' rollup, never assumed 100.'
+            : '<span class="ok">✓ Cleared.</span> '+who+'the stale value is gone — a top-level entity has no owner to record.')
+        : '<span class="ok">✓ Saved.</span> '+who+esc(ent.ownership_pct)+'% held by '+(pn ? esc(pn) : 'a parent not in your list')+'.');
+    });
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target && ev.target.closest ? ev.target : null;
+    if(!t) return;
+    var sv = t.closest('.ent-own-save');
+    if(sv){ ev.preventDefault(); var id=sv.getAttribute('data-own'); var inp=document.querySelector(ownSel('data-own-in',id)); setOwnership(id, inp?inp.value:''); return; }
+    var cl = t.closest('.ent-own-clear');
+    if(cl){ ev.preventDefault(); setOwnership(cl.getAttribute('data-own-clear'), ''); }
+  });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key!=='Enter') return;
+    var inp = ev.target && ev.target.getAttribute ? ev.target : null;
+    if(inp && inp.hasAttribute('data-own-in')){ ev.preventDefault(); setOwnership(inp.getAttribute('data-own-in'), inp.value); }
+  });
 
   // ── DELETE ──────────────────────────────────────────────────────────
   function deleteEntity(id){
