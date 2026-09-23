@@ -18,6 +18,19 @@
   #entities tr.entrow.sel td{background:var(--greenbg)}
   #entities tr.entrow.sel td:first-child{box-shadow:inset 3px 0 0 var(--green)}
   #entities .ck{display:inline-block;width:15px;color:var(--green);font-weight:800}
+  /* TD-244: wholly-owned rollup cards */
+  .rollup{margin-bottom:10px}
+  .rollup .row-sb{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .rollup .rname{font-size:14px;font-weight:800}
+  .rollup .rdoors{white-space:nowrap;font-size:12px;color:var(--mut)}
+  .rollup .rdoors b{font-size:22px;font-weight:800;color:var(--txt);margin-right:4px}
+  .rollup .rcount{margin-top:2px}
+  .rollup .hm{margin:10px 0 8px}
+  .rollup .hm .t{background:var(--surf2)}      /* .hm .t and .card share var(--surf) — tiles would vanish into the card */
+  .rmem{font-size:12.5px;padding:7px 0;border-top:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .rmem .pill{white-space:normal}
+  .rmem .rreason{flex-basis:100%;font-size:11px;color:var(--dim);line-height:1.45}
+  .rothers .rmem:first-of-type{border-top:0}
   @media(max-width:560px){ .hm{grid-template-columns:1fr 1fr} }
 </style>
 </head>
@@ -32,6 +45,12 @@
 
   <div class="section-label">HEADLINE METRICS <span id="hmscope" class="muted small" style="font-weight:500;margin-left:4px"></span></div>
   <div class="hm" id="headline"></div>
+
+  <!-- TD-244 (B7b surface): FL wholly_owned_rollups — one card per PARENT; figures read verbatim, never re-summed -->
+  <div class="section-label" style="margin-top:14px">WHOLLY-OWNED ROLLUPS <button class="xref" type="button" onclick="flOpen('entities')" title="Open Entities — companies behind these sections">Entities</button></div>
+  <div id="rollupwarn"></div>
+  <div id="rollups"><div class="muted small">loading…</div></div>
+  <div class="wire-note" id="rollupnote" style="margin-bottom:14px"></div>
 
   <div class="section-label">BY ENTITY — tap a company to scope <button class="xref" type="button" onclick="flOpen('entities')" title="Open Entities — companies behind these sections">Entities</button></div>
   <div class="filt" style="margin-bottom:10px">
@@ -205,6 +224,103 @@
     note.innerHTML='Scoped to <b>'+n+' of '+total+'</b>. Headline metrics + reports reflect this selection. <b>Capital Rules stay owner-level</b> ('+esc(ownersInScope().join(', '))+'): these entities hold '+money(selCash)+liqTxt+'. A different owner’s rule set applies automatically when an entity is managed for a third party (data/STUB_CAPITAL_PROFILES.json).';
   }
 
+  // ── TD-244 (B7b surface): FL wholly_owned_rollups — one card per PARENT ─────────────────────
+  // Every number is a field read from the payload (`figures.*`) or from GET /api/entities
+  // (`ownership_pct`, the server's string); nothing is re-summed, re-classified or defaulted.
+  // Every ownership phrase is the Entities tile's template (TD-240) with its slots filled, or FL's
+  // reason verbatim. The section ignores the tap-selection: FL consolidates over the caller's whole
+  // access per parent, and scoping again here would be re-deriving a consolidation.
+  var ENT_PATH = "/api/entities";
+  var ENTX = {ok:false, status:0, data:null};   // /api/entities rows carry id / parent_entity_id / ownership_pct; the payload's `entities` rows do not
+  function pctStr(v){
+    if(v==null || String(v).trim()==='') return null;
+    var n = typeof v==='number' ? v
+          : (typeof v==='string' && /^\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?\s*$/.test(v)) ? Number(v) : NaN;
+    return isFinite(n) ? n.toFixed(2) : String(v);
+  }
+  function poss(name){ return esc(name)+'&rsquo;s'; }
+  // FL `_total_doors`: 0 = none provided — an unknown door count renders as "—" (the Entities tile's token), never "0 doors"
+  function doorsTxt(d){ var v=(d!=null && Number(d)>0) ? Number(d) : null; return '<b>'+(v==null?'—':String(v))+'</b> door'+(v===1?'':'s'); }
+  function entRows(){ return (ENTX && ENTX.ok && Array.isArray(ENTX.data)) ? ENTX.data : null; }
+  function entByCode(code){ var rows=entRows(); if(!rows) return null; for(var i=0;i<rows.length;i++){ if(rows[i].code===code) return rows[i]; } return null; }
+  function entById(id){ var rows=entRows(); if(!rows||!id) return null; for(var i=0;i<rows.length;i++){ if(rows[i].id===id) return rows[i]; } return null; }
+  function directParentName(code){ var e=entByCode(code); var p=(e&&e.parent_entity_id)?entById(e.parent_entity_id):null; return p?p.name:null; }
+  function nameOf(code){
+    var all=(DATA&&DATA.entities)||[];
+    for(var i=0;i<all.length;i++){ if(entCode(all[i])===code) return all[i].name||code; }
+    var e=entByCode(code); return (e&&e.name)||code;
+  }
+  // a consolidated member: FL proved 100.00 at every link to THIS parent; the % prefix is READ from
+  // /api/entities (the DIRECT parent), shown only when that row itself reads 100 — never assumed
+  function ownCellConsolidated(code, P){
+    var e=entByCode(code), pn=directParentName(code);
+    var pre=(e && pn && Number(e.ownership_pct)===100) ? '<b>'+esc(pctStr(e.ownership_pct))+'%</b> held by '+esc(pn)+' ' : '';
+    return pre+'<span class="pill rg">wholly owned · consolidates into '+poss(P.name)+' rollup</span>';
+  }
+  // an excluded member: classified on FL's own ownership_pct (the same order FL uses), FL's reason
+  // ALWAYS printed verbatim beneath, so a reworded reason can never mis-pill a row
+  function ownCellUnconsolidated(u, P){
+    var pct=pctStr(u.ownership_pct), pn=directParentName(u.code), held=pn?' held by '+esc(pn):'';
+    var cell;
+    if(pct==null) cell='<span class="muted">— not established</span> <span class="pill">excluded from '+poss(P.name)+' rollup (never assumed 100)</span>';
+    else if(Number(pct)!==100) cell='<b>'+esc(pct)+'%</b>'+held+' <span class="pill ry">partner stake · excluded from '+poss(P.name)+' rollup</span>';
+    else cell='<b>'+esc(pct)+'%</b>'+held+' <span class="pill">excluded from '+poss(P.name)+' rollup</span>';   // 100 yet unconsolidated = the chain to THIS parent is not wholly owned; FL says so below
+    return cell+'<div class="rreason">'+esc(u.reason||'')+'</div>';
+  }
+  // a company in scope that appears in NO FL entry: the Entities tile's own ownership cell for that row
+  function othersCell(code){
+    var e=entByCode(code);
+    if(!entRows() || !e) return '<span class="muted">—</span>';
+    var pct=pctStr(e.ownership_pct);
+    if(!e.parent_entity_id) return '<span class="muted">n/a — top-level entity</span>'+(pct!=null ? ' <span class="pill ry">a stale '+esc(pct)+'% is still recorded</span>' : '');
+    var p=entById(e.parent_entity_id), pn=p?p.name:null;
+    if(pct==null) return '<span class="muted">— not established</span> <span class="pill">excluded from '+(pn ? poss(pn) : 'the parent&rsquo;s')+' rollup (never assumed 100)</span>';
+    if(!pn) return '<b>'+esc(pct)+'%</b> held by a parent not in your list <span class="pill">consolidation is decided in that parent&rsquo;s view — not visible here</span>';
+    if(Number(pct)!==100) return '<b>'+esc(pct)+'%</b> held by '+esc(pn)+' <span class="pill ry">partner stake · excluded from '+poss(pn)+' rollup</span>';
+    return '<b>'+esc(pct)+'%</b> held by '+esc(pn);   // 100 with the parent in your list yet no FL entry: FL published no rollup — no claim is made
+  }
+  function cardHtml(entry){
+    var P=entry.parent||{}, f=entry.figures||{}, cons=entry.consolidated||[], U=entry.unconsolidated||[];
+    var kids=cons.slice(1);   // index 0 is the parent itself
+    var et=entry.eliminated_total||{}, elim=(entry.eliminated_intercompany||[]).length;
+    return '<div class="card rollup" data-parent="'+esc(P.code)+'">'+
+      '<div class="row-sb"><div><div class="rname">'+poss(P.name)+' rollup</div>'+
+        '<div class="small muted rcount"><code>consolidated</code> '+cons.length+' · <code>unconsolidated</code> '+U.length+'</div></div>'+
+        '<div class="rdoors">'+doorsTxt(f.doors)+'</div></div>'+
+      '<div class="hm">'+[['Revenue YTD',f.revenue_ytd],['NOI YTD',f.noi_ytd],['Cash',f.cash],['Debt',f.debt]].map(function(m){ return '<div class="t"><div class="v">'+money(m[1])+'</div><div class="k">'+m[0]+'</div></div>'; }).join('')+'</div>'+
+      kids.map(function(c){ return '<div class="rmem"><span>'+esc(nameOf(c))+'</span> '+ownCellConsolidated(c,P)+'</div>'; }).join('')+
+      U.map(function(u){ return '<div class="rmem"><span>'+esc(u.name||nameOf(u.code))+'</span> '+ownCellUnconsolidated(u,P)+'</div>'; }).join('')+
+      (entry.reconciles_to_standalone_sum===false ? '<div class="livewire" style="margin:8px 0 0"><code>reconciles_to_standalone_sum</code> = false</div>' : '')+
+      (elim ? '<div class="small dim" style="margin-top:6px"><code>eliminated_intercompany</code> '+elim+' · <code>eliminated_total</code> revenue '+money(et.revenue)+' · noi '+money(et.noi)+' · debt_service '+money(et.debt_service)+'</div>' : '')+
+    '</div>';
+  }
+  function othersCard(codes){
+    return '<div class="card rothers"><div class="small muted" style="margin-bottom:4px">Ownership % held by parent</div>'+
+      codes.map(function(c){ return '<div class="rmem"><span>'+esc(nameOf(c))+'</span> '+othersCell(c)+'</div>'; }).join('')+'</div>';
+  }
+  function renderRollups(){
+    var box=document.getElementById('rollups'), warn=document.getElementById('rollupwarn'), note=document.getElementById('rollupnote');
+    var R=DATA&&DATA.wholly_owned_rollups;
+    if(!Array.isArray(R)){ box.innerHTML='<div class="muted small">— unavailable —</div>'; warn.innerHTML=''; note.innerHTML='<code>wholly_owned_rollups</code>'; return; }   // an API build that does not publish the key — nothing shown, nothing assumed
+    // roots first: a parent that is itself a member of another entry is subordinate
+    var members={}, inEntry={};
+    R.forEach(function(e){
+      var pc=e.parent&&e.parent.code; inEntry[pc]=1;
+      (e.consolidated||[]).forEach(function(c,i){ inEntry[c]=1; if(i>0) members[c]=1; });
+      (e.unconsolidated||[]).forEach(function(u){ inEntry[u.code]=1; members[u.code]=1; });
+    });
+    var ordered=R.filter(function(e){ return !members[e.parent&&e.parent.code]; }).concat(R.filter(function(e){ return members[e.parent&&e.parent.code]; }));
+    var w049=null; R.forEach(function(e){ (e.unconsolidated||[]).forEach(function(u){ if(!w049 && /schema_patch_049 is not applied/.test(u.reason||'')) w049=u.reason; }); });
+    warn.innerHTML = w049 ? '<div class="livewire">'+esc(w049)+'</div>' : '';   // ONE section-level notice, FL's reason verbatim; the rows still render
+    var others=allCodes().filter(function(c){ return !inEntry[c]; });
+    var hm=(DATA&&DATA.headline_metrics)||{};
+    var regime=(R.length && !(Number(hm.total_revenue_ytd)>0)) ? '<div class="small" style="margin-bottom:8px"><span class="pill ry">real dollar figures pending</span></div>' : '';
+    var html=regime+ordered.map(cardHtml).join('')+(others.length ? othersCard(others) : '');
+    if(!html) html='<div class="card"><div class="muted">—</div></div>';
+    box.innerHTML=html;
+    note.innerHTML='<code>wholly_owned_rollups</code> · '+(R.length ? esc(R[0].basis||'') : 'Only 100.00 consolidates into the parent&rsquo;s rollup.');
+  }
+
   function renderAll(){ renderRules(); renderHeadline(); renderEntities(); renderScopeNote(); }
 
   function render(d, source){
@@ -221,6 +337,7 @@
         onChange:function(ids){ SEL=ids.slice(); renderAll(); }   // mirror selection, re-render rows
       });
     } else { renderAll(); }
+    renderRollups();
     document.getElementById('stamp').textContent='Source: '+source+' · generated '+ts(d.generated_at);
     try{ localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}
   }
@@ -233,16 +350,25 @@
     document.getElementById('headline').innerHTML='';
     document.getElementById('entities').innerHTML='<tbody><tr><td class="muted">— unavailable —</td></tr></tbody>';
     document.getElementById('scopenote').textContent='';
+    document.getElementById('rollups').innerHTML='<div class="muted small">— unavailable —</div>';
+    document.getElementById('rollupwarn').innerHTML='';
+    document.getElementById('rollupnote').textContent='';
   }
 
   function report(name){ var n=SEL?SEL.length:allCodes().length; var sc=(isAll()||!SEL)?' (all entities, consolidated)':(n===0?' (no entities selected)':(' for the '+n+' selected entit'+(n>1?'ies':'y'))); document.getElementById('reportnote').innerHTML='<b>'+name+'</b>'+sc+' is pre-production: the ledger reads $0 until real income flows at Plaid production. The weekly pack generates from the Foundation Layer ledger.'; }
   function emailReport(){ document.getElementById('reportnote').innerHTML='Live build: opens the email flow (recipient · scope · note) and sends the report via the Foundation Layer report pipeline. No external send is wired in this public preview.'; }
 
-  Promise.all([
-    (window.flApi && window.flApi.call ? window.flApi.call('GET', FL) : Promise.resolve(null))
-      .then(function(d){ if(!d) throw 0; return d; }),   // null (no session/err) -> fall back to last-good
-    fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
-  ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api:scoped'); }).catch(fail);
+  function load(){
+    return Promise.all([
+      (window.flApi && window.flApi.call ? window.flApi.call('GET', FL) : Promise.resolve(null))
+        .then(function(d){ if(!d) throw 0; return d; }),   // null (no session/err) -> fall back to last-good
+      fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; }),
+      // TD-244: the entity rows (id / parent_entity_id / ownership_pct) the rollup cards name their members by;
+      // callX never rejects — a 0/403 here only changes wording, never blocks a card
+      (window.flApi && window.flApi.callX ? window.flApi.callX('GET', ENT_PATH) : Promise.resolve({ok:false,status:0,data:null}))
+    ]).then(function(res){ PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; ENTX=res[2]||{ok:false,status:0,data:null}; render(res[0],'foundation-layer:api:scoped'); }).catch(fail);
+  }
+  load();
 </script>
 <script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
 <script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
