@@ -258,7 +258,8 @@
     var pre=(e && pn && Number(e.ownership_pct)===100) ? '<b>'+esc(pctStr(e.ownership_pct))+'%</b> held by '+esc(pn)+' ' : '';
     // the two reads are concurrent: if a PATCH landed between them the row says so instead of hiding the %
     var v=e?e.ownership_pct:null;
-    var disagree=(e && Number(v)!==100) ? ' <span class="muted small">(<code>/api/entities</code> reads '+(v==null?'null':(isFinite(Number(v))?esc(pctStr(v))+'%':esc(String(v))))+' — the two reads disagree)</span>' : '';
+    var shown=!e ? '' : (!('ownership_pct' in e) ? 'no ownership_pct field' : (v==null ? 'null' : esc(String(v).trim()||'""')+'%'));   // FL's RAW value, never re-rounded
+    var disagree=(e && Number(v)!==100) ? ' <span class="muted small">(<code>/api/entities</code> reads '+shown+' — the two reads disagree)</span>' : '';
     return pre+'<span class="pill rg">wholly owned · consolidates into '+poss(P.name)+' rollup</span>'+disagree;
   }
   // an excluded member: classified on FL's own ownership_pct (the same order FL uses), FL's reason
@@ -289,11 +290,12 @@
   }
   // FL computes each entry over THIS caller's granted codes (a member sees a truncated rollup) — the payload's own
   // `scope` says so; carried on every card so a truncated figure never reads as THE parent's rollup
-  var ZERO_TITLE='— = the Foundation Layer reports 0 here, which also means no linked accounts yet';
+  var ZERO_TITLE='— = the Foundation Layer reports exactly 0 here; 0 is also what it reports when no accounts are linked yet';
   function zeroDash(v){ return (v==null || Number(v)===0) ? '—' : money(v); }
+  function isZero(v){ return v!=null && String(v).trim()!=='' && Number(v)===0; }   // the legend is for a REPORTED 0 only, never for null or garbage
   function scopeTxt(){ var sc=DATA&&DATA.scope; return (sc && sc.global===false && Array.isArray(sc.entity_codes)) ? ' · over your access ('+sc.entity_codes.length+' compan'+(sc.entity_codes.length===1?'y':'ies')+')' : ''; }
   function cardHtml(entry){
-    var P=entry.parent||{}, f=entry.figures||{}, cons=entry.consolidated||[], U=entry.unconsolidated||[];
+    var P={code:entry.parent.code, name:entry.parent.name||entry.parent.code}, f=entry.figures||{}, cons=entry.consolidated||[], U=entry.unconsolidated||[];   // a nameless parent is named by its code, never "'s rollup"
     var kids=cons.slice(1);   // index 0 is the parent itself
     var et=entry.eliminated_total||{}, elim=(entry.eliminated_intercompany||[]).length;
     return '<div class="card rollup" data-parent="'+esc(P.code)+'">'+
@@ -302,7 +304,7 @@
         '<div class="rdoors">'+doorsTxt(f.doors)+'</div></div>'+
       // Revenue/NOI are ledger sums (the regime pill says when the ledger is empty); Cash/Debt sum LINKED accounts, where FL's
       // exact 0 also means "no accounts linked" — so ONLY null / 0 read "—" (a signed figure, incl. negative, is shown)
-      '<div class="hm">'+[['Revenue YTD',money(f.revenue_ytd),''],['NOI YTD',money(f.noi_ytd),''],['Cash',zeroDash(f.cash),ZERO_TITLE],['Debt',zeroDash(f.debt),ZERO_TITLE]].map(function(m){ return '<div class="t"'+((m[2]&&m[1]==='—')?' title="'+m[2]+'"':'')+'><div class="v">'+m[1]+'</div><div class="k">'+m[0]+'</div></div>'; }).join('')+'</div>'+
+      '<div class="hm">'+[['Revenue YTD',money(f.revenue_ytd),''],['NOI YTD',money(f.noi_ytd),''],['Cash',zeroDash(f.cash),isZero(f.cash)?ZERO_TITLE:''],['Debt',zeroDash(f.debt),isZero(f.debt)?ZERO_TITLE:'']].map(function(m){ return '<div class="t"'+(m[2]?' title="'+m[2]+'"':'')+'><div class="v">'+m[1]+'</div><div class="k">'+m[0]+'</div></div>'; }).join('')+'</div>'+
       kids.map(function(c){ return '<div class="rmem"><span>'+esc(nameOf(c))+'</span> '+ownCellConsolidated(c,P)+'</div>'; }).join('')+
       U.map(function(u){ return '<div class="rmem"><span>'+esc(u.name||nameOf(u.code))+'</span> '+ownCellUnconsolidated(u,P)+'</div>'; }).join('')+
       (entry.reconciles_to_standalone_sum===false ? '<div class="livewire" style="margin:8px 0 0"><code>reconciles_to_standalone_sum</code> = false</div>' : '')+
@@ -322,7 +324,12 @@
     var box=document.getElementById('rollups'), warn=document.getElementById('rollupwarn'), note=document.getElementById('rollupnote');
     var R=DATA&&DATA.wholly_owned_rollups;
     if(!Array.isArray(R)){ box.innerHTML='<div class="muted small">— unavailable —</div>'; warn.innerHTML=''; note.innerHTML='<code>wholly_owned_rollups</code> not published by this API build'; return; }   // nothing shown, nothing assumed
-    var wellFormed=function(e){ return !!(e && e.parent && e.parent.code && Array.isArray(e.consolidated) && Array.isArray(e.unconsolidated)); };
+    // FL's shape, pinned: the parent is consolidated[0], every member a code string, every excluded row an object with a code
+    var wellFormed=function(e){
+      return !!(e && e.parent && typeof e.parent.code==='string' && e.parent.code
+        && Array.isArray(e.consolidated) && e.consolidated[0]===e.parent.code && e.consolidated.every(function(c){ return typeof c==='string' && c; })
+        && Array.isArray(e.unconsolidated) && e.unconsolidated.every(function(u){ return !!(u && typeof u==='object' && typeof u.code==='string' && u.code); }));
+    };
     // roots first, then by depth (how many entries list the parent as a member), then FL's order — so a grandchild's
     // card never precedes its own parent's
     var depth={}, inEntry={};
@@ -339,17 +346,18 @@
     warn.innerHTML = w049 ? '<div class="livewire">'+esc(w049)+'</div>' : '';   // ONE section-level notice, FL's reason verbatim; the rows still render
     var others=((DATA&&DATA.entities)||[]).map(function(e){ return e&&e.code; }).filter(function(c){ return c && !inEntry[c]; });   // FL keys members by code
     var hm=(DATA&&DATA.headline_metrics)||{};
-    var regime=(R.length && !(Number(hm.total_revenue_ytd)>0)) ? '<div class="small" style="margin-bottom:8px"><span class="pill ry">real dollar figures pending</span></div>' : '';
     // one malformed entry drops only its own card — never the section, never the valid cards
+    var nCards=0;
     var cards=ordered.map(function(e){
-      try{ if(!wellFormed(e)) throw 0; return cardHtml(e); }
+      try{ if(!wellFormed(e)) throw 0; var h=cardHtml(e); nCards++; return h; }
       catch(x){ return '<div class="card"><div class="muted small">— unavailable —</div><div class="small dim"><code>wholly_owned_rollups</code> entry not rendered</div></div>'; }
     }).join('');
+    var regime=(nCards && !(Number(hm.total_revenue_ytd)>0)) ? '<div class="small" style="margin-bottom:8px"><span class="pill ry">real dollar figures pending</span></div>' : '';
     var html=regime+cards+(others.length ? othersCard(others) : '');
     if(!html) html='<div class="card"><div class="muted">—</div></div>';
     box.innerHTML=html;
-    var entNote=(!ENTX.pending && !ENTX.ok && (ordered.length||others.length))
-      ? ' · <code>/api/entities</code> '+(ENTX.status?'HTTP '+ENTX.status:'not loaded')+' — ownership % and parent names not loaded'+(ordered.length?'; the consolidation above is FL&rsquo;s':'')
+    var entNote=(!ENTX.pending && !ENTX.ok && (nCards||others.length))
+      ? ' · <code>/api/entities</code> '+(ENTX.status?'HTTP '+ENTX.status:'not loaded')+' — ownership % and parent names not loaded'+(nCards?'; the consolidation above is FL&rsquo;s':'')
       : '';
     note.innerHTML='<code>wholly_owned_rollups</code>'+(R.length ? (basis ? ' · '+esc(basis) : '') : ' · Only 100.00 consolidates into the parent&rsquo;s rollup.')+entNote;
   }
@@ -381,10 +389,15 @@
     var last=''; try{ var s=JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ts) last=' · last good '+ts(s.ts); }catch(e){}
     var bar=document.getElementById('statusbar'); bar.className='livewire apidown';
     var det=err&&err.data&&err.data.detail; det=(typeof det==='string' && det) ? det : null;
-    // TD-244: the read is status-carrying — a refusal, an expired session or a server error is NOT an outage
-    if(err && err.status===403) bar.innerHTML='⛔ Not allowed — '+esc(det||'HTTP 403')+'. No figures shown (never faked).';   // require_financials_sensitive, FL's detail verbatim
-    else if(err && err.status===401) bar.innerHTML='⚠ Session expired — sign in again. No figures shown (never faked).';
+    var api=window.flApi||{}, expired=!!(api.authExpired&&api.authExpired()), signedIn=!!(api.authed&&api.authed());
+    // TD-244: the read is status-carrying — a refusal, an expired session, a server error or a render fault is NOT an outage
+    if(err && err.render_error) bar.innerHTML='⚠ The dashboard payload could not be rendered — '+esc(err.render_error)+'. No figures shown (never faked).';
+    else if(err && err.status===403) bar.innerHTML='⛔ Not allowed — '+esc(det||'HTTP 403')+'. No figures shown (never faked).';   // require_financials_sensitive, FL's detail verbatim
+    else if(err && err.status===401) bar.innerHTML=(expired ? '⚠ Session expired — sign in again.' : '⚠ HTTP 401 — not authenticated'+(det?' ('+esc(det)+')':'')+'; sign in again.')+' No figures shown (never faked).';
     else if(err && err.status>=400) bar.innerHTML='⚠ HTTP '+err.status+' — '+esc(det||'the Foundation Layer dashboard returned an error')+last+'. No figures shown (never faked).';
+    // status 0 with NO request made: fl-api's proactive refresh failed (the session died while idle) or there is no session
+    else if(expired && !signedIn) bar.innerHTML='⚠ Session expired — sign in again. No figures shown (never faked).';   // confirmed dead AND no token now
+    else if(!signedIn) bar.innerHTML='⚠ Not signed in — sign in to load figures. No figures shown (never faked).';
     else bar.innerHTML='⚠ API unreachable — the Foundation Layer dashboard is not responding'+last+'. No figures shown (never faked).';
     document.getElementById('rules').innerHTML='<div class="muted small">— unavailable —</div>';
     document.getElementById('headline').innerHTML='';
@@ -410,21 +423,27 @@
     // fetched OFF the critical path: the dashboard renders exactly as before, and the rollup rows re-render
     // with names and percentages when (and only if) this lands; a 0/403 only changes wording
     if(api.callX){
+      var tmr=null;
       var onEnt=function(r){
         if(seq!==LOAD_SEQ) return;                       // superseded by a later load — its own entities call will paint
+        if(tmr){ clearTimeout(tmr); tmr=null; }
         ENTX=r||{ok:false,status:0,data:null}; ENTX.pending=false;
-        if(DATA){ try{ renderRollups(); }catch(e){ rollupFault('with the /api/entities rows'); } }   // DATA is null until THIS load's dashboard rendered
+        if(DATA){ try{ renderRollups(); }catch(e){ rollupFault(ENTX.ok ? 'with the /api/entities rows' : 'after /api/entities did not load'); } }   // DATA is null until THIS load's dashboard rendered
       };
       api.callX('GET', ENT_PATH).then(onEnt);
       // a request that never settles must not leave "why no %?" unanswered: after 10s the note says not loaded;
       // if the real response lands later for this same load it still paints
-      setTimeout(function(){ if(seq===LOAD_SEQ && ENTX.pending) onEnt({ok:false,status:0,data:null}); }, 10000);
+      tmr=setTimeout(function(){ tmr=null; if(seq===LOAD_SEQ && ENTX.pending) onEnt({ok:false,status:0,data:null}); }, 10000);
     } else { ENTX.pending=false; }
     return Promise.all([
       dashP.then(function(r){ if(!r || !r.ok) throw r; return r.data; }),   // {status:403} -> fail() names the clearance; 0/5xx -> unreachable
       fetch(PROFILES_URL,{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
     ]).then(function(res){ if(seq!==LOAD_SEQ) return; PROFILES=res[1]||{default_owner:'ECH Management (self-managed)',overrides:{}}; render(res[0],'foundation-layer:api:scoped'); })
-      .catch(function(e){ if(seq===LOAD_SEQ) fail(e); });   // a superseded load neither paints nor fails the screen
+      .catch(function(e){
+        if(seq!==LOAD_SEQ) return;                            // a superseded load neither paints nor fails the screen
+        // a transport result carries a status; anything else is a fault inside render() — say that, not "unreachable"
+        fail((e && typeof e.status==='number') ? e : {status:0, render_error:String((e&&e.message)||e||'render fault')});
+      });
   }
   load();
 </script>
