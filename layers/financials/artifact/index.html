@@ -258,7 +258,7 @@
     var pre=(e && pn && Number(e.ownership_pct)===100) ? '<b>'+esc(pctStr(e.ownership_pct))+'%</b> held by '+esc(pn)+' ' : '';
     // the two reads are concurrent: if a PATCH landed between them the row says so instead of hiding the %
     var v=e?e.ownership_pct:null;
-    var shown=!e ? '' : (!('ownership_pct' in e) ? 'no ownership_pct field' : (v==null ? 'null' : esc(String(v).trim()||'""')+'%'));   // FL's RAW value, never re-rounded
+    var shown=!e ? '' : (!('ownership_pct' in e) ? 'no ownership_pct field' : (v==null ? 'null' : (isFinite(Number(v)) && String(v).trim()!=='' ? esc(String(v).trim())+'%' : '"'+esc(String(v))+'"')));   // FL's RAW value, never re-rounded
     var disagree=(e && Number(v)!==100) ? ' <span class="muted small">(<code>/api/entities</code> reads '+shown+' — the two reads disagree)</span>' : '';
     return pre+'<span class="pill rg">wholly owned · consolidates into '+poss(P.name)+' rollup</span>'+disagree;
   }
@@ -291,8 +291,8 @@
   // FL computes each entry over THIS caller's granted codes (a member sees a truncated rollup) — the payload's own
   // `scope` says so; carried on every card so a truncated figure never reads as THE parent's rollup
   var ZERO_TITLE='— = the Foundation Layer reports exactly 0 here; 0 is also what it reports when no accounts are linked yet';
-  function zeroDash(v){ return (v==null || Number(v)===0) ? '—' : money(v); }
-  function isZero(v){ return v!=null && String(v).trim()!=='' && Number(v)===0; }   // the legend is for a REPORTED 0 only, never for null or garbage
+  function isZero(v){ return typeof v==='number' ? v===0 : (typeof v==='string' && /^\s*[-+]?0+(\.0+)?\s*$/.test(v)); }   // a REPORTED zero only — never null, garbage or a non-number
+  function zeroDash(v){ return (v==null || isZero(v)) ? '—' : money(v); }
   function scopeTxt(){ var sc=DATA&&DATA.scope; return (sc && sc.global===false && Array.isArray(sc.entity_codes)) ? ' · over your access ('+sc.entity_codes.length+' compan'+(sc.entity_codes.length===1?'y':'ies')+')' : ''; }
   function cardHtml(entry){
     var P={code:entry.parent.code, name:entry.parent.name||entry.parent.code}, f=entry.figures||{}, cons=entry.consolidated||[], U=entry.unconsolidated||[];   // a nameless parent is named by its code, never "'s rollup"
@@ -328,6 +328,7 @@
     var wellFormed=function(e){
       return !!(e && e.parent && typeof e.parent.code==='string' && e.parent.code
         && Array.isArray(e.consolidated) && e.consolidated[0]===e.parent.code && e.consolidated.every(function(c){ return typeof c==='string' && c; })
+        && e.consolidated.filter(function(c,i,a){ return a.indexOf(c)!==i; }).length===0   // no duplicate members, so the parent is never its own member
         && Array.isArray(e.unconsolidated) && e.unconsolidated.every(function(u){ return !!(u && typeof u==='object' && typeof u.code==='string' && u.code); }));
     };
     // roots first, then by depth (how many entries list the parent as a member), then FL's order — so a grandchild's
@@ -389,7 +390,10 @@
     var last=''; try{ var s=JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ts) last=' · last good '+ts(s.ts); }catch(e){}
     var bar=document.getElementById('statusbar'); bar.className='livewire apidown';
     var det=err&&err.data&&err.data.detail; det=(typeof det==='string' && det) ? det : null;
-    var api=window.flApi||{}, expired=!!(api.authExpired&&api.authExpired()), signedIn=!!(api.authed&&api.authed());
+    // a sign-in state is claimed ONLY when fl-api is present to answer; with the shared scripts unloaded (offline: the
+    // tile HTML is cached, shared/*.js is not) nothing about the session is known — say that, never "not signed in"
+    var api=window.flApi||{}, canTell=(typeof api.authed==='function');
+    var expired=!!(canTell && api.authExpired && api.authExpired()), signedIn=canTell ? !!api.authed() : true;
     // TD-244: the read is status-carrying — a refusal, an expired session, a server error or a render fault is NOT an outage
     if(err && err.render_error) bar.innerHTML='⚠ The dashboard payload could not be rendered — '+esc(err.render_error)+'. No figures shown (never faked).';
     else if(err && err.status===403) bar.innerHTML='⛔ Not allowed — '+esc(det||'HTTP 403')+'. No figures shown (never faked).';   // require_financials_sensitive, FL's detail verbatim
@@ -398,6 +402,7 @@
     // status 0 with NO request made: fl-api's proactive refresh failed (the session died while idle) or there is no session
     else if(expired && !signedIn) bar.innerHTML='⚠ Session expired — sign in again. No figures shown (never faked).';   // confirmed dead AND no token now
     else if(!signedIn) bar.innerHTML='⚠ Not signed in — sign in to load figures. No figures shown (never faked).';
+    else if(!canTell) bar.innerHTML='⚠ The dashboard scripts did not load — reload the tile. No figures shown (never faked).';
     else bar.innerHTML='⚠ API unreachable — the Foundation Layer dashboard is not responding'+last+'. No figures shown (never faked).';
     document.getElementById('rules').innerHTML='<div class="muted small">— unavailable —</div>';
     document.getElementById('headline').innerHTML='';
@@ -442,7 +447,8 @@
       .catch(function(e){
         if(seq!==LOAD_SEQ) return;                            // a superseded load neither paints nor fails the screen
         // a transport result carries a status; anything else is a fault inside render() — say that, not "unreachable"
-        fail((e && typeof e.status==='number') ? e : {status:0, render_error:String((e&&e.message)||e||'render fault')});
+        var msg=(e && typeof e.message==='string' && e.message) || (typeof e==='string' && e) || 'render fault';   // never String() an object
+        fail((e && typeof e.status==='number') ? e : {status:0, render_error:msg});
       });
   }
   load();
