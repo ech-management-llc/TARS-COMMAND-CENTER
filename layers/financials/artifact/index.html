@@ -258,7 +258,8 @@
     var pre=(e && pn && Number(e.ownership_pct)===100) ? '<b>'+esc(pctStr(e.ownership_pct))+'%</b> held by '+esc(pn)+' ' : '';
     // the two reads are concurrent: if a PATCH landed between them the row says so instead of hiding the %
     var v=e?e.ownership_pct:null;
-    var shown=!e ? '' : (!('ownership_pct' in e) ? 'no ownership_pct field' : (v==null ? 'null' : (isFinite(Number(v)) && String(v).trim()!=='' ? esc(String(v).trim())+'%' : '"'+esc(String(v))+'"')));   // FL's RAW value, never re-rounded
+    var numeric=(typeof v==='number' || typeof v==='string') && String(v).trim()!=='' && isFinite(Number(v));
+    var shown=!e ? '' : (!('ownership_pct' in e) ? 'no ownership_pct field' : (v==null ? 'null' : (numeric ? esc(String(v).trim())+'%' : '"'+esc(String(v))+'"')));   // FL's RAW value, never re-rounded
     var disagree=(e && Number(v)!==100) ? ' <span class="muted small">(<code>/api/entities</code> reads '+shown+' — the two reads disagree)</span>' : '';
     return pre+'<span class="pill rg">wholly owned · consolidates into '+poss(P.name)+' rollup</span>'+disagree;
   }
@@ -328,7 +329,7 @@
     var wellFormed=function(e){
       return !!(e && e.parent && typeof e.parent.code==='string' && e.parent.code
         && Array.isArray(e.consolidated) && e.consolidated[0]===e.parent.code && e.consolidated.every(function(c){ return typeof c==='string' && c; })
-        && e.consolidated.filter(function(c,i,a){ return a.indexOf(c)!==i; }).length===0   // no duplicate members, so the parent is never its own member
+        && (function(all){ return all.filter(function(c,i,a){ return a.indexOf(c)!==i; }).length===0; })(e.consolidated.concat(e.unconsolidated.map(function(u){ return u&&u.code; })))   // a code appears in exactly one list, once — the parent is never its own member
         && Array.isArray(e.unconsolidated) && e.unconsolidated.every(function(u){ return !!(u && typeof u==='object' && typeof u.code==='string' && u.code); }));
     };
     // roots first, then by depth (how many entries list the parent as a member), then FL's order — so a grandchild's
@@ -392,8 +393,8 @@
     var det=err&&err.data&&err.data.detail; det=(typeof det==='string' && det) ? det : null;
     // a sign-in state is claimed ONLY when fl-api is present to answer; with the shared scripts unloaded (offline: the
     // tile HTML is cached, shared/*.js is not) nothing about the session is known — say that, never "not signed in"
-    var api=window.flApi||{}, canTell=(typeof api.authed==='function');
-    var expired=!!(canTell && api.authExpired && api.authExpired()), signedIn=canTell ? !!api.authed() : true;
+    var api=window.flApi||{}, canTell=(typeof api.authed==='function'), expired=false, signedIn=true;
+    if(canTell){ try{ signedIn=!!api.authed(); expired=!!(api.authExpired && api.authExpired()); }catch(e){ canTell=false; signedIn=true; expired=false; } }   // a throwing client must never leave the bar stuck
     // TD-244: the read is status-carrying — a refusal, an expired session, a server error or a render fault is NOT an outage
     if(err && err.render_error) bar.innerHTML='⚠ The dashboard payload could not be rendered — '+esc(err.render_error)+'. No figures shown (never faked).';
     else if(err && err.status===403) bar.innerHTML='⛔ Not allowed — '+esc(det||'HTTP 403')+'. No figures shown (never faked).';   // require_financials_sensitive, FL's detail verbatim
