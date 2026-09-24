@@ -334,7 +334,7 @@
     };
     // roots first, then by depth (how many entries list the parent as a member), then FL's order — so a grandchild's
     // card never precedes its own parent's
-    var depth={}, inEntry={};
+    var depth=Object.create(null), inEntry=Object.create(null);   // prototype-free: a company coded `constructor` or `toString` is still a company
     R.forEach(function(e){
       if(!wellFormed(e)) return;
       inEntry[e.parent.code]=1;
@@ -455,7 +455,8 @@
         fail((e && typeof e.status==='number') ? e : {status:0, render_error:msg});
       });
   }
-  load();
+  // a synchronous fault inside load() (a broken client) must reach fail(), never leave "Loading…" on screen
+  try{ load(); }catch(e){ fail({status:0, render_error:(e && typeof e.message==='string' && e.message) || 'load fault'}); }
 </script>
 <script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
 <script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
