@@ -428,6 +428,7 @@ function handleSetup(v){
         '<label class="setup-mini-l">Owner name (the person)</label><input class="setup-mini-in" id="su-owner" placeholder="e.g. Jerry Eads">'+
         '<label class="setup-mini-l">Other entities — one per line (optional)</label><textarea class="setup-mini-in" id="su-ents" rows="2" placeholder="ECH Mabank LLC&#10;ECH Athens LLC"></textarea>'+
         '<div class="su-dim" id="su-codes"></div>'+
+        '<label class="su-dim" style="display:flex;gap:6px;align-items:flex-start;margin-top:4px"><input type="checkbox" id="su-subs" style="margin-top:2px" disabled><span>The other entities are subsidiaries of the primary business — sets their <b>Parent entity</b> to it. Their ownership % stays <b>not established</b> until you set it in Legal → Entities (only 100.00 consolidates). <span id="su-subs-note">Enter the primary business first.</span></span></label>'+
         '<button type="button" class="echip on" id="su-biz-go">Create &amp; file</button>'+
         '<div class="setup-mini-msg su-dim" id="su-biz-msg"></div>'+
       '</div>');
@@ -438,6 +439,8 @@ function handleSetup(v){
       var biz=(b.querySelector('#su-biz').value||'').trim();
       var ents=(b.querySelector('#su-ents').value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
       var names=[]; if(biz) names.push(biz); ents.forEach(function(n){ names.push(n); });
+      var cb=b.querySelector('#su-subs'), note=b.querySelector('#su-subs-note');
+      if(cb){ cb.disabled=!biz; if(!biz) cb.checked=false; if(note) note.textContent=biz?'':'Enter the primary business first.'; }
       var box=b.querySelector('#su-codes'); if(!box) return;
       if(!names.length){ box.innerHTML=''; return; }
       var codes=names.map(function(n,i){ return deriveCode(n,i); });
@@ -463,12 +466,15 @@ function handleSetup(v){
       var authed = !!(window.flApi && flApi.authed && flApi.authed());
       // The business NAME is an entity, not a profile — it (plus any extras) goes to the entities table.
       var allEnts=[]; if(biz) allEnts.push(biz); ents.forEach(function(n){ allEnts.push(n); });
-      var entCreated=0, entFailed=0, ownerSaved=false, created=[];
+      var subs=!!(biz && b.querySelector('#su-subs') && b.querySelector('#su-subs').checked);   // Parent entity only — never ownership
+      var entCreated=0, entFailed=0, ownerSaved=false, created=[], primary=null, subsSet=0, primaryFailed=false;
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i];
         var payload={ code:deriveCode(name,i), name:name, legal_form:'LLC' };
+        if(subs && i>0 && primary && primary.id) payload.parent_entity_id=primary.id;
         var res=null; try { res=await fl.createEntity(payload); } catch(e){ res=null; }
-        if(res){ entCreated++; created.push(res); fl.fileToDocNav(name+' — entity formation','entity','entities'); }
+        if(!res && subs && i===0) primaryFailed=true;
+        if(res){ entCreated++; created.push(res); if(i===0 && biz) primary=res; if(payload.parent_entity_id && res.parent_entity_id===payload.parent_entity_id) subsSet++; fl.fileToDocNav(name+' — entity formation','entity','entities'); }
         else { entFailed++; }
       }
       // The OWNER (a person) is the personal_info record — NOT the business name.
@@ -493,8 +499,13 @@ function handleSetup(v){
       // bubble, and point at the place that does (Parent, then Ownership %, in Legal → Entities)
       if(endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }
       if(entCreated){
-        var n=entCreated;
-        var ending=(n===1)
+        var n=entCreated, pname=escd((primary&&primary.name)||biz);
+        var ending=subsSet
+          ? ('You created '+n+' compan'+(n===1?'y':'ies')+'. '+subsSet+' of them '+(subsSet===1?'is':'are')+' filed under <b>'+pname+'</b> as its subsidiar'+(subsSet===1?'y':'ies')+' — their Parent is set. Their ownership % is <b>not established</b>, so none of them consolidates into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set each one&rsquo;s Ownership in Legal → Entities.'
+             +((n-1-subsSet)>0 ? ' The other '+(n-1-subsSet)+' '+((n-1-subsSet)===1?'has':'have')+' no parent yet — if one is owned by '+pname+' or by another company, set its Parent there too.' : ''))
+          : primaryFailed
+          ? ('You created '+n+' compan'+(n===1?'y':'ies')+'. <b>'+pname+'</b> didn&rsquo;t save, so '+(n===1?'it was':'they were')+' filed as top-level (no parent) — the subsidiaries box could not be applied. Retry the primary, then set each one&rsquo;s Parent in Legal → Entities.')
+          : (n===1)
           ? 'You created 1 company. It has no parent — nothing to relate yet. When you add a company it owns, or one that owns it, set the Parent in Legal → Entities, then the Ownership %.'
           : 'You created '+n+' companies. None of them are related to each other yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).';
         if(entFailed) ending+=' <span class="su-dim">The '+entFailed+' that didn&rsquo;t save '+(entFailed===1?'isn&rsquo;t':'aren&rsquo;t')+' counted.</span>';
