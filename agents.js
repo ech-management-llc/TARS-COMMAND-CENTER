@@ -400,6 +400,12 @@ function paintHire(b){
   b.querySelectorAll('[data-hire]').forEach(function(btn){ btn.onclick=function(){ var g=btn.getAttribute('data-hire'); fl.hireArea(g, fl.areaHire(g)==='hire'?null:'hire'); paintHire(b); }; });
   b.querySelectorAll('[data-skip]').forEach(function(btn){ btn.onclick=function(){ var g=btn.getAttribute('data-skip'); fl.hireArea(g, fl.areaHire(g)==='skip'?null:'skip'); paintHire(b); }; });
 }
+// The walkthrough derives each entity's CODE (the permanent natural key an FK web references) from the
+// typed name; the server prefixes an owner's code with the account namespace (t<sha8>_). Shown BEFORE
+// saving so a typo is caught while it is still a name, not a key (TD-239).
+function deriveCode(name, i){
+  return String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || ('ENTITY_'+(i+1));
+}
 function handleSetup(v){
   var t=(v||'').trim().toLowerCase().replace(/[’‘]/g,"'").replace(/[—–]/g,'-');
   var is=function(s){ return t === s.toLowerCase().replace(/[’‘]/g,"'").replace(/[—–]/g,'-'); };
@@ -421,10 +427,29 @@ function handleSetup(v){
         '<label class="setup-mini-l">Business / primary entity name (LLC)</label><input class="setup-mini-in" id="su-biz" placeholder="e.g. ECH Management Services LLC">'+
         '<label class="setup-mini-l">Owner name (the person)</label><input class="setup-mini-in" id="su-owner" placeholder="e.g. Jerry Eads">'+
         '<label class="setup-mini-l">Other entities — one per line (optional)</label><textarea class="setup-mini-in" id="su-ents" rows="2" placeholder="ECH Mabank LLC&#10;ECH Athens LLC"></textarea>'+
+        '<div class="su-dim" id="su-codes"></div>'+
         '<button type="button" class="echip on" id="su-biz-go">Create &amp; file</button>'+
         '<div class="setup-mini-msg su-dim" id="su-biz-msg"></div>'+
       '</div>');
     var go=b.querySelector('#su-biz-go');
+    var endingEl=null;   // the honest ending, one bubble per attempt (a retry replaces it)
+    // live: the codes these names will become, before anything is saved
+    var previewCodes=function(){
+      var biz=(b.querySelector('#su-biz').value||'').trim();
+      var ents=(b.querySelector('#su-ents').value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+      var names=[]; if(biz) names.push(biz); ents.forEach(function(n){ names.push(n); });
+      var box=b.querySelector('#su-codes'); if(!box) return;
+      if(!names.length){ box.innerHTML=''; return; }
+      var codes=names.map(function(n,i){ return deriveCode(n,i); });
+      var dup=codes.filter(function(c,i,a){ return a.indexOf(c)!==i; });
+      var fallback=codes.filter(function(c){ return /^ENTITY_\d+$/.test(c); });
+      box.innerHTML='Codes these names become — permanent keys; your account&rsquo;s prefix is added on save:'+
+        '<div>'+names.map(function(n,i){ return escd(n)+' → <b>'+escd(codes[i])+'</b>'; }).join('<br>')+'</div>'+
+        'The code is permanent; the name is not — fix a typo here. Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
+        (dup.length ? ' <span class="su-err">Two names make the same code ('+escd(dup[0])+') — only the first will save.</span>' : '')+
+        (fallback.length ? ' <span class="su-err">A name with no letters or digits falls back to '+escd(fallback[0])+' — give it a real name.</span>' : '');
+    };
+    ['#su-biz','#su-ents'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.addEventListener('input', previewCodes); });
     var busy=false, done=false;
     go.onclick=async function(){
       if(busy || done) return;                                   // guard: one row set per submission, no double-write
@@ -438,12 +463,12 @@ function handleSetup(v){
       var authed = !!(window.flApi && flApi.authed && flApi.authed());
       // The business NAME is an entity, not a profile — it (plus any extras) goes to the entities table.
       var allEnts=[]; if(biz) allEnts.push(biz); ents.forEach(function(n){ allEnts.push(n); });
-      var entCreated=0, entFailed=0, ownerSaved=false;
+      var entCreated=0, entFailed=0, ownerSaved=false, created=[];
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i];
-        var code=name.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || ('ENTITY_'+(i+1));
-        var res=null; try { res=await fl.createEntity({ code:code, name:name, legal_form:'LLC' }); } catch(e){ res=null; }
-        if(res){ entCreated++; fl.fileToDocNav(name+' — entity formation','entity','entities'); }
+        var payload={ code:deriveCode(name,i), name:name, legal_form:'LLC' };
+        var res=null; try { res=await fl.createEntity(payload); } catch(e){ res=null; }
+        if(res){ entCreated++; created.push(res); fl.fileToDocNav(name+' — entity formation','entity','entities'); }
         else { entFailed++; }
       }
       // The OWNER (a person) is the personal_info record — NOT the business name.
@@ -461,7 +486,26 @@ function handleSetup(v){
       if(entFailed) out.push('⚠️ '+entFailed+' entit'+(entFailed===1?'y':'ies')+' '+(authed?'failed — a duplicate name? check, then retry':'need sign-in to persist'));
       if(owner && !ownerSaved) out.push('⚠️ Owner '+(authed?'didn’t save — retry':'needs sign-in to persist'));
       if(entCreated) out.push('Opened the <b>Legal</b> area (Entities lives there)');
+      // the STORED keys, from the server's echoes — the account prefix is real and permanent; never the derived guess
+      if(created.length) out.push('Stored as '+created.map(function(r){ return (r && r.code) ? '<code>'+escd(r.code)+'</code>' : '<span class="su-err">code not echoed — see Legal → Entities</span>'; }).join(' · '));
       msg.innerHTML=(out.join('. ')||'Nothing to save')+'.';
+      // TD-239: this flow captures companies, not the structure between them — say so, in words, in its own
+      // bubble, and point at the place that does (Parent, then Ownership %, in Legal → Entities)
+      if(endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }
+      if(entCreated){
+        var n=entCreated;
+        var ending=(n===1)
+          ? 'You created 1 company. It has no parent — nothing to relate yet. When you add a company it owns, or one that owns it, set the Parent in Legal → Entities, then the Ownership %.'
+          : 'You created '+n+' companies. None of them are related to each other yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).';
+        if(entFailed) ending+=' <span class="su-dim">The '+entFailed+' that didn&rsquo;t save '+(entFailed===1?'isn&rsquo;t':'aren&rsquo;t')+' counted.</span>';
+        endingEl=aBubble(ending+'<div class="setup-chiprow" style="margin-top:6px"><button type="button" class="echip" id="su-open-entities">Open Legal → Entities</button></div>');
+        var openBtn=endingEl && endingEl.querySelector('#su-open-entities');
+        if(openBtn) openBtn.onclick=function(){
+          try{ if(window.hideOverlay) hideOverlay('gov'); }catch(e){}                       // leave the chat
+          if(typeof window.openLayer==='function'){ try{ openLayer('entities'); return; }catch(e){} }   // land on the tile that sets Parent + Ownership
+          aBubble('Open the <b>Entities</b> tile in the Legal area on your board.');
+        };
+      }
     };
     return true;
   }
