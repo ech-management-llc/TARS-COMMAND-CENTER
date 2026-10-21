@@ -431,7 +431,8 @@
     if(pid===(ent.parent_entity_id||null)){ msg.innerHTML='<span class="muted">No change — that is already the parent.</span>'; return; }
     var oldPid = ent.parent_entity_id||null, oldName = parentName(oldPid);
     msg.innerHTML='<span class="muted">Saving…</span>';
-    var ctl = document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id));
+    // lock BOTH editors at once (one write per row): the guard above already refuses, but the controls should look it
+    var ctl = document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id)+','+ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
     PAR_INFLIGHT[id] = true;
     ctl.forEach(function(b){ b.disabled = true; });
     // re-query on release: a re-render while pending rebuilt BOTH editors' controls disabled (cross-lock), so re-enable both
@@ -507,7 +508,8 @@
     if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
     if(!ent.parent_entity_id && own.value!=null){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> A top-level entity has no owner to record (a stale value can still be cleared).'; return; }
     msg.innerHTML='<span class="muted">Saving…</span>';
-    var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
+    // lock BOTH editors at once (one write per row): the Parent editor's guard already refuses, but the controls should look it
+    var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)+','+ownSel('data-par',id)+','+ownSel('data-par-in',id));
     OWN_INFLIGHT[id] = {raw: own.value==null ? '' : own.value};   // set only once the selectors resolved (a throw above leaves nothing stuck); carries the pending value for a mid-flight re-render
     ctl.forEach(function(b){ b.disabled = true; });
     // re-query on release: a re-render while pending rebuilt the row (disabled) — BOTH editors, since the Parent
