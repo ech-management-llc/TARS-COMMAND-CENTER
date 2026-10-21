@@ -554,7 +554,9 @@ function handleSetup(v){
         } else {
           ending+='None of them are related to '+(primaryExisting ? pname+' or to each other' : 'each other')+' yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).';
         }
-        var notCounted=other.length+notAllowed.length, existedOthers=exists.filter(function(f){ return !(primaryExisting && primary && f.code===deriveCode(biz,0)); }).length;
+        // the primary's own existence is already in the sentence when it was looked up, or when the box could not be applied because of it
+        var primaryMentioned=primaryExisting || (subs && primaryFailed && primaryStatus===409);
+        var notCounted=other.length+notAllowed.length, existedOthers=exists.filter(function(f){ return !(primaryMentioned && biz && f.code===deriveCode(biz,0)); }).length;
         if(notCounted) ending+=' <span class="su-dim">The '+notCounted+' that didn&rsquo;t save '+(notCounted===1?'isn&rsquo;t':'aren&rsquo;t')+' counted.</span>';
         if(existedOthers) ending+=' <span class="su-dim">'+existedOthers+' already existed and '+(existedOthers===1?'is':'are')+' not counted — check '+(existedOthers===1?'its':'their')+' Parent in Legal → Entities.</span>';
         if(unverifiedParent) ending+=' <span class="su-dim">'+unverifiedParent+' could not be verified — the server did not echo a parent; check '+(unverifiedParent===1?'its':'their')+' Parent in Legal → Entities.</span>';
