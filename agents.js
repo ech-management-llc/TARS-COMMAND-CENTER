@@ -404,7 +404,8 @@ function paintHire(b){
 // typed name; the server prefixes an owner's code with the account namespace (t<sha8>_). Shown BEFORE
 // saving so a typo is caught while it is still a name, not a key (TD-239).
 function deriveCode(name, i){
-  return String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || ('ENTITY_'+(i+1));
+  // cut to 40 FIRST, then trim edge underscores, so a long name never ends in '_' (review round 1)
+  return String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').slice(0,40).replace(/^_+|_+$/g,'') || ('ENTITY_'+(i+1));
 }
 function handleSetup(v){
   var t=(v||'').trim().toLowerCase().replace(/[’‘]/g,"'").replace(/[—–]/g,'-');
@@ -444,16 +445,30 @@ function handleSetup(v){
       var box=b.querySelector('#su-codes'); if(!box) return;
       if(!names.length){ box.innerHTML=''; return; }
       var codes=names.map(function(n,i){ return deriveCode(n,i); });
-      var dup=codes.filter(function(c,i,a){ return a.indexOf(c)!==i; });
+      var counts={}; codes.forEach(function(c){ counts[c]=(counts[c]||0)+1; });
+      var dups=Object.keys(counts).filter(function(c){ return counts[c]>1; });            // every duplicated code, not only the first pair
       var fallback=codes.filter(function(c){ return /^ENTITY_\d+$/.test(c); });
-      box.innerHTML='Codes these names become — permanent keys; your account&rsquo;s prefix is added on save:'+
-        '<div>'+names.map(function(n,i){ return escd(n)+' → <b>'+escd(codes[i])+'</b>'; }).join('<br>')+'</div>'+
-        'The code is permanent; the name is not — fix a typo here. Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
-        (dup.length ? ' <span class="su-err">Two names make the same code ('+escd(dup[0])+') — only the first will save.</span>' : '')+
-        (fallback.length ? ' <span class="su-err">A name with no letters or digits falls back to '+escd(fallback[0])+' — give it a real name.</span>' : '');
+      box.innerHTML='Codes these names become — permanent keys (an owner account&rsquo;s prefix, t…_, is added on save; the summary shows the stored key):'+
+        '<div>'+names.map(function(n,i){ return esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
+        'The code is permanent — fix a typo here, before saving. Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
+        (dups.length ? ' <span class="su-err">Names that make the same code: '+dups.map(function(c){ return esc(c)+' ×'+counts[c]; }).join(', ')+' — only the first of each will save.</span>' : '')+
+        (fallback.length ? ' <span class="su-err">A name with no A–Z letters or 0–9 digits falls back to '+esc(fallback[0])+' — other characters are dropped from the code. Give it a Latin name, or choose the code yourself in Legal → Entities.</span>' : '');
     };
     ['#su-biz','#su-ents'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.addEventListener('input', previewCodes); });
     var busy=false, done=false;
+    // ACROSS ATTEMPTS (review round 1): a retry never re-sends a row that was stored — or that the server said already
+    // exists — and the ending describes everything this form stored, not only the last click
+    var savedRows=[], savedByCode={}, settled={}, primary=null, primaryExisting=false;
+    var lockForm=function(){ ['#su-biz','#su-owner','#su-ents','#su-subs'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.disabled=true; }); };
+    // a company this caller can already see whose code is CODE or t<sha8>_CODE (the primary that "already exists")
+    var findExisting=async function(code){
+      try{
+        if(!(window.flEntities && flEntities.listX)) return null;
+        var r=await flEntities.listX(); var rows=(r && r.ok && Array.isArray(r.data)) ? r.data : [];
+        for(var k=0;k<rows.length;k++){ var c=String((rows[k]&&rows[k].code)||''); if(c===code || (/^t[0-9a-f]{8}_/.test(c) && c.slice(10)===code)) return rows[k]; }
+      }catch(e){}
+      return null;
+    };
     go.onclick=async function(){
       if(busy || done) return;                                   // guard: one row set per submission, no double-write
       var biz=(b.querySelector('#su-biz').value||'').trim();
@@ -467,15 +482,31 @@ function handleSetup(v){
       // The business NAME is an entity, not a profile — it (plus any extras) goes to the entities table.
       var allEnts=[]; if(biz) allEnts.push(biz); ents.forEach(function(n){ allEnts.push(n); });
       var subs=!!(biz && b.querySelector('#su-subs') && b.querySelector('#su-subs').checked);   // Parent entity only — never ownership
-      var entCreated=0, entFailed=0, ownerSaved=false, created=[], primary=null, subsSet=0, primaryFailed=false;
+      var entCreated=0, skipped=0, ownerSaved=false, createdNow=[], failed=[], primaryFailed=false, primaryStatus=0, unverifiedParent=0;
       for(var i=0;i<allEnts.length;i++){
-        var name=allEnts[i];
-        var payload={ code:deriveCode(name,i), name:name, legal_form:'LLC' };
+        var name=allEnts[i], code=deriveCode(name,i);
+        if(settled[code]){ skipped++; if(i===0 && biz && !primary && savedByCode[code]) primary=savedByCode[code]; continue; }   // stored (or known to exist) by an earlier attempt: not sent again
+        var payload={ code:code, name:name, legal_form:'LLC' };
         if(subs && i>0 && primary && primary.id) payload.parent_entity_id=primary.id;
-        var res=null; try { res=await fl.createEntity(payload); } catch(e){ res=null; }
-        if(!res && subs && i===0) primaryFailed=true;
-        if(res){ entCreated++; created.push(res); if(i===0 && biz) primary=res; if(payload.parent_entity_id && res.parent_entity_id===payload.parent_entity_id) subsSet++; fl.fileToDocNav(name+' — entity formation','entity','entities'); }
-        else { entFailed++; }
+        var res=null, st=0;
+        try{
+          if(window.flEntities && flEntities.createX){ var r=await flEntities.createX(payload); st=(r && r.status)||0; res=(r && r.ok && r.data && typeof r.data==='object') ? r.data : null; }   // status-carrying: 409 exists · 403 refused · 0 no response
+          else { res=await fl.createEntity(payload); }
+        }catch(e){ res=null; }
+        if(res){
+          entCreated++; createdNow.push(res); savedRows.push(res); savedByCode[code]=res; settled[code]=true;
+          if(i===0 && biz) primary=res;
+          if(payload.parent_entity_id && !('parent_entity_id' in res)) unverifiedParent++;   // asked for a parent, echo did not say
+          fl.fileToDocNav(name+' — entity formation','entity','entities');
+        } else {
+          failed.push({ name:name, code:code, status:st });
+          if(st===409) settled[code]=true;                                                   // it exists: a retry cannot create it, so never re-send it
+          if(i===0 && biz){
+            primaryStatus=st;
+            if(st===409){ var ex=await findExisting(code); if(ex && ex.id){ primary=ex; primaryExisting=true; savedByCode[code]=ex; } }   // file the others under the one that exists
+            if(subs && !primary) primaryFailed=true;
+          }
+        }
       }
       // The OWNER (a person) is the personal_info record — NOT the business name.
       if(owner){
@@ -484,37 +515,56 @@ function handleSetup(v){
         if(ownerSaved) fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information');
       }
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
-      done = (entFailed===0 && (!owner || ownerSaved));          // lock the form only when everything attempted saved
-      busy=false; if(done){ go.textContent='✓ Saved'; } else { go.disabled=false; }
+      var exists=failed.filter(function(f){ return f.status===409; }), notAllowed=failed.filter(function(f){ return f.status===403; }), other=failed.filter(function(f){ return f.status!==409 && f.status!==403; });
+      done = (other.length===0 && notAllowed.length===0 && (!owner || ownerSaved));   // lock the form when nothing left is retryable (an existing code is settled, not retryable)
+      busy=false; if(done){ go.textContent='✓ Saved'; lockForm(); } else { go.disabled=false; }
       var out=[];
       if(entCreated) out.push('✅ Created '+entCreated+' entit'+(entCreated===1?'y':'ies')+' in the entities table');
+      if(skipped) out.push(skipped+' already stored by an earlier attempt — not sent again');
       if(ownerSaved) out.push('✅ Filed the owner under Personal Information');
-      if(entFailed) out.push('⚠️ '+entFailed+' entit'+(entFailed===1?'y':'ies')+' '+(authed?'failed — a duplicate name? check, then retry':'need sign-in to persist'));
+      // failures by what the server said (createX carries the status; the old create() did not)
+      if(exists.length) out.push('⚠️ '+exists.length+' already exist'+(exists.length===1?'s':'')+' with the same code ('+exists.map(function(f){ return esc(f.code); }).join(', ')+') — not created again');
+      if(notAllowed.length) out.push('⚠️ '+notAllowed.length+' refused by the server (not allowed) — '+notAllowed.map(function(f){ return esc(f.name); }).join(', '));
+      if(other.length) out.push('⚠️ '+other.length+' entit'+(other.length===1?'y':'ies')+' '+(authed ? (other.every(function(f){ return !f.status; }) ? 'got no response — the service did not confirm; retry' : 'failed (HTTP '+other.map(function(f){ return f.status||0; }).join(', ')+') — retry') : 'need sign-in to persist'));
       if(owner && !ownerSaved) out.push('⚠️ Owner '+(authed?'didn’t save — retry':'needs sign-in to persist'));
       if(entCreated) out.push('Opened the <b>Legal</b> area (Entities lives there)');
       // the STORED keys, from the server's echoes — the account prefix is real and permanent; never the derived guess
-      if(created.length) out.push('Stored as '+created.map(function(r){ return (r && r.code) ? '<code>'+escd(r.code)+'</code>' : '<span class="su-err">code not echoed — see Legal → Entities</span>'; }).join(' · '));
+      if(createdNow.length) out.push('Stored as '+createdNow.map(function(r){ return (r && r.code) ? '<code>'+esc(r.code)+'</code>' : '<span class="su-err">code not echoed — see Legal → Entities</span>'; }).join(' · '));
       msg.innerHTML=(out.join('. ')||'Nothing to save')+'.';
-      // TD-239: this flow captures companies, not the structure between them — say so, in words, in its own
-      // bubble, and point at the place that does (Parent, then Ownership %, in Legal → Entities)
-      if(endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }
-      if(entCreated){
-        var n=entCreated, pname=escd((primary&&primary.name)||biz);
-        var ending=subsSet
-          ? ('You created '+n+' compan'+(n===1?'y':'ies')+'. '+subsSet+' of them '+(subsSet===1?'is':'are')+' filed under <b>'+pname+'</b> as its subsidiar'+(subsSet===1?'y':'ies')+' — their Parent is set. Their ownership % is <b>not established</b>, so none of them consolidates into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set each one&rsquo;s Ownership in Legal → Entities.'
-             +((n-1-subsSet)>0 ? ' The other '+(n-1-subsSet)+' '+((n-1-subsSet)===1?'has':'have')+' no parent yet — if one is owned by '+pname+' or by another company, set its Parent there too.' : ''))
-          : primaryFailed
-          ? ('You created '+n+' compan'+(n===1?'y':'ies')+'. <b>'+pname+'</b> didn&rsquo;t save, so '+(n===1?'it was':'they were')+' filed as top-level (no parent) — the subsidiaries box could not be applied. Retry the primary, then set each one&rsquo;s Parent in Legal → Entities.')
-          : (n===1)
-          ? 'You created 1 company. It has no parent — nothing to relate yet. When you add a company it owns, or one that owns it, set the Parent in Legal → Entities, then the Ownership %.'
-          : 'You created '+n+' companies. None of them are related to each other yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).';
-        if(entFailed) ending+=' <span class="su-dim">The '+entFailed+' that didn&rsquo;t save '+(entFailed===1?'isn&rsquo;t':'aren&rsquo;t')+' counted.</span>';
+      // TD-239: this flow captures companies, not the structure between them — say so, in words, in its own bubble,
+      // and point at the place that does (Parent, then Ownership %, in Legal → Entities). The ending covers everything
+      // this form stored, across attempts; a retry REPLACES it and never erases it.
+      var n=savedRows.length;
+      if(n){
+        if(endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }
+        var pname=esc((primary&&primary.name)||biz);
+        var subsSet=primary ? savedRows.filter(function(r){ return r.id!==primary.id && r.parent_entity_id && r.parent_entity_id===primary.id; }).length : 0;   // echo-confirmed only
+        var others=n-((primary && !primaryExisting)?1:0)-subsSet-unverifiedParent;           // stored by this form, still top-level
+        var ending='You created '+n+' compan'+(n===1?'y':'ies')+'. ';
+        if(primaryExisting) ending+='<b>'+pname+'</b> already existed, so it was not created again. ';
+        if(subsSet){
+          ending+=subsSet+' of them '+(subsSet===1?'is':'are')+' filed under <b>'+pname+'</b> as its subsidiar'+(subsSet===1?'y':'ies')+' — '+(subsSet===1?'its':'their')+' Parent is set. '+(subsSet===1?'Its':'Their')+' ownership % is <b>not established</b>, so '+(subsSet===1?'it does not consolidate':'none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+(subsSet===1?'its':'each one&rsquo;s')+' Ownership in Legal → Entities.';
+          if(others>0) ending+=' The other '+others+' '+(others===1?'has':'have')+' no parent yet — if one is owned by '+pname+' or by another company, set its Parent there too.';
+        } else if(subs && primaryFailed){
+          ending+='<b>'+pname+'</b> '+(primaryStatus===409 ? 'already exists but could not be looked up' : 'didn&rsquo;t save'+(primaryStatus===403 ? ' — the server refused it (not allowed)' : primaryStatus ? ' (HTTP '+primaryStatus+')' : ' — the service did not confirm it'))+', so '+(n===1?'it was':'they were')+' filed as top-level (no parent) — the subsidiaries box could not be applied. '+(primaryStatus===409 ? 'Open each one in Legal → Entities and set its Parent to '+pname+'.' : 'Retry the primary, then set each one&rsquo;s Parent in Legal → Entities.');
+        } else if(n===1){
+          ending+=primaryExisting
+            ? 'It has no parent — if '+pname+' owns it, open it in Legal → Entities and set its Parent to '+pname+', then the Ownership %.'
+            : 'It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.';
+        } else {
+          ending+='None of them are related to '+(primaryExisting ? pname+' or to each other' : 'each other')+' yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).';
+        }
+        var notCounted=other.length+notAllowed.length, existedOthers=exists.filter(function(f){ return !(primaryExisting && primary && f.code===deriveCode(biz,0)); }).length;
+        if(notCounted) ending+=' <span class="su-dim">The '+notCounted+' that didn&rsquo;t save '+(notCounted===1?'isn&rsquo;t':'aren&rsquo;t')+' counted.</span>';
+        if(existedOthers) ending+=' <span class="su-dim">'+existedOthers+' already existed and '+(existedOthers===1?'is':'are')+' not counted — check '+(existedOthers===1?'its':'their')+' Parent in Legal → Entities.</span>';
+        if(unverifiedParent) ending+=' <span class="su-dim">'+unverifiedParent+' could not be verified — the server did not echo a parent; check '+(unverifiedParent===1?'its':'their')+' Parent in Legal → Entities.</span>';
         endingEl=aBubble(ending+'<div class="setup-chiprow" style="margin-top:6px"><button type="button" class="echip su-open-entities">Open Legal → Entities</button></div>');
         var openBtn=endingEl && endingEl.querySelector('.su-open-entities');
         if(openBtn) openBtn.onclick=function(){
-          try{ if(window.hideOverlay) hideOverlay('gov'); }catch(e){}                       // leave the chat
-          if(typeof window.openLayer==='function'){ try{ openLayer('entities'); return; }catch(e){} }   // land on the tile that sets Parent + Ownership
-          aBubble('Open the <b>Entities</b> tile in the Legal area on your board.');
+          var opened=false;
+          if(typeof window.openLayer==='function'){ try{ openLayer('entities'); opened=!!document.getElementById('drill-iframe'); }catch(e){ opened=false; } }   // land on the tile that sets Parent + Ownership
+          if(opened){ try{ if(window.hideOverlay) hideOverlay('gov'); }catch(e){} return; }   // leave the chat only once the tile is open
+          aBubble('Open the <b>Entities</b> tile in the Legal area on your board.');            // the chat is still open, so this is seen
         };
       }
     };

@@ -242,6 +242,12 @@
       return '<tr><td style="white-space:nowrap;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td></tr>';
     }).join('');
 
+    renderRoster(list);
+  }
+  // the ALL ENTITIES roster alone (its PARENT column is the one other place a parent shows) — called by render(),
+  // and by a parent write that lands while another company is on screen, so the roster never contradicts the model
+  function renderRoster(list){
+    list = list || scopedENTS();
     document.getElementById('ent-rows').innerHTML = list.map(function(x){
       var a = arStatus(x.annual_report);
       return '<tr data-view-row="'+esc(x.id)+'"><td style="font-weight:700">'+esc(x.name)+'</td>'+
@@ -410,10 +416,14 @@
     if(e._sample) return '';
     var busy = !!(PAR_INFLIGHT[e.id] || OWN_INFLIGHT[e.id]), dis = busy ? ' disabled' : '';   // one write per row across both editors
     var desc = descendantIds(e.id);
-    var pid = e.parent_entity_id || '';
-    var outside = !!(pid && !parentName(pid));                       // stored parent not in this caller's list
+    var pend = PAR_INFLIGHT[e.id];                                   // {pid} only while THIS editor's PATCH is pending: the select shows what is being saved
+    var stored = e.parent_entity_id || '';
+    var pid = pend ? (pend.pid || '') : stored;
+    var outside = !!(stored && !parentName(stored));                 // stored parent not in this caller's list
+    var cyclic = !!(stored && !outside && desc[stored]);             // stored parent sits under this company (a corrupted graph; FL refuses to create one) — never claim top-level
     var opts = '<option value=""'+(!pid?' selected':'')+'>— top-level (no parent) —</option>' +
-      (outside ? '<option value="'+esc(pid)+'" selected disabled>not in your list (outside your access, or inactive)</option>' : '') +
+      (outside ? '<option value="'+esc(stored)+'"'+(pid===stored?' selected':'')+' disabled>not in your list (outside your access, or inactive)</option>' : '') +
+      (cyclic ? '<option value="'+esc(stored)+'"'+(pid===stored?' selected':'')+' disabled>stored parent is under this company — a cycle; fix it on the server</option>' : '') +
       ENTS.filter(function(x){ return x.id!==e.id && !desc[x.id]; }).map(function(x){
         return '<option value="'+esc(x.id)+'"'+(x.id===pid?' selected':'')+'>'+esc(x.name)+' ('+esc(x.code)+')</option>'; }).join('');
     return ' <span class="ent-own-edit"><select class="ent-in ent-par-in" data-par-in="'+esc(e.id)+'" title="Parent entity (optional)"'+dis+'>'+opts+'</select>'+
@@ -433,7 +443,7 @@
     msg.innerHTML='<span class="muted">Saving…</span>';
     // lock BOTH editors at once (one write per row): the guard above already refuses, but the controls should look it
     var ctl = document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id)+','+ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
-    PAR_INFLIGHT[id] = true;
+    PAR_INFLIGHT[id] = {pid: pid};   // carries the pending pick for a mid-flight re-render (as OWN_INFLIGHT carries {raw})
     ctl.forEach(function(b){ b.disabled = true; });
     // re-query on release: a re-render while pending rebuilt BOTH editors' controls disabled (cross-lock), so re-enable both
     function release(){ PAR_INFLIGHT[id] = false; document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id)+','+ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)).forEach(function(b){ b.disabled = false; }); }
@@ -445,7 +455,8 @@
         var det = (r.data && typeof r.data.detail==='string') ? r.data.detail : '';
         if(window.flApi && !flApi.authed()) say(who+'<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.');
         else if(r.status === 409) say(who+'<span class="err">Refused.</span> '+esc(det||'that parent would make a cycle'));          // FL: self-parent / descendant
-        else if(r.status === 404) say(who+'<span class="err">Parent not found.</span> '+esc(det||'')+' Reload the tile and pick again.');
+        // FL answers 404 for the ENTITY itself ("entity … not found") before it looks at the parent ("parent_entity_id … not found")
+        else if(r.status === 404) say(who+(/^parent_entity_id/i.test(det) ? '<span class="err">Parent not found.</span> '+esc(det)+'. Reload the tile and pick again.' : '<span class="err">Entity not found.</span> '+(det ? esc(det)+'. ' : '')+'Reload the tile.'));
         else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc(det||'The server refused this change (HTTP 403).'));
         else if(r.status === 422) say(who+'<span class="err">Rejected.</span> '+esc(detail422(r.data)||'HTTP 422'));
         else if(r.status === 400) say(who+'<span class="err">Not applied.</span> '+esc(det||'HTTP 400'));
@@ -460,7 +471,7 @@
       PAR_INFLIGHT[id] = false;
       ent.parent_entity_id = r.data.parent_entity_id || null;             // trust the echo, not the select
       if('ownership_pct' in r.data) ent.ownership_pct = pctStr(r.data.ownership_pct);   // the server keeps a stale % across a re-parent; the Ownership row says so
-      if(ENTS[current]===ent) render();
+      if(ENTS[current]===ent) render(); else renderRoster();            // off-screen: the roster's PARENT column still has to follow the model (a full render would wipe the row on screen)
       var pn = parentName(ent.parent_entity_id);
       say(ent.parent_entity_id
         ? '<span class="ok">✓ Parent set.</span> '+who+'now under '+esc(pn||'its parent')+'. '+(ent.ownership_pct==null
