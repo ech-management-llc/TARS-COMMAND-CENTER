@@ -509,8 +509,8 @@ function handleSetup(v){
           ? 'You created 1 company. It has no parent — nothing to relate yet. When you add a company it owns, or one that owns it, set the Parent in Legal → Entities, then the Ownership %.'
           : 'You created '+n+' companies. None of them are related to each other yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).';
         if(entFailed) ending+=' <span class="su-dim">The '+entFailed+' that didn&rsquo;t save '+(entFailed===1?'isn&rsquo;t':'aren&rsquo;t')+' counted.</span>';
-        endingEl=aBubble(ending+'<div class="setup-chiprow" style="margin-top:6px"><button type="button" class="echip" id="su-open-entities">Open Legal → Entities</button></div>');
-        var openBtn=endingEl && endingEl.querySelector('#su-open-entities');
+        endingEl=aBubble(ending+'<div class="setup-chiprow" style="margin-top:6px"><button type="button" class="echip su-open-entities">Open Legal → Entities</button></div>');
+        var openBtn=endingEl && endingEl.querySelector('.su-open-entities');
         if(openBtn) openBtn.onclick=function(){
           try{ if(window.hideOverlay) hideOverlay('gov'); }catch(e){}                       // leave the chat
           if(typeof window.openLayer==='function'){ try{ openLayer('entities'); return; }catch(e){} }   // land on the tile that sets Parent + Ownership
