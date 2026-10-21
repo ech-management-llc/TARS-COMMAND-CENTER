@@ -436,9 +436,9 @@
     if(!ent || ent._sample) return;
     if(PAR_INFLIGHT[id] || OWN_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — wait for the response.</span>'; return; }
     var pid = value || null;
+    if(pid===(ent.parent_entity_id||null)){ msg.innerHTML='<span class="muted">No change — that is already the parent.</span>'; return; }   // first: a stored parent is never re-sent, even in a corrupted graph
     if(pid===id){ msg.innerHTML='<span class="err">A company cannot be its own parent.</span>'; return; }
     if(pid && descendantIds(id)[pid]){ msg.innerHTML='<span class="err">That company is already under this one — it cannot be its parent.</span>'; return; }
-    if(pid===(ent.parent_entity_id||null)){ msg.innerHTML='<span class="muted">No change — that is already the parent.</span>'; return; }
     var oldPid = ent.parent_entity_id||null, oldName = parentName(oldPid);
     msg.innerHTML='<span class="muted">Saving…</span>';
     // lock BOTH editors at once (one write per row): the guard above already refuses, but the controls should look it
