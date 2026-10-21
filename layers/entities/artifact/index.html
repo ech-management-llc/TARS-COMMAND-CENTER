@@ -177,14 +177,15 @@
     // a re-render while this entity's PATCH is pending must not hand back live controls: render them
     // disabled with the pending state showing, exactly as setOwnership left them
     var busy = !!(OWN_INFLIGHT[e.id] || PAR_INFLIGHT[e.id]), dis = busy ? ' disabled' : '';   // one write per row across both editors
-    var shownVal = busy ? String(OWN_INFLIGHT[e.id].raw==null ? '' : OWN_INFLIGHT[e.id].raw) : (e.ownership_pct==null ? '' : e.ownership_pct);
+    var pend = OWN_INFLIGHT[e.id];                                 // {raw} only while THIS editor's PATCH is pending; a Parent write locks the row but carries no pending value
+    var shownVal = pend ? String(pend.raw==null ? '' : pend.raw) : (e.ownership_pct==null ? '' : e.ownership_pct);
     function editor(withSet){
       return '<span class="ent-own-edit">'+(withSet
           ? '<input class="ent-in ent-own-in" data-own-in="'+esc(e.id)+'" inputmode="decimal" autocomplete="off" placeholder="e.g. 100.00" value="'+esc(shownVal)+'"'+dis+'>'+
             '<button type="button" class="ent-own-save" data-own="'+esc(e.id)+'" title="Save ownership %"'+dis+'>Set</button>'
           : '')+
         '<button type="button" class="ent-own-clear" data-own-clear="'+esc(e.id)+'" title="Back to not established (NULL)"'+dis+'>Clear</button></span>'+
-        '<div class="ent-msg" id="ent-own-msg">'+(busy?'<span class="muted">Saving…</span>':'')+'</div>';
+        '<div class="ent-msg" id="ent-own-msg">'+(pend?'<span class="muted">Saving…</span>':'')+'</div>';   // the Parent row says Saving… for its own write
     }
     if(!e.parent_entity_id){
       // the plain top-level row still carries the message slot, so a just-cleared stale value can say so here
@@ -433,7 +434,8 @@
     var ctl = document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id));
     PAR_INFLIGHT[id] = true;
     ctl.forEach(function(b){ b.disabled = true; });
-    function release(){ PAR_INFLIGHT[id] = false; document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id)).forEach(function(b){ b.disabled = false; }); }
+    // re-query on release: a re-render while pending rebuilt BOTH editors' controls disabled (cross-lock), so re-enable both
+    function release(){ PAR_INFLIGHT[id] = false; document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id)+','+ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)).forEach(function(b){ b.disabled = false; }); }
     function say(html){ var own=(ENTS[current]===ent) ? document.getElementById('ent-par-msg') : null; if(own){ own.innerHTML=html; return; } var m=document.getElementById('ent-msg'); if(m) m.innerHTML=(m.innerHTML ? m.innerHTML+'<br>' : '')+html; }
     var who = '<b>'+esc(ent.name)+'</b>: ';
     patchEntityX(id, {parent_entity_id: pid}).then(function(r){
@@ -508,10 +510,11 @@
     var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
     OWN_INFLIGHT[id] = {raw: own.value==null ? '' : own.value};   // set only once the selectors resolved (a throw above leaves nothing stuck); carries the pending value for a mid-flight re-render
     ctl.forEach(function(b){ b.disabled = true; });
-    // re-query on release: a re-render while pending rebuilt the row (disabled), so the captured list is stale
+    // re-query on release: a re-render while pending rebuilt the row (disabled) — BOTH editors, since the Parent
+    // editor locks while an ownership write is pending (cross-lock) — so the captured list is stale; re-enable both
     function release(){
       OWN_INFLIGHT[id] = false;
-      document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id))
+      document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)+','+ownSel('data-par',id)+','+ownSel('data-par-in',id))
         .forEach(function(b){ b.disabled = false; });
     }
     // speak in this row while the user is still on this entity (re-queried: render() may have rebuilt it);
