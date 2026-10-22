@@ -448,22 +448,28 @@ function handleSetup(v){
       var counts={}; codes.forEach(function(c){ counts[c]=(counts[c]||0)+1; });
       var dups=Object.keys(counts).filter(function(c){ return counts[c]>1; });            // every duplicated code, not only the first pair
       var fallback=codes.filter(function(c){ return /^ENTITY_\d+$/.test(c); });
+      // a line this form already stored is permanent: say so, and that editing it adds a company (the ledger is the form's, declared below)
+      var storedOf=function(n,i){ var L=(typeof LEDGER!=='undefined' && LEDGER[nkey(n)]) || (typeof BYCODE!=='undefined' && BYCODE[codes[i]]); return (L && L.row) ? L.row : null; };
+      var anyStored=names.some(function(n,i){ return !!storedOf(n,i); });
       box.innerHTML='Codes these names become — permanent keys (an owner account&rsquo;s prefix, t…_, is added on save; the summary shows the stored key):'+
-        '<div>'+names.map(function(n,i){ return esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
-        'The code is permanent — fix a typo here, before saving. Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
+        '<div>'+names.map(function(n,i){ var r=storedOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
+        (anyStored ? 'Stored names and codes are permanent here — editing a stored line adds a new company. ' : 'The code is permanent — fix a typo here, before saving. ')+'Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
         (dups.length ? ' <span class="su-err">Names that make the same code: '+dups.map(function(c){ return esc(c)+' ×'+counts[c]; }).join(', ')+' — only the first of each will save.</span>' : '')+
         (fallback.length ? ' <span class="su-err">A name with no A–Z letters or 0–9 digits falls back to '+esc(fallback[0])+' — other characters are dropped from the code. Give it a Latin name, or choose the code yourself in Legal → Entities.</span>' : '');
     };
     ['#su-biz','#su-ents'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.addEventListener('input', previewCodes); });
     var busy=false, done=false;
-    // ACROSS ATTEMPTS (review rounds 1-2): ONE ledger per typed name — stored / exists / refused / failed — so a retry
-    // never re-sends what is settled, the owner is filed once, and every sentence below is built from the ledger
-    var LEDGER={}, ORDER=[], ownerRec=null;
+    // ACROSS ATTEMPTS (review rounds 1-3): ONE ledger per typed name — stored / exists / refused / failed — indexed by
+    // name AND by derived code, so a retry never re-sends what is settled, the owner is filed once, and every sentence
+    // below is derived from the rows the server echoed, never from counters
+    var LEDGER={}, ORDER=[], BYCODE={}, ownerRec=null, clicks=0;
     var nkey=function(name){ return String(name||'').trim().toLowerCase(); };   // stable across edits (a positional ENTITY_n code is not)
-    var lockForm=function(){
+    var lockForm=function(text){
       ['#su-biz','#su-owner','#su-ents','#su-subs'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.disabled=true; });
-      var box=b.querySelector('#su-codes'); if(box) box.innerHTML='Saved — the stored keys are in the summary below.';   // the preview no longer invites edits
+      var box=b.querySelector('#su-codes'); if(box) box.innerHTML=text;   // the preview no longer invites edits
     };
+    var storedRows=function(){ return ORDER.filter(function(k){ return !!LEDGER[k].row; }).map(function(k){ return LEDGER[k].row; }); };
+    var knownRows=function(){ return ORDER.map(function(k){ return LEDGER[k].row||LEDGER[k].existing; }).filter(Boolean); };   // stored here, or looked up
     // the ONE company this caller can see whose code is CODE or t<sha8>_CODE; two candidates = not looked up (never guess)
     var findExisting=async function(code){
       try{
@@ -482,37 +488,38 @@ function handleSetup(v){
       var msg=b.querySelector('#su-biz-msg');
       if(!biz && !owner && !ents.length){ msg.innerHTML='<span class="su-err">Enter a business name, an owner, or at least one entity.</span>'; return; }
       if(!fl){ msg.innerHTML='<span class="su-err">Sign in to the Command Center to save these.</span>'; return; }
-      busy=true; go.disabled=true; msg.textContent='Saving…';
+      busy=true; go.disabled=true; msg.textContent='Saving…'; clicks++;
       var authed = !!(window.flApi && flApi.authed && flApi.authed());
       // The business NAME is an entity, not a profile — it (plus any extras) goes to the entities table.
       var allEnts=[]; if(biz) allEnts.push(biz); ents.forEach(function(n){ allEnts.push(n); });
       var subs=!!(biz && b.querySelector('#su-subs') && b.querySelector('#su-subs').checked);   // Parent entity only — never ownership
       var rec=function(name, code){ var k=nkey(name); if(!LEDGER[k]){ LEDGER[k]={ name:name, code:code, row:null, state:'', st:0, existing:null, unverified:false }; ORDER.push(k); } return LEDGER[k]; };
+      var ownRow=function(code){ var L=BYCODE[code]; return (L && L.row) ? L : null; };   // a code this form already stored, whatever the spelling now
       // THIS click's primary, resolved from the ledger by the name in the field now (never a row from an earlier name)
-      var primary=null, primaryExisting=false, primaryStatus=0, primaryFailed=false, pk=biz?nkey(biz):null;
-      if(pk && LEDGER[pk]){
-        var pr=LEDGER[pk];
+      var primary=null, primaryExisting=false, primaryStatus=0, primaryFailed=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz,0):null;
+      var pr = pk ? (LEDGER[pk] || ownRow(pcode)) : null;
+      if(pr){
         if(pr.row){ primary=pr.row; }
         else if(pr.state==='exists'){ if(!pr.existing) pr.existing=await findExisting(pr.code); if(pr.existing){ primary=pr.existing; primaryExisting=true; } else { primaryStatus=409; if(subs) primaryFailed=true; } }
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
       }
-      var entCreated=0, createdNow=[], failedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, dupInList=0, seenCodes={};
+      var entCreated=0, createdNow=[], failedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, dupInList=0, seenCodes={}, seenKeys={};
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name,i);
-        if(seenCodes[code] && !LEDGER[k]){ dupInList++; continue; }           // a later line making the same code as an earlier line of this list
-        seenCodes[code]=true;
-        var R=LEDGER[k];
-        if(R && R.row){ skippedStored++; continue; }                          // stored by an earlier attempt: never sent again
-        if(R && R.state==='exists'){ skippedExists++; continue; }             // the server said it exists: a retry cannot create it
-        if(R && R.state==='refused'){ skippedRefused++; continue; }           // refused (403): a retry cannot change that
+        if(seenCodes[code] || seenKeys[k]){ dupInList++; continue; }       // a later line of THIS list repeating an earlier one (same name, or same code)
+        seenCodes[code]=true; seenKeys[k]=true;
+        var R=LEDGER[k] || ownRow(code);                                    // by name, or by a code this form already stored
+        if(R && R.row){ skippedStored++; if(i===0 && biz && !primary){ primary=R.row; primaryExisting=false; } continue; }   // stored by an earlier attempt: never sent again
+        if(R && R.state==='exists'){ skippedExists++; continue; }           // the server said it exists: a retry cannot create it
+        if(R && R.state==='refused'){ skippedRefused++; continue; }         // refused (403): a retry cannot change that
         var payload={ code:code, name:name, legal_form:'LLC' };
         if(subs && i>0 && primary && primary.id) payload.parent_entity_id=primary.id;
         var res=null, st=0;
         try{
-          if(window.flEntities && flEntities.createX){ var r=await flEntities.createX(payload); st=(r && r.status)||0; res=(r && r.ok && r.data && typeof r.data==='object') ? r.data : null; }   // status-carrying: 409 exists · 403 refused · 0 no response
+          if(window.flEntities && flEntities.createX){ var r=await flEntities.createX(payload); st=(r && r.status)||0; res=(r && r.ok && r.data && typeof r.data==='object' && !Array.isArray(r.data)) ? r.data : null; }   // status-carrying: 409 exists · 403 refused · 0 no response
           else { res=await fl.createEntity(payload); }
         }catch(e){ res=null; }
-        R=rec(name, code); R.code=code; R.st=st;
+        R=rec(name, code); R.code=code; R.st=st; BYCODE[code]=R;
         if(res){
           R.row=res; R.state='stored'; R.unverified=!!(payload.parent_entity_id && !('parent_entity_id' in res));   // asked for a parent, echo did not say
           entCreated++; createdNow.push(res);
@@ -520,28 +527,39 @@ function handleSetup(v){
           fl.fileToDocNav(name+' — entity formation','entity','entities');
         } else {
           failedNow.push({ name:name, code:code, status:st });
-          if(st===409){ R.state='exists'; if(i===0 && biz){ primaryStatus=409; R.existing=await findExisting(code); if(R.existing){ primary=R.existing; primaryExisting=true; } else if(subs) primaryFailed=true; } }
+          if(st===409){
+            R.state='exists';
+            if(i===0 && biz){
+              primaryStatus=409;
+              var ex=await findExisting(code);
+              var mine=ex ? storedRows().filter(function(x){ return x.id===ex.id; })[0] : null;   // the "existing" row is one this form stored (same code, new spelling)
+              if(mine){ R.row=mine; R.state='stored'; primary=mine; primaryExisting=false; primaryStatus=0; }
+              else if(ex){ R.existing=ex; primary=ex; primaryExisting=true; }
+              else if(subs) primaryFailed=true;
+            }
+          }
           else if(st===403){ R.state='refused'; if(i===0 && biz){ primaryStatus=403; if(subs) primaryFailed=true; } }
           else { R.state='failed'; if(i===0 && biz){ primaryStatus=st; if(subs) primaryFailed=true; } }
         }
       }
-      // The OWNER (a person) is the personal_info record — NOT the business name. Filed ONCE per form.
-      var ownerSavedNow=false, ownerSkipped=false;
+      // The OWNER (a person) is the personal_info record — NOT the business name. Filed ONCE per form; a renamed owner is never a second record.
+      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false;
       if(owner){
-        if(ownerRec && ownerRec.label===owner){ ownerSkipped=true; }
+        if(ownerRec){ if(nkey(ownerRec.label)===nkey(owner)) ownerSkipped=true; else ownerRenamed=true; }
         else { var orec=null; try { orec=await fl.createRecord({ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' }); } catch(e){ orec=null; }
           if(orec){ ownerRec={ label:owner, rec:orec }; ownerSavedNow=true; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); } }
       }
-      var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped));
+      var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed));
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
       var nowAuthed=!!(window.flApi && flApi.authed && flApi.authed());
       var exists=failedNow.filter(function(f){ return f.status===409; }), notAllowed=failedNow.filter(function(f){ return f.status===403; }), other=failedNow.filter(function(f){ return f.status!==409 && f.status!==403; });
-      var expired=!nowAuthed && (other.length>0 || (!!owner && !ownerSaved));   // fl-auth cleared the session: nothing more will save until sign-in
-      var stored=ORDER.filter(function(k){ return !!LEDGER[k].row; }).map(function(k){ return LEDGER[k].row; });
+      var expired=authed && !nowAuthed && (other.length>0 || (!!owner && !ownerSaved));   // a session that was alive at the click and is gone now (fl-auth cleared it)
+      var stored=storedRows();
       var retryable=other.length + ((owner && !ownerSaved) ? 1 : 0);
-      // lock only when this form stored something and nothing is left to retry; a click that stored nothing stays open so a name can be corrected
-      done=(retryable===0 && !expired && (stored.length>0 || !!ownerRec));
-      busy=false; if(done){ go.textContent=(failedNow.length ? '✓ Done' : '✓ Saved'); lockForm(); } else { go.disabled=false; }
+      // lock when this form stored a company and nothing is left to retry, or when it only ever filed the owner; a click that stored
+      // no company stays open so a mistyped (existing) name can be corrected — the owner is not filed again (ownerRec)
+      done=(retryable===0 && !expired && (stored.length>0 || (!!ownerRec && allEnts.length===0)));
+      busy=false; if(done){ go.textContent=(failedNow.length ? '✓ Done' : '✓ Saved'); lockForm(stored.length ? 'Saved — the stored keys are in the summary below.' : 'Saved.'); } else { go.disabled=false; }
       var out=[];
       if(entCreated) out.push('✅ Created '+entCreated+' entit'+plural(entCreated,'y','ies')+' in the entities table');
       if(skippedStored) out.push(skippedStored+' already stored by an earlier attempt — not sent again');
@@ -550,58 +568,79 @@ function handleSetup(v){
       if(dupInList) out.push(dupInList+' duplicate'+plural(dupInList,'','s')+' of an earlier line — skipped');
       if(ownerSavedNow) out.push('✅ Filed the owner under Personal Information');
       if(ownerSkipped) out.push('Owner already filed — not sent again');
+      if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again; rename it in Personal Information');
+      // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
+      if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
+      if(notAllowed.length) out.push('⚠️ '+notAllowed.length+' refused by the server (not allowed) — '+notAllowed.map(function(f){ return esc(f.name); }).join(', '));
       if(expired){
         var notSaved=other.map(function(f){ return esc(f.name); }); if(owner && !ownerSaved) notSaved.push('the owner');
         out.push('⚠️ Your session expired — sign in to the Command Center again, then retry. Not saved: '+notSaved.join(', '));
       } else {
-        // failures by what the server said (createX carries the status; the old create() did not); an existing row's stored key when it was looked up
-        if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
-        if(notAllowed.length) out.push('⚠️ '+notAllowed.length+' refused by the server (not allowed) — '+notAllowed.map(function(f){ return esc(f.name); }).join(', '));
         if(other.length) out.push('⚠️ '+other.length+' entit'+plural(other.length,'y','ies')+' '+(authed ? (other.every(function(f){ return !f.status; }) ? 'got no response — the service did not confirm; retry' : 'failed (HTTP '+other.map(function(f){ return f.status||0; }).join(', ')+') — retry') : 'need sign-in to persist'));
         if(owner && !ownerSaved) out.push('⚠️ Owner '+(authed?'didn’t save — retry':'needs sign-in to persist'));
       }
       if(entCreated) out.push('Opened the <b>Legal</b> area (Entities lives there)');
-      // the STORED keys, from the server's echoes — the account prefix is real and permanent; never the derived guess
-      if(createdNow.length) out.push('Stored as '+createdNow.map(function(r){ return (r && r.code) ? '<code>'+esc(r.code)+'</code>' : '<span class="su-err">code not echoed — see Legal → Entities</span>'; }).join(' · '));
+      // the STORED keys, from the server's echoes, for every row this form stored — the account prefix is real and permanent; never the derived guess
+      if(stored.length) out.push('Stored as '+stored.map(function(r){ return (r && r.code) ? '<code>'+esc(r.code)+'</code>' : '<span class="su-err">code not echoed — see Legal → Entities</span>'; }).join(' · '));
       msg.innerHTML=(out.join('. ')||'Nothing to save')+'.';
-      // TD-239: this flow captures companies, not the structure between them — say so, in words, in its own bubble,
-      // and point at the place that does (Parent, then Ownership %, in Legal → Entities). Built from the ledger —
-      // everything this form stored, across attempts; a retry REPLACES the ending and never erases it.
-      var n=stored.length, pname=esc((primary&&primary.name)||biz);
+      // TD-239: this flow captures companies, not the structure between them — say so, in words, in its own bubble, and
+      // point at the place that does (Parent, then Ownership %, in Legal → Entities). Every clause below is read off the
+      // rows this form stored: under THIS primary · under an earlier parent · top-level · unverified. A retry REPLACES the
+      // ending and never erases it.
+      var n=stored.length, pid=primary ? primary.id : null, pname=esc((primary&&primary.name)||biz||'');
+      var unverifiedIds={}; ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row && L.unverified) unverifiedIds[L.row.id]=1; });
+      var others=stored.filter(function(r){ return !(pid && r.id===pid); });                                 // stored rows other than the primary itself
+      var underCurrent=pid ? others.filter(function(r){ return r.parent_entity_id===pid; }) : [];
+      var underOther=others.filter(function(r){ return !!r.parent_entity_id && r.parent_entity_id!==pid; });
+      var topLevel=others.filter(function(r){ return !r.parent_entity_id && !unverifiedIds[r.id]; });
+      var unverifiedN=others.filter(function(r){ return !!unverifiedIds[r.id]; }).length;
       var primaryMentioned=primaryExisting || (subs && primaryFailed);
-      var existsAll=ORDER.filter(function(k){ return LEDGER[k].state==='exists' && !(primaryMentioned && k===pk); });
+      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && !(primaryMentioned && (k===pk || L.code===pcode)); });
+      var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused'; }).length;
+      var reason=function(){ return primaryStatus===409 ? 'already exists but could not be looked up' : primaryStatus===403 ? 'was refused by the server (not allowed) — this account cannot create it' : (expired && !primaryStatus) ? 'was not sent — your session expired' : primaryStatus ? 'didn&rsquo;t save (HTTP '+primaryStatus+')' : 'didn&rsquo;t save — the service did not confirm it'; };
+      var advice=function(R){ return primaryStatus===409 ? 'Open '+plural(R,'it','each one')+' in Legal → Entities and set its Parent to '+pname+'.' : primaryStatus===403 ? 'Set '+plural(R,'its','each one&rsquo;s')+' Parent in Legal → Entities once '+pname+' exists.' : (expired && !primaryStatus) ? 'Sign in again, retry the primary, then set '+plural(R,'its','each one&rsquo;s')+' Parent in Legal → Entities.' : 'Retry the primary, then set '+plural(R,'its','each one&rsquo;s')+' Parent in Legal → Entities.'; };
       var ending=null;
       if(n){
-        var subsSet=primary ? stored.filter(function(r){ return r.id!==primary.id && !!r.parent_entity_id && r.parent_entity_id===primary.id; }).length : 0;   // echo-confirmed only
-        var underOther=stored.filter(function(r){ return !!r.parent_entity_id && !(primary && r.parent_entity_id===primary.id); });                        // filed under an earlier primary
-        var unverifiedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].unverified; }).length;
-        var topLevel=Math.max(0, stored.filter(function(r){ return !r.parent_entity_id && !(primary && r.id===primary.id); }).length - unverifiedN);
         ending='You created '+n+' compan'+plural(n,'y','ies')+'. ';
         if(primaryExisting) ending+='<b>'+pname+'</b> already existed, so it was not created again. ';
-        if(subsSet){
-          ending+=(n===1 ? 'It is' : subsSet+' of them '+plural(subsSet,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(subsSet,'y','ies')+' — '+plural(subsSet,'its','their')+' Parent is set. '+plural(subsSet,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(subsSet,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(subsSet,'its','each one&rsquo;s')+' Ownership in Legal → Entities.';
-          if(topLevel>0) ending+=' The other '+topLevel+' '+plural(topLevel,'has','have')+' no parent yet — '+(subs ? 'the subsidiaries box applies only to rows saved in the same attempt; set '+plural(topLevel,'its','their')+' Parent in Legal → Entities.' : 'if one is owned by '+pname+' or by another company, set its Parent there too.');
-        } else if(subs && primaryFailed){
-          ending+='<b>'+pname+'</b> '+(primaryStatus===409 ? 'already exists but could not be looked up' : primaryStatus===403 ? 'was refused by the server (not allowed) — this account cannot create it' : 'didn&rsquo;t save'+(primaryStatus ? ' (HTTP '+primaryStatus+')' : ' — the service did not confirm it'))+', so '+plural(n,'it was','they were')+' filed as top-level (no parent) — the subsidiaries box could not be applied. '+(primaryStatus===409 ? 'Open '+plural(n,'it','each one')+' in Legal → Entities and set its Parent to '+pname+'.' : primaryStatus===403 ? 'Set '+plural(n,'its','each one&rsquo;s')+' Parent in Legal → Entities once '+pname+' exists.' : 'Retry the primary, then set '+plural(n,'its','each one&rsquo;s')+' Parent in Legal → Entities.');
-        } else if(n===1){
-          ending+=primaryExisting
-            ? 'It has no parent — if '+pname+' owns it, open it in Legal → Entities and set its Parent to '+pname+', then the Ownership %.'
-            : 'It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.';
-        } else {
-          ending+='None of them are related to '+(primaryExisting ? pname+' or to each other' : 'each other')+' yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).';
+        var parts=[];
+        if(underCurrent.length){
+          var K=underCurrent.length;
+          parts.push((others.length===1 ? 'It is' : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
         }
         if(underOther.length){
-          var parents={}; underOther.forEach(function(r){ var p=stored.filter(function(x){ return x.id===r.parent_entity_id; })[0]; parents[p ? p.name : 'an earlier primary']=1; });
-          ending+=' '+underOther.length+' '+plural(underOther.length,'is','are')+' filed under '+Object.keys(parents).map(esc).join(' / ')+' from an earlier attempt.';
+          var byParent={}; underOther.forEach(function(r){ var p=knownRows().filter(function(x){ return x.id===r.parent_entity_id; })[0]; var nm=p ? p.name : 'another company'; byParent[nm]=(byParent[nm]||0)+1; });
+          Object.keys(byParent).forEach(function(nm){ var M=byParent[nm]; parts.push(M+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b> from an earlier attempt.'); });
         }
-        var notCounted=other.length+notAllowed.length;
-        if(notCounted) ending+=' <span class="su-dim">The '+notCounted+' that didn&rsquo;t save '+plural(notCounted,'isn&rsquo;t','aren&rsquo;t')+' counted.</span>';
+        if(topLevel.length){
+          var T=topLevel.length;
+          if(underCurrent.length || underOther.length){
+            parts.push('The other '+T+' '+plural(T,'has','have')+' no parent yet — '+(subs ? 'the subsidiaries box applies only to rows saved in the same attempt as the primary; set '+plural(T,'its','their')+' Parent in Legal → Entities.' : (primary ? 'if one is owned by '+pname+' or by another company, set its Parent there too.' : 'if one owns another, open it in Legal → Entities and set its Parent.')));
+          } else if(subs && primaryFailed){
+            parts.push('<b>'+pname+'</b> '+reason()+', so '+plural(T,'it was','they were')+' filed as top-level (no parent) — the subsidiaries box could not be applied. '+advice(T));
+          } else if(subs && primary){
+            parts.push(plural(T,'It has','They have')+' no parent — the subsidiaries box applies only to rows saved in the same attempt as the primary; open '+plural(T,'it','each one')+' in Legal → Entities and set its Parent to <b>'+pname+'</b>.');
+          } else if(others.length===1 && n===1){
+            parts.push(primaryExisting
+              ? 'It has no parent — if '+pname+' owns it, open it in Legal → Entities and set its Parent to '+pname+', then the Ownership %.'
+              : 'It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.');
+          } else {
+            parts.push('None of them are related to '+(primaryExisting ? pname+' or to each other' : 'each other')+' yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).');
+          }
+        }
+        if(!parts.length && n===1) parts.push('It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.');   // only the primary itself was stored
+        ending+=parts.join(' ');
+        if(other.length) ending+=' <span class="su-dim">The '+other.length+' that didn&rsquo;t save '+plural(other.length,'isn&rsquo;t','aren&rsquo;t')+' counted.</span>';
+        if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted — check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
         if(unverifiedN) ending+=' <span class="su-dim">'+unverifiedN+' could not be verified — the server did not echo a parent; check '+plural(unverifiedN,'its','their')+' Parent in Legal → Entities.</span>';
-      } else if(existsAll.length || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
-        // nothing stored, but the names exist: still end honestly — no relationship was touched
-        var ex=existsAll.length + ((pk && LEDGER[pk] && LEDGER[pk].state==='exists' && primaryMentioned) ? 1 : 0);
-        ending='Nothing new was created — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+(subs ? ', so the subsidiaries box was not applied. Set '+plural(ex,'its','each one&rsquo;s')+' Parent in Legal → Entities.' : '. Parent and Ownership % are set in Legal → Entities.');
+      } else if(existsAll.length || (pr && pr.state==='exists') || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
+        // no company stored by this form, but the names exist: still end honestly — no relationship was touched
+        var pkExists=!!(pk && ((LEDGER[pk] && LEDGER[pk].state==='exists') || (pr && pr.state==='exists')));
+        var ex=existsAll.length + ((pkExists && primaryMentioned) ? 1 : 0);
+        var exSubs=existsAll.filter(function(k){ return k!==pk && LEDGER[k].code!==pcode; }).length;         // existing names other than the primary
+        ending='No new company was created — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+(subs && exSubs ? ', so the subsidiaries box was not applied. Set '+plural(exSubs,'its','each one&rsquo;s')+' Parent in Legal → Entities.' : '. Parent and Ownership % are set in Legal → Entities.');
+        if(other.length) ending+=' <span class="su-dim">The '+other.length+' that didn&rsquo;t save '+plural(other.length,'isn&rsquo;t','aren&rsquo;t')+' counted.</span>';
       }
       if(ending){
         if(endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }
