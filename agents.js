@@ -559,7 +559,8 @@ function handleSetup(v){
       // lock when this form stored a company and nothing is left to retry, or when it only ever filed the owner; a click that stored
       // no company stays open so a mistyped (existing) name can be corrected — the owner is not filed again (ownerRec)
       done=(retryable===0 && !expired && (stored.length>0 || (!!ownerRec && allEnts.length===0)));
-      busy=false; if(done){ go.textContent=(failedNow.length ? '✓ Done' : '✓ Saved'); lockForm(stored.length ? 'Saved — the stored keys are in the summary below.' : 'Saved.'); } else { go.disabled=false; }
+      busy=false; if(done){ go.textContent=(failedNow.length ? '✓ Done' : '✓ Saved'); lockForm(stored.length ? 'Saved — the stored keys are in the summary below.' : 'Saved.'); }
+      else { go.disabled=false; try{ previewCodes(); }catch(e){} }   // the form stays open: the preview now marks the lines that are stored
       var out=[];
       if(entCreated) out.push('✅ Created '+entCreated+' entit'+plural(entCreated,'y','ies')+' in the entities table');
       if(skippedStored) out.push(skippedStored+' already stored by an earlier attempt — not sent again');
