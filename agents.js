@@ -600,8 +600,9 @@ function handleSetup(v){
       var topLevel=others.filter(function(r){ return !r.parent_entity_id && !unverifiedIds[r.id]; });
       var unverifiedN=others.filter(function(r){ return !!unverifiedIds[r.id]; }).length;
       var primaryMentioned=primaryExisting || (subs && primaryFailed);
-      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && !(primaryMentioned && (k===pk || L.code===pcode)); });
-      var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused'; }).length;
+      // only names still in the typed list count: a line the user removed or renamed away is no longer theirs to act on
+      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && !(primaryMentioned && (k===pk || L.code===pcode)); });
+      var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused' && seenKeys[k]; }).length;
       var reason=function(){ return primaryStatus===409 ? 'already exists but could not be looked up' : primaryStatus===403 ? 'was refused by the server (not allowed) — this account cannot create it' : (expired && !primaryStatus) ? 'was not sent — your session expired' : primaryStatus ? 'didn&rsquo;t save (HTTP '+primaryStatus+')' : 'didn&rsquo;t save — the service did not confirm it'; };
       var advice=function(R){ return primaryStatus===409 ? 'Open '+plural(R,'it','each one')+' in Legal → Entities and set its Parent to '+pname+'.' : primaryStatus===403 ? 'Set '+plural(R,'its','each one&rsquo;s')+' Parent in Legal → Entities once '+pname+' exists.' : (expired && !primaryStatus) ? 'Sign in again, retry the primary, then set '+plural(R,'its','each one&rsquo;s')+' Parent in Legal → Entities.' : 'Retry the primary, then set '+plural(R,'its','each one&rsquo;s')+' Parent in Legal → Entities.'; };
       var ending=null;
