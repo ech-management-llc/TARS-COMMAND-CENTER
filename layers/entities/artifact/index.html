@@ -471,7 +471,10 @@
       PAR_INFLIGHT[id] = false;
       ent.parent_entity_id = r.data.parent_entity_id || null;             // trust the echo, not the select
       if('ownership_pct' in r.data) ent.ownership_pct = pctStr(r.data.ownership_pct);   // the server keeps a stale % across a re-parent; the Ownership row says so
+      if(ENTS.indexOf(ent) < 0){ say(who+'the parent was recorded on a company you have since removed from this list.'); return; }   // soft-deleted while the write was in flight
+      var typedOwn = (ENTS[current]===ent) ? ((document.querySelector(ownSel('data-own-in',id))||{}).value||'') : '';   // an uncommitted Ownership entry survives the re-render
       if(ENTS[current]===ent) render(); else renderRoster();            // off-screen: the roster's PARENT column still has to follow the model (a full render would wipe the row on screen)
+      if(typedOwn && typedOwn!==String(ent.ownership_pct==null?'':ent.ownership_pct)){ var oi=document.querySelector(ownSel('data-own-in',id)); if(oi && !oi.disabled) oi.value=typedOwn; }
       var pn = parentName(ent.parent_entity_id);
       say(ent.parent_entity_id
         ? '<span class="ok">✓ Parent set.</span> '+who+'now under '+esc(pn||'its parent')+'. '+(ent.ownership_pct==null
