@@ -403,6 +403,9 @@ function paintHire(b){
 // The walkthrough derives each entity's CODE (the permanent natural key an FK web references) from the
 // typed name; the server prefixes an owner's code with the account namespace (t<sha8>_). Shown BEFORE
 // saving so a typo is caught while it is still a name, not a key (TD-239).
+// owner profiles filed by ANY setup form in this page session, by normalised name — a re-opened chip never files the
+// same person twice (the per-form ledger below covers retries inside one form)
+var OWNER_FILED={};
 function deriveCode(name, i){
   // cut to 40 FIRST, then trim edge underscores, so a long name never ends in '_' (review round 1)
   return String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').slice(0,40).replace(/^_+|_+$/g,'') || ('ENTITY_'+(i+1));
@@ -546,8 +549,9 @@ function handleSetup(v){
       var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false;
       if(owner){
         if(ownerRec){ if(nkey(ownerRec.label)===nkey(owner)) ownerSkipped=true; else ownerRenamed=true; }
+        else if(OWNER_FILED[nkey(owner)]){ ownerRec=OWNER_FILED[nkey(owner)]; ownerSkipped=true; }   // filed by an earlier form in this session
         else { var orec=null; try { orec=await fl.createRecord({ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' }); } catch(e){ orec=null; }
-          if(orec){ ownerRec={ label:owner, rec:orec }; ownerSavedNow=true; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); } }
+          if(orec){ ownerRec={ label:owner, rec:orec }; OWNER_FILED[nkey(owner)]=ownerRec; ownerSavedNow=true; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); } }
       }
       var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed));
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
