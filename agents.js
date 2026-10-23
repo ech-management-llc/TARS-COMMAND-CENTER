@@ -405,6 +405,7 @@ function paintHire(b){
 // name- and code-keyed maps are prototype-free: a company or owner named "Constructor" / "__proto__" is an ordinary key
 var OWNER_FILED=Object.create(null), OWNER_MAYBE=Object.create(null), OWNER_NOTED=Object.create(null);   // MAYBE: a send of that owner got no reply · NOTED: Document Navigator owner notes filed (by record id)
 var OWNER_IDS=Object.create(null);   // owner name -> the record id this page filed, found or advised for it (a rename made in Personal Information keeps the tie)
+var OWNER_SEEN=Object.create(null);  // record id -> the name Personal Information gave it when last read (said when it cannot be read now)
 // zero-width / format characters never make a different (or a blank) company: stripped from every typed name
 var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
 function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
@@ -598,7 +599,7 @@ function handleSetup(v){
       // matched by name (never filed twice), a record this form filed is re-located by id (a rename or a removal made there
       // is seen), and an earlier send of this form that got no reply is settled. When it cannot be read, the page session's
       // memory decides, and an owner that may already be filed is held — never re-sent blind.
-      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerFound=false, foundLabel=null, filedAs=null, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
+      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerFound=false, foundLabel=null, filedAs=null, filedAsStale=false, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
       var noteOwner=function(rec, label){ var k=(rec && rec.id) || ('name:'+nkey(label)); if(!OWNER_NOTED[k]){ OWNER_NOTED[k]=1; fl.fileToDocNav(label+' — owner profile','personal-info','personal-information'); } };
       var sendOwner=async function(){
         var orec=null, otok=!!(window.flApi && flApi.authed && flApi.authed()), opay={ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' };
@@ -606,13 +607,14 @@ function handleSetup(v){
           if(window.flApi && flApi.callX){ var orr=await flApi.callX('POST', '/api/admin-records', opay); ownerStatus=(orr && orr.status)||0; orec=(orr && orr.ok) ? (orr.data || {}) : null; }   // status-carrying
           else { orec=await fl.createRecord(opay); }
         } catch(e){ orec=null; }
-        if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id) OWNER_IDS[ok_]=orec.id; delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
+        if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
         else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed
       };
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
         var prevId=OWNER_IDS[ok_];                                                          // the record this page tied to this name before this click
         var olist=await listOwners();
+        (olist||[]).forEach(function(x){ if(x && x.id) OWNER_SEEN[x.id]=x.label; });
         var byName=function(l){ var k=nkey(l); return (olist||[]).filter(function(x){ return x && nkey(x.label)===k; })[0] || null; };
         var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
         if(olist){
@@ -656,7 +658,9 @@ function handleSetup(v){
           else if(ownerRec && ownerRec.mine && !ownerRec.maybe && (!OWNER_IDS[ok_] || (ownerRec.rec && OWNER_IDS[ok_]===ownerRec.rec.id))){
             ownerRenamed=true; renameUnchecked=true; if(ownerRec.rec && ownerRec.rec.id) OWNER_IDS[ok_]=ownerRec.rec.id;   // advised for this record: another chip must not file this name
           }
-          else if(OWNER_IDS[ok_]) ownerSkipped=true;   // this page tied this name to a record it filed, found or advised for: never filed twice
+          else if(OWNER_IDS[ok_]){                                                          // this page tied this name to a record it filed, found or advised for: never filed twice
+            ownerSkipped=true; var seen=OWNER_SEEN[OWNER_IDS[ok_]]; if(seen && nkey(seen)!==ok_){ filedAs=seen; filedAsStale=true; }
+          }
           else if((pend && nkey(pend)===ok_) || OWNER_MAYBE[ok_]) ownerMaybe.push({ label:owner, unchecked:true });   // may be filed, cannot check: never re-sent blind
           else await sendOwner();
         }
@@ -691,7 +695,7 @@ function handleSetup(v){
       if(ownerSavedNow) out.push('✅ Filed the owner under Personal Information');
       if(ownerFound) out.push('✅ The owner is in Personal Information — a record named &ldquo;'+esc(foundLabel || owner)+'&rdquo; is there; not filed again'+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
       if(pendFound) out.push('A record named &ldquo;'+esc(pendFound)+'&rdquo; is in Personal Information — if this form filed it under a mistyped name, remove it there');
-      if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record is named &ldquo;'+esc(filedAs)+'&rdquo; — rename it there if &ldquo;'+esc(owner)+'&rdquo; is right' : '')+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
+      if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record '+(filedAsStale ? 'was named &ldquo;'+esc(filedAs)+'&rdquo; when last checked (it cannot be checked now)' : 'is named &ldquo;'+esc(filedAs)+'&rdquo;')+' — rename it there if &ldquo;'+esc(owner)+'&rdquo; is right' : '')+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
       if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again; rename it to &ldquo;'+esc(owner)+'&rdquo; in Personal Information'+(renameUnchecked ? ' (Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, remove &ldquo;'+esc(ownerRec.label)+'&rdquo; instead)' : ''));
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
       if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
