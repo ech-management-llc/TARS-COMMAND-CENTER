@@ -456,6 +456,7 @@
         if(window.flApi && !flApi.authed()) say(who+'<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.');
         else if(r.status === 409) say(who+'<span class="err">Refused.</span> '+esc(det||'that parent would make a cycle'));          // FL: self-parent / descendant
         // FL answers 404 for the ENTITY itself ("entity … not found") before it looks at the parent ("parent_entity_id … not found")
+        else if(r.status === 404 && ENTS.indexOf(ent) < 0) say(who+'<span class="err">Not saved.</span> You have since removed this company from the list.');
         else if(r.status === 404) say(who+(/^parent_entity_id/i.test(det) ? '<span class="err">Parent not found.</span> '+esc(det)+'. Reload the tile and pick again.' : '<span class="err">Entity not found.</span> '+(det ? esc(det)+'. ' : '')+'Reload the tile.'));
         else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc(det||'The server refused this change (HTTP 403).'));
         else if(r.status === 422) say(who+'<span class="err">Rejected.</span> '+esc(detail422(r.data)||'HTTP 422'));
@@ -569,6 +570,7 @@
       }
       OWN_INFLIGHT[id] = false;
       ent.ownership_pct = pctStr(r.data.ownership_pct);
+      if(ENTS.indexOf(ent) < 0){ say(who+(ent.ownership_pct==null ? 'ownership was cleared' : '<b>'+esc(ent.ownership_pct)+'%</b> was recorded')+' on a company you have since removed from this list.'); return; }   // soft-deleted while the write was in flight
       // re-render only while this entity is on screen: ownership shows nowhere else, and a render() here
       // would wipe a fresh message on whichever row the user is looking at now (its row rebuilds when picked)
       var parEl = (ENTS[current]===ent) ? document.querySelector(ownSel('data-par-in',id)) : null;
