@@ -572,7 +572,7 @@ function handleSetup(v){
           activeRows=frows;   // this click's read of Legal → Entities: a 409 below is checked against it when the wider read fails
           frows.forEach(function(x){ if(x && x.id) nowById[x.id]=x; });
           var syncRow=function(r){ var f=r && nowById[r.id]; if(f){ r.parent_entity_id=f.parent_entity_id||null; if('ownership_pct' in f) r.ownership_pct=f.ownership_pct; } return !!f; };
-          ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row){ if(syncRow(L.row)){ L.removed=false; if('parent_entity_id' in nowById[L.row.id]) L.unverified=false; } else L.removed=true; } else if(L.existing && !syncRow(L.existing)) L.existing=null; });   // a looked-up company no longer listed is never a parent: looked up afresh below
+          ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row){ if(syncRow(L.row)){ L.removed=false; if('parent_entity_id' in nowById[L.row.id]) L.unverified=false; } else L.removed=true; } else if(L.existing && !syncRow(L.existing)){ L.existing=null; if(L.named){ L.named=false; L.state=''; } } });   // a looked-up company no longer listed is never a parent: looked up afresh below (one found by its name is not this line's any more: the line is new again)
         } else if(storedRows().length) refreshFailed=true;
       }
       // a company the server said EXISTS may have been removed in Legal → Entities since (or already was): never a Parent target,
