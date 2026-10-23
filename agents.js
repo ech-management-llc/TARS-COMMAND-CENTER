@@ -412,7 +412,7 @@ function deriveCode(name, i){
   if(c) return c;
   // no A–Z / 0–9 at all: a key derived from the NAME (FNV-1a), so a name keeps its key at any line position and two
   // names never share one by position (review round 4: a positional ENTITY_<n> made retries and edits collide)
-  var s=String(name||'').trim().toLowerCase(), h=0x811c9dc5;
+  var s=String(name||'').trim().toLowerCase().replace(/\s+/g,' '), h=0x811c9dc5;   // the ledger's key: spacing never makes a second company
   for(var j=0;j<s.length;j++){ h^=s.charCodeAt(j); h=Math.imul(h,0x01000193)>>>0; }
   return 'ENTITY_'+('000000'+(h&0xFFFFFF).toString(16).toUpperCase()).slice(-6);
 }
@@ -543,6 +543,7 @@ function handleSetup(v){
           else { res=await fl.createEntity(payload); }
         }catch(e){ res=null; }
         R=rec(name, code); R.code=code; R.st=st; BYCODE[code]=R;
+        if(payload.parent_entity_id) R.askedParent=payload.parent_entity_id;   // sticky: a send WITH a parent whose reply was lost may have filed it
         if(res){
           R.row=res; R.state='stored'; R.unverified=!!(payload.parent_entity_id && !('parent_entity_id' in res));   // asked for a parent, echo did not say
           entCreated++;
@@ -665,7 +666,9 @@ function handleSetup(v){
       var pFact=(primary && primary.parent_entity_id && (pParentRow || !primaryExisting))
         ? '<b>'+pname+'</b> is filed under <b>'+esc(pParentRow ? (pParentRow.name||pParentRow.code) : 'another company')+'</b>'+(primaryExisting ? '' : ' from an earlier attempt')+'.' : null;
       // a parent the user can pick for the top-level rows — never while the primary itself has a parent (that advice could name its own ancestor: a cycle)
-      var target=(primary && primary.parent_entity_id) ? null : primary ? pname : ((subs && primaryFailed && primaryStatus===409) ? pname : null);
+      var pL=pk ? (LEDGER[pk] || BYCODE[pcode]) : null;
+      var target=(primary && primary.parent_entity_id) ? null : primary ? pname
+        : ((subs && primaryFailed && primaryStatus===409 && !(pL && pL.askedParent)) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
       var boxRule=' The subsidiaries box only sets a parent on a company it creates while <b>'+pname+'</b> is saved or found; it does not change a company that is already stored.';
       var ending=null;
       if(n){
@@ -684,7 +687,8 @@ function handleSetup(v){
         }
         if(topLevel.length){
           var T=topLevel.length, allTop=(T===others.length) && !underCurrent.length && !underOther.length && !unverifiedN && !pFact;
-          var subj=(T<=3 ? namesOf(topLevel) : ((underCurrent.length || underOther.length || pFact) ? 'The other '+T : T+' of them'))+' '+plural(T,'has','have');
+          var subj=(T<=3 ? namesOf(topLevel) : ((underCurrent.length || underOther.length || (pFact && !primaryExisting)) ? 'The other '+T : T+' of them'))+' '+plural(T,'has','have');   // "other" only after a clause that named a COUNTED company
+          var rule=(subs && primary) ? boxRule : '';   // the box is on and the primary is resolved: say what the box does, whatever the advice
           if(allTop && !(subs && target)){
             if(n===1 && others.length===1){
               parts.push(parts.length || primaryExisting
@@ -693,11 +697,12 @@ function handleSetup(v){
             } else {
               parts.push('None of them are related to '+(primaryExisting ? pname+' or to each other' : 'each other')+' yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).');
             }
+            if(rule) parts[parts.length-1]+=rule;
           } else {
             parts.push(subj+' no parent yet — '+(target
               ? 'if '+target+' owns '+plural(T,'it','them')+', open '+plural(T,'it','each one')+' in Legal → Entities and set its Parent to '+target+'.'
               : 'if another company owns '+plural(T,'it','one')+', open it in Legal → Entities and set its Parent.')+
-              ((subs && primary) ? boxRule : ''));
+              rule);
           }
         }
         if(!parts.length && n===1) parts.push('It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.');   // only the primary itself was stored
