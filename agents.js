@@ -406,7 +406,7 @@ function paintHire(b){
 // owner profiles filed by ANY setup form in this page session, by normalised name — a re-opened chip never files the
 // same person twice (the per-form ledger below covers retries inside one form)
 // name- and code-keyed maps are prototype-free: a company or owner named "Constructor" / "__proto__" is an ordinary key
-var OWNER_FILED=Object.create(null), OWNER_MAYBE=Object.create(null);   // MAYBE: a send of that owner got no reply
+var OWNER_FILED=Object.create(null), OWNER_MAYBE=Object.create(null), OWNER_NOTED=Object.create(null);   // MAYBE: a send of that owner got no reply · NOTED: Document Navigator owner notes filed (by record id)
 // zero-width / format characters never make a different (or a blank) company: stripped from every typed name
 var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
 function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
@@ -586,51 +586,62 @@ function handleSetup(v){
           else { R.state='failed'; if(i===0 && biz){ primaryStatus=st; primaryMaybe=!!R.maybeStored; if(subs) primaryFailed=true; } }
         }
       }
-      // The OWNER (a person) is the personal_info record — NOT the business name. Filed ONCE: per form, and across forms in
-      // this page session by normalised name; a renamed owner is never a second record.
+      // The OWNER (a person) is the personal_info record — NOT the business name — and FL does not deduplicate personal_info.
+      // Whenever an owner is typed, Personal Information is listed and, when it can be read, it decides: the owner typed is
+      // matched by name (never filed twice), a record this form filed is re-located by id (a rename or a removal made there
+      // is seen), and an earlier send of this form that got no reply is settled. When it cannot be read, the page session's
+      // memory decides, and an owner that may already be filed is held — never re-sent blind.
       var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerFound=false, foundLabel=null, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
+      var noteOwner=function(rec, label){ var k=(rec && rec.id) || ('name:'+nkey(label)); if(!OWNER_NOTED[k]){ OWNER_NOTED[k]=1; fl.fileToDocNav(label+' — owner profile','personal-info','personal-information'); } };
+      var sendOwner=async function(){
+        var orec=null, otok=!!(window.flApi && flApi.authed && flApi.authed()), opay={ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' };
+        try {
+          if(window.flApi && flApi.callX){ var orr=await flApi.callX('POST', '/api/admin-records', opay); ownerStatus=(orr && orr.status)||0; orec=(orr && orr.ok) ? (orr.data || {}) : null; }   // status-carrying
+          else { orec=await fl.createRecord(opay); }
+        } catch(e){ orec=null; }
+        if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
+        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed
+      };
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
-        var ownFiled=!!(ownerRec && ownerRec.mine && !ownerRec.maybe);                    // this form filed (201) a spelling of the owner
-        // personal_info has no unique key (FL files the same name twice): before the owner is sent, before a rename is advised,
-        // and to settle pend, Personal Information is listed once and matched by name. A match only says a record with that name is there.
-        var olist=(!OWNER_FILED[ok_] || pend) ? await listOwners() : null;
+        var prevFiled=OWNER_FILED[ok_];                                                     // filed under this name earlier in the page session
+        var olist=await listOwners();
         var byName=function(l){ var k=nkey(l); return (olist||[]).filter(function(x){ return x && nkey(x.label)===k; })[0] || null; };
-        if(pend){
-          var pk2=nkey(pend);
-          if(olist){
-            var ph=byName(pend), had=!!OWNER_FILED[pk2]; delete OWNER_MAYBE[pk2]; ownerRec=null; ownFiled=false;
-            if(ph){ OWNER_FILED[pk2]={ label:pend, rec:ph }; if(pk2!==ok_) pendFound=pend; else if(!had) fl.fileToDocNav(pend+' — owner profile','personal-info','personal-information'); }   // another form may have filed the note already
+        var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
+        if(olist){
+          if(pend){                                                                          // settle this form's no-reply send
+            var pk2=nkey(pend), ph=byName(pend); delete OWNER_MAYBE[pk2]; ownerRec=null;
+            if(ph){ OWNER_FILED[pk2]={ label:pend, rec:ph }; if(pk2===ok_) noteOwner(ph, pend); else pendFound=pend; }
           }
-          else if(pk2!==ok_) ownerMaybe.push({ label:pend, unchecked:true });   // the earlier spelling is still unknown: said, never dropped
-        }
-        if(OWNER_FILED[ok_]){
-          if(pend && olist && nkey(pend)===ok_){ ownerFound=true; foundLabel=(OWNER_FILED[ok_].rec && OWNER_FILED[ok_].rec.label) || OWNER_FILED[ok_].label; } else ownerSkipped=true;
-          if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)!==ok_) ownerDup=ownerRec.label;   // this form filed another spelling before the right one was found filed
-          if(!ownerRec) ownerRec={ label:OWNER_FILED[ok_].label, rec:OWNER_FILED[ok_].rec, mine:false };
-        }
-        else if(ownFiled){                                                         // this form filed another spelling: never a second record
-          var rh=olist ? byName(owner) : null;
-          if(rh){ ownerFound=true; foundLabel=rh.label || owner; ownerDup=ownerRec.label; OWNER_FILED[ok_]={ label:owner, rec:rh }; }   // the corrected name is already there: the spelling this form filed is the extra one
-          else { ownerRenamed=true; renameUnchecked=!olist; }
-        }
-        else {
-          var hit=olist ? byName(owner) : null;
+          var mineNow=!!(ownerRec && ownerRec.mine && !ownerRec.maybe);
+          // this form's filing, as Personal Information has it now — by its id (a same-named record of someone else is not it)
+          var own=mineNow ? ((ownerRec.rec && ownerRec.rec.id) ? byId(ownerRec.rec.id) : byName(ownerRec.label)) : null;
+          if(mineNow && (!own || nkey(own.label)!==nkey(ownerRec.label))) delete OWNER_FILED[nkey(ownerRec.label)];   // removed or renamed there: that spelling is gone
+          if(mineNow && !own) ownerRec=null;
+          else if(own){ ownerRec={ label:own.label, rec:own, mine:true }; OWNER_FILED[nkey(own.label)]={ label:own.label, rec:own }; }   // remember it under the name it has now
+          var hit=(own && nkey(own.label)===ok_) ? own : byName(owner);
           if(hit){
-            ownerFound=true; foundLabel=hit.label || owner; OWNER_FILED[ok_]={ label:owner, rec:hit };
-            if(OWNER_MAYBE[ok_]){ delete OWNER_MAYBE[ok_]; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); }   // another form's no-reply send may have filed it
-            if(!ownerRec || ownerRec.maybe || !ownerRec.mine) ownerRec={ label:owner, rec:hit, mine:false };   // only this form's own filing outlives a new owner
+            if(prevFiled && prevFiled.rec && prevFiled.rec.id && prevFiled.rec.id===hit.id) ownerSkipped=true;   // the record this page filed under this name
+            else { ownerFound=true; foundLabel=hit.label || owner; }
+            if(OWNER_MAYBE[ok_]){ delete OWNER_MAYBE[ok_]; noteOwner(hit, owner); }       // another form's no-reply send may have filed it
+            if(own && own.id!==hit.id) ownerDup=own.label;                                 // this form's filing is a second record of the owner
+            OWNER_FILED[ok_]={ label:owner, rec:hit };
+            ownerRec=own ? { label:own.label, rec:own, mine:true } : { label:owner, rec:hit, mine:false };   // only this form's own filing outlives a new owner
           }
-          else if(!olist && ((ownerRec && ownerRec.maybe && nkey(ownerRec.label)===ok_) || OWNER_MAYBE[ok_])){ ownerMaybe.push({ label:owner, unchecked:true }); }   // may be filed, cannot check: never re-sent blind
-          else {
-            var orec=null, otok=!!(window.flApi && flApi.authed && flApi.authed()), opay={ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' };
-            try {
-              if(window.flApi && flApi.callX){ var orr=await flApi.callX('POST', '/api/admin-records', opay); ownerStatus=(orr && orr.status)||0; orec=(orr && orr.ok) ? (orr.data || {}) : null; }   // status-carrying
-              else { orec=await fl.createRecord(opay); }
-            } catch(e){ orec=null; }
-            if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; delete OWNER_MAYBE[ok_]; ownerSavedNow=true; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); }
-            else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed
+          else if(own){ ownerRenamed=true; ownerRec={ label:own.label, rec:own, mine:true }; }   // this form filed another spelling that is still there: rename it
+          else await sendOwner();
+        } else {
+          // Personal Information could not be read: the page session decides
+          if(pend && nkey(pend)!==ok_) ownerMaybe.push({ label:pend, unchecked:true });   // the earlier spelling is still unknown: said, never dropped
+          if(OWNER_FILED[ok_]){
+            ownerSkipped=true;
+            if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)!==ok_) ownerDup=ownerRec.label;
+            if(!ownerRec) ownerRec={ label:OWNER_FILED[ok_].label, rec:OWNER_FILED[ok_].rec, mine:false };
           }
+          else if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)===ok_) ownerSkipped=true;   // the name this form's filing was last seen under
+          else if(ownerRec && ownerRec.mine && !ownerRec.maybe){ ownerRenamed=true; renameUnchecked=true; }
+          else if((pend && nkey(pend)===ok_) || OWNER_MAYBE[ok_]) ownerMaybe.push({ label:owner, unchecked:true });   // may be filed, cannot check: never re-sent blind
+          else await sendOwner();
         }
       }
       var ownerUnknown=!!owner && ownerMaybe.some(function(m){ return nkey(m.label)===nkey(owner); });   // the owner typed now may be filed
