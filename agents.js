@@ -583,8 +583,10 @@ function handleSetup(v){
       }
       // a company the server said EXISTS may have been removed in Legal → Entities since (or already was): never a Parent target,
       // never "check its Parent" — the read that includes removed companies tells (round 18)
-      if(ORDER.some(function(k){ return LEDGER[k].state==='exists' && !LEDGER[k].row; })){
-        for(var gi=0; gi<ORDER.length; gi++){ var GL=LEDGER[ORDER[gi]], gr=(GL.state==='exists' && !GL.row) ? await goneOf(GL.conflictCode||GL.code, GL.name) : null; if(gr && gr.kind==='named'){ GL.existing=gr.row; GL.named=true; } else if(gr){ GL.state='gone'; GL.goneRow=gr.row; GL.goneKind=gr.kind; GL.existing=null; } }
+      // a line found BY NAME never sent its code: its company is the row found, which the refresh above keeps or drops — never
+      // classified by a code it never sent (round 23: a second same-named company added by hand made it "taken")
+      if(ORDER.some(function(k){ return LEDGER[k].state==='exists' && !LEDGER[k].row && !LEDGER[k].named; })){
+        for(var gi=0; gi<ORDER.length; gi++){ var GL=LEDGER[ORDER[gi]], gr=(GL.state==='exists' && !GL.row && !GL.named) ? await goneOf(GL.conflictCode||GL.code, GL.name) : null; if(gr && gr.kind==='named'){ GL.existing=gr.row; GL.named=true; } else if(gr){ GL.state='gone'; GL.goneRow=gr.row; GL.goneKind=gr.kind; GL.existing=null; } }
       }
       var pr = pk ? resolveL(pk, pcode, biz) : null;
       if(pr){
@@ -782,7 +784,7 @@ function handleSetup(v){
       if(done){
         var clean=!failedNow.length && !goneNow.length && !namedNow.length && !unconfirmedNow.length && !ownerRenamed && !ownerDup && !filedAs && !pendFound && !primaryFailed && (entCreated>0 || ownerSavedNow);   // THIS click saved something and nothing went wrong
         go.textContent=clean ? '✓ Saved' : '✓ Done';
-        lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : (ownerSavedNow ? 'Saved.' : (ownerRenamed || ownerDup || filedAs || pendFound) ? 'Done — see the summary below.' : 'Nothing new to save — already filed.'));
+        lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : ((ownerRenamed || ownerDup || filedAs || pendFound) ? 'Done — see the summary below.' : ownerSavedNow ? 'Saved.' : 'Nothing new to save — already filed.'));
       }
       else { go.disabled=false; try{ previewCodes(); }catch(e){} }   // the form stays open: the preview now marks the lines that are stored
       var out=[];
@@ -801,7 +803,9 @@ function handleSetup(v){
       if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record '+(filedAsStale ? 'was named &ldquo;'+esc(filedAs)+'&rdquo; when last checked (it cannot be checked now)' : 'is named &ldquo;'+esc(filedAs)+'&rdquo;')+' — if &ldquo;'+esc(owner)+'&rdquo; is right, remove &ldquo;'+esc(filedAs)+'&rdquo; there and add &ldquo;'+esc(owner)+'&rdquo; (records there cannot be renamed)' : '')+dupClause());
       if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again. In Personal Information remove &ldquo;'+esc(ownerRec.label)+'&rdquo; and add &ldquo;'+esc(owner)+'&rdquo; (records there cannot be renamed)'+(renameUnchecked ? '; Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, only remove &ldquo;'+esc(ownerRec.label)+'&rdquo;' : ''));
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
-      if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
+      // the STORED key of the company holding the code when this click read it (the preview promises the summary shows stored keys)
+      var heldCode=function(f){ var h=byCode(allRows || activeRows || [], f.code).filter(function(x){ return x && sameCompany(x, f.name); }); return h.length===1 ? h[0].code : f.code; };
+      if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || heldCode(f)); }).join(', ')+') — not created again');
       if(namedNow.length) out.push('⚠️ '+namedNow.length+' '+plural(namedNow.length,'is','are')+' already in Legal → Entities under another code: '+namedNow.map(function(f){ return esc(f.name)+' ('+esc((f.row && f.row.code) || '')+')'; }).join(', ')+' — not created again');
       // a 409 this walkthrough cannot resolve to the typed company (rounds 18-19). FL keeps CODES unique, never names: Legal → Entities
       // adds the company under a code chosen there, so the remedy never asks for another legal name
@@ -884,7 +888,9 @@ function handleSetup(v){
         return ' Retry it, then set the Parents in Legal → Entities.';
       };
       // the primary's OWN parent is a fact too (a row this form stored under an earlier primary, now typed as the primary)
-      var pParentRow=(primary && primary.parent_entity_id) ? knownRows().filter(function(x){ return x.id===primary.parent_entity_id; })[0] : null;
+      // a parent is named from this form's rows, else from this click's read of Legal → Entities (round 23)
+      var rowById=function(id){ return knownRows().filter(function(x){ return x.id===id; })[0] || (activeRows || []).filter(function(x){ return x && x.id===id; })[0] || null; };
+      var pParentRow=(primary && primary.parent_entity_id) ? rowById(primary.parent_entity_id) : null;
       // "from an earlier attempt" only for a parent the row was CREATED with by this form (a Parent set later in the tile is not that)
       var ledgerOf=Object.create(null); ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row && L.row.id) ledgerOf[L.row.id]=L; });
       var fromEarlier=function(r){ var L=r && ledgerOf[r.id]; return !!(L && L.createdParent!==undefined && L.createdParent===(r.parent_entity_id||null)); };
@@ -916,13 +922,13 @@ function handleSetup(v){
           var notEst=underCurrent.filter(function(r){ return r.ownership_pct==null; }), est=underCurrent.filter(function(r){ return r.ownership_pct!=null; });
           if(notEst.length){
             var K=notEst.length;
-            parts.push((others.length===1 ? namesOf(notEst)+' is' : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
+            parts.push(((others.length===1 || (K<others.length && K<=3)) ? namesOf(notEst)+' '+plural(K,'is','are') : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
           }
           if(est.length) parts.push(est.map(function(r){ var full=Number(r.ownership_pct)===100;
             return '<b>'+esc(r.name||r.code)+'</b> is filed under <b>'+pname+'</b> at '+esc(String(r.ownership_pct))+'% — '+(full ? 'it consolidates into '+pname+'&rsquo;s rollup' : 'it does not consolidate into '+pname+'&rsquo;s rollup; only 100.00 does'); }).join('. ')+'.');
         }
         if(underOther.length){
-          var byParent=Object.create(null), order=[]; underOther.forEach(function(r){ var p=knownRows().filter(function(x){ return x.id===r.parent_entity_id; })[0]; var nm=p ? (p.name||p.code) : 'another company'; if(!byParent[nm]){ byParent[nm]=[]; order.push(nm); } byParent[nm].push(r); });
+          var byParent=Object.create(null), order=[]; underOther.forEach(function(r){ var p=rowById(r.parent_entity_id); var nm=p ? (p.name||p.code) : 'another company'; if(!byParent[nm]){ byParent[nm]=[]; order.push(nm); } byParent[nm].push(r); });
           order.forEach(function(nm){ var rows=byParent[nm], M=rows.length; parts.push((M<=3 ? namesOf(rows) : M+' of them')+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b>'+(rows.every(fromEarlier) ? ' from an earlier attempt' : '')+'.'); });
         }
         if(topLevel.length){
