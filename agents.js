@@ -617,6 +617,13 @@ function handleSetup(v){
           if(i===0 && biz){ primary=named; primaryExisting=true; primaryStatus=409; primaryFailed=false; primaryGoneKind=''; primaryGoneRow=null; primaryMany=null; }
           continue;
         }
+        // a line found BY NAME whose row a list read in THIS click does not have was removed there (the start-of-click read may
+        // have failed): it is not this line's company any more — never a Parent, looked at afresh like a new line. A row still
+        // listed (the name now ambiguous) stays the line's company (round 25)
+        if(R && R.named && R.existing && !R.row && Array.isArray(activeRows) && !activeRows.some(function(x){ return x && x.id===R.existing.id; })){
+          var goneNamed=R.existing; R.existing=null; R.named=false; R.state='';
+          if(i===0 && biz && primary && primary.id===goneNamed.id){ primary=null; primaryExisting=false; primaryStatus=0; primaryFailed=false; }
+        }
         if(R && R.row && R.removed){ skippedRemoved++; continue; }           // removed in Legal → Entities since: not sent again, not counted
         if(R && R.row){ skippedStored++; if(i===0 && biz && !primary){ primary=R.row; primaryExisting=false; } continue; }   // stored by an earlier attempt: never sent again
         if(R && R.state==='gone'){ goneNow.push({ name:name, code:R.conflictCode||code, row:R.goneRow||null, kind:R.goneKind||'absent' }); continue; }   // a code this walkthrough cannot use — said, named, never sent
@@ -1001,7 +1008,15 @@ function handleSetup(v){
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
+      } else if(endingEl && (goneKeys.length || other.length || refusedAll)){
+        // an ending shown before described companies this click no longer has as it said (removed since, no longer typed): it is
+        // replaced with what is true now, never left standing as this form's status (round 25)
+        ending='No new company was '+(unknownRows.length ? 'confirmed' : 'created')+'.';
+        if(other.length) ending+=notCountedNote();
+        if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
+        ending+=goneNote();
       }
+      if(!ending && endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }   // nothing true left to say about companies: the old ending goes (round 25)
       if(ending){
         if(endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }
         endingEl=aBubble(ending+'<div class="setup-chiprow" style="margin-top:6px"><button type="button" class="echip su-open-entities">Open Legal → Entities</button></div>');
