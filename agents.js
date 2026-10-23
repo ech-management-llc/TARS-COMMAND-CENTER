@@ -406,13 +406,16 @@ function paintHire(b){
 // owner profiles filed by ANY setup form in this page session, by normalised name — a re-opened chip never files the
 // same person twice (the per-form ledger below covers retries inside one form)
 var OWNER_FILED={};
+// zero-width / format characters never make a different (or a blank) company: stripped from every typed name
+var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
+function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
 function deriveCode(name, i){
   // cut to 40 FIRST, then trim edge underscores, so a long name never ends in '_' (review round 1)
   var c=String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').slice(0,40).replace(/^_+|_+$/g,'');
   if(c) return c;
   // no A–Z / 0–9 at all: a key derived from the NAME (FNV-1a), so a name keeps its key at any line position and two
   // names never share one by position (review round 4: a positional ENTITY_<n> made retries and edits collide)
-  var s=String(name||'').trim().toLowerCase().replace(/\s+/g,' '), h=0x811c9dc5;   // the ledger's key: spacing never makes a second company
+  var s=cleanName(name).toLowerCase().replace(/\s+/g,' '), h=0x811c9dc5;   // the ledger's key: spacing or an invisible character never makes a second company
   for(var j=0;j<s.length;j++){ h^=s.charCodeAt(j); h=Math.imul(h,0x01000193)>>>0; }
   return 'ENTITY_'+('000000'+(h&0xFFFFFF).toString(16).toUpperCase()).slice(-6);
 }
@@ -447,8 +450,8 @@ function handleSetup(v){
     var endingEl=null;   // the honest ending, one bubble per attempt (a retry replaces it)
     // live: the codes these names will become, before anything is saved
     var previewCodes=function(){
-      var biz=(b.querySelector('#su-biz').value||'').trim();
-      var ents=(b.querySelector('#su-ents').value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+      var biz=cleanName(b.querySelector('#su-biz').value);
+      var ents=(b.querySelector('#su-ents').value||'').split('\n').map(cleanName).filter(Boolean);
       var names=[]; if(biz) names.push(biz); ents.forEach(function(n){ names.push(n); });
       var cb=b.querySelector('#su-subs'), note=b.querySelector('#su-subs-note');
       if(cb){ cb.disabled=!biz; if(!biz) cb.checked=false; if(note) note.textContent=biz?'':'Enter the primary business first.'; }
@@ -459,12 +462,15 @@ function handleSetup(v){
       var storedOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i]) : null; return (L && L.row) ? L.row : null; };
       var counts={}; codes.forEach(function(c){ counts[c]=(counts[c]||0)+1; });
       var dups=Object.keys(counts).filter(function(c){ return counts[c]>1; });            // every duplicated code, not only the first pair
+      // the click also skips a repeated NAME whose spellings fold to different codes (e.g. ß / ẞ): warn for those too
+      var seenNk={}, nameDups=[]; names.forEach(function(n,i){ var k=nkey(n); if(seenNk[k] && counts[codes[i]]<2) nameDups.push(n); seenNk[k]=1; });
       var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i); });   // a stored line is permanent: never ask to rename it
       var anyStored=names.some(function(n,i){ return !!storedOf(n,i); });
       box.innerHTML='Codes these names become — permanent keys (an owner account&rsquo;s prefix, t…_, is added on save; the summary shows the stored key):'+
         '<div>'+names.map(function(n,i){ var r=storedOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
         (anyStored ? 'Stored names and codes are permanent here — editing a stored line adds a new company. ' : 'The code is permanent — fix a typo here, before saving. ')+'Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
         (dups.length ? ' <span class="su-err">Names that make the same code: '+dups.map(function(c){ return esc(c)+' ×'+counts[c]; }).join(', ')+' — only the first of each will save.</span>' : '')+
+        (nameDups.length ? ' <span class="su-err">Repeated name'+(nameDups.length>1?'s':'')+': '+nameDups.map(esc).join(', ')+' — only the first will save.</span>' : '')+
         (fallback.length ? ' <span class="su-err">A name with no A–Z letters or 0–9 digits falls back to '+esc(fallback[0])+' — other characters are dropped from the code. Give it a Latin name, or choose the code yourself in Legal → Entities.</span>' : '');
     };
     ['#su-biz','#su-ents'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.addEventListener('input', previewCodes); });
@@ -472,8 +478,8 @@ function handleSetup(v){
     // ACROSS ATTEMPTS (review rounds 1-4): ONE ledger per typed name — stored / exists / refused / failed / unconfirmed —
     // indexed by name AND by derived code (a stored row by code wins over a row-less entry by name), so a retry never
     // re-sends what is settled, the owner is filed once, and every sentence below states what the server echoed
-    var LEDGER={}, ORDER=[], BYCODE={}, ownerRec=null;
-    var nkey=function(name){ return String(name||'').trim().toLowerCase().replace(/\s+/g,' '); };   // case, edge and internal whitespace never make a second key
+    var LEDGER={}, ORDER=[], BYCODE={}, ASKED={}, ownerRec=null;
+    var nkey=function(name){ return cleanName(name).toLowerCase().replace(/\s+/g,' '); };   // case, edge and internal whitespace never make a second key
     // the ledger entry for a typed name: its own entry if that one has a stored row, else the row this form stored under the
     // same code (another spelling), else its own entry (exists / refused / failed), else none
     var resolveL=function(k, code){
@@ -504,9 +510,9 @@ function handleSetup(v){
     var namesOf=function(rows){ var nm=rows.map(function(r){ return '<b>'+esc((r && (r.name||r.code))||'a company')+'</b>'; }); return nm.length<=1 ? (nm[0]||'') : nm.slice(0,-1).join(', ')+' and '+nm[nm.length-1]; };
     go.onclick=async function(){
       if(busy || done) return;                                   // guard: one row set per submission, no double-write
-      var biz=(b.querySelector('#su-biz').value||'').trim();
-      var owner=(b.querySelector('#su-owner').value||'').trim();
-      var ents=(b.querySelector('#su-ents').value||'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
+      var biz=cleanName(b.querySelector('#su-biz').value);
+      var owner=cleanName(b.querySelector('#su-owner').value);
+      var ents=(b.querySelector('#su-ents').value||'').split('\n').map(cleanName).filter(Boolean);
       var msg=b.querySelector('#su-biz-msg');
       if(!biz && !owner && !ents.length){ msg.innerHTML='<span class="su-err">Enter a business name, an owner, or at least one entity.</span>'; return; }
       if(!fl){ msg.innerHTML='<span class="su-err">Sign in to the Command Center to save these.</span>'; return; }
@@ -517,7 +523,7 @@ function handleSetup(v){
       var subs=!!(biz && b.querySelector('#su-subs') && b.querySelector('#su-subs').checked);   // Parent entity only — never ownership
       var rec=function(name, code){ var k=nkey(name); if(!LEDGER[k]){ LEDGER[k]={ name:name, code:code, row:null, state:'', st:0, existing:null, unverified:false }; ORDER.push(k); } return LEDGER[k]; };
       // THIS click's primary, resolved from the ledger by the name in the field now (never a row from an earlier name)
-      var primary=null, primaryExisting=false, primaryStatus=0, primaryFailed=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz,0):null;
+      var primary=null, primaryExisting=false, primaryStatus=0, primarySent=true, primaryFailed=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz,0):null;
       var pr = pk ? resolveL(pk, pcode) : null;
       if(pr){
         if(pr.row){ primary=pr.row; }
@@ -537,13 +543,16 @@ function handleSetup(v){
         if(R && R.state==='unconfirmed'){ skippedUnconfirmed++; continue; } // saved without a record in the reply: re-sending would duplicate or 409
         var payload={ code:code, name:name, legal_form:'LLC' };
         if(subs && i>0 && primary && primary.id) payload.parent_entity_id=primary.id;
-        var res=null, st=0, okNoRecord=false;
+        var res=null, st=0, okNoRecord=false, tokBefore=!!(window.flApi && flApi.authed && flApi.authed());
         try{
           if(window.flEntities && flEntities.createX){ var r=await flEntities.createX(payload); st=(r && r.status)||0; res=(r && r.ok && r.data && typeof r.data==='object' && !Array.isArray(r.data)) ? r.data : null; okNoRecord=!!(r && r.ok && !res); }   // status-carrying: 409 exists · 403 refused · 0 no response
           else { res=await fl.createEntity(payload); }
         }catch(e){ res=null; }
         R=rec(name, code); R.code=code; R.st=st; BYCODE[code]=R;
-        if(payload.parent_entity_id) R.askedParent=payload.parent_entity_id;   // sticky: a send WITH a parent whose reply was lost may have filed it
+        // status 0 is two facts: never sent (no session at the send, or fl-auth cleared it on the way) vs sent with no reply
+        var sent=!!st || (tokBefore && !!(window.flApi && flApi.authed && flApi.authed()));
+        // sticky per CODE: a send WITH a parent that succeeded or whose outcome is unknown may have filed it under that parent
+        if(payload.parent_entity_id && (res || okNoRecord || (!st && sent))) ASKED[code]=true;
         if(res){
           R.row=res; R.state='stored'; R.unverified=!!(payload.parent_entity_id && !('parent_entity_id' in res));   // asked for a parent, echo did not say
           entCreated++;
@@ -564,9 +573,9 @@ function handleSetup(v){
           }
           if(!mine) failedNow.push({ name:name, code:code, status:st });
         } else {
-          failedNow.push({ name:name, code:code, status:st });
+          failedNow.push({ name:name, code:code, status:st, sent:sent });
           if(st===403){ R.state='refused'; if(i===0 && biz){ primaryStatus=403; if(subs) primaryFailed=true; } }
-          else { R.state='failed'; if(i===0 && biz){ primaryStatus=st; if(subs) primaryFailed=true; } }
+          else { R.state='failed'; if(i===0 && biz){ primaryStatus=st; primarySent=sent; if(subs) primaryFailed=true; } }
         }
       }
       // The OWNER (a person) is the personal_info record — NOT the business name. Filed ONCE: per form, and across forms in
@@ -647,18 +656,18 @@ function handleSetup(v){
         if(primaryStatus===409) return 'already exists but could not be looked up';
         if(primaryStatus===403) return 'was refused by the server (not allowed) — this account cannot create it';
         if(primaryStatus==='unconfirmed') return 'was saved without a confirmation from the server';
-        if(!authed) return 'was not sent — sign in to the Command Center first';
-        if(expired && primaryStatus===401) return 'was rejected — your session expired';
-        if(expired && !primaryStatus) return 'didn&rsquo;t save — your session expired';
+        if(primaryStatus===401 && expired) return 'was rejected — your session expired';
         if(primaryStatus) return 'didn&rsquo;t save (HTTP '+primaryStatus+')';
-        return 'didn&rsquo;t save — the service did not confirm it';
+        if(!primarySent) return authed ? 'was not sent — your session expired' : 'was not sent — sign in to the Command Center first';
+        return 'was sent, but the server did not confirm it';                    // the reply was lost: it may be on the server
       };
       var pAdvice=function(){
         if(primaryStatus===409) return '';                                           // the clause below says: set its Parent to P
         if(primaryStatus===403) return ' Set the Parents in Legal → Entities once '+pname+' exists.';
         if(primaryStatus==='unconfirmed') return ' Check it in Legal → Entities, then set the Parents there.';
-        if(!authed) return ' Sign in, then retry it.';
-        if(expired) return ' Sign in again, then retry it.';
+        if(primaryStatus===401 && expired) return ' Sign in again, then retry it.';
+        if(!primaryStatus && !primarySent) return authed ? ' Sign in again, then retry it.' : ' Sign in, then retry it.';
+        if(!primaryStatus) return ' Check Legal → Entities before retrying it — it may already be there.';
         return ' Retry it, then set the Parents in Legal → Entities.';
       };
       // the primary's OWN parent is a fact too (a row this form stored under an earlier primary, now typed as the primary)
@@ -666,15 +675,15 @@ function handleSetup(v){
       var pFact=(primary && primary.parent_entity_id && (pParentRow || !primaryExisting))
         ? '<b>'+pname+'</b> is filed under <b>'+esc(pParentRow ? (pParentRow.name||pParentRow.code) : 'another company')+'</b>'+(primaryExisting ? '' : ' from an earlier attempt')+'.' : null;
       // a parent the user can pick for the top-level rows — never while the primary itself has a parent (that advice could name its own ancestor: a cycle)
-      var pL=pk ? (LEDGER[pk] || BYCODE[pcode]) : null;
       var target=(primary && primary.parent_entity_id) ? null : primary ? pname
-        : ((subs && primaryFailed && primaryStatus===409 && !(pL && pL.askedParent)) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
+        : ((subs && primaryFailed && primaryStatus===409 && !(pcode && ASKED[pcode])) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
       var boxRule=' The subsidiaries box only sets a parent on a company it creates while <b>'+pname+'</b> is saved or found; it does not change a company that is already stored.';
       // rows this click could not save: an HTTP error "didn't save"; no response means the form cannot know (the reply was lost, not the row)
       var notCountedNote=function(){
-        var noResp=other.filter(function(f){ return !f.status; }).length, errs=other.length-noResp, t=[];
+        var noResp=other.filter(function(f){ return !f.status && f.sent; }).length, unsent=other.filter(function(f){ return !f.status && !f.sent; }).length, errs=other.length-noResp-unsent, t=[];
         if(errs) t.push('The '+errs+' that didn&rsquo;t save '+plural(errs,'isn&rsquo;t','aren&rsquo;t')+' counted.');
-        if(noResp) t.push('The '+noResp+' the server did not confirm '+plural(noResp,'isn&rsquo;t','aren&rsquo;t')+' counted.');
+        if(unsent) t.push('The '+unsent+' that '+plural(unsent,'wasn&rsquo;t','weren&rsquo;t')+' sent '+plural(unsent,'isn&rsquo;t','aren&rsquo;t')+' counted.');
+        if(noResp) t.push('The '+noResp+' the server did not confirm '+plural(noResp,'isn&rsquo;t','aren&rsquo;t')+' counted — check Legal → Entities before retrying.');
         return ' <span class="su-dim">'+t.join(' ')+'</span>';
       };
       var ending=null;
@@ -723,7 +732,7 @@ function handleSetup(v){
         var pkExists=!!(pk && ((LEDGER[pk] && LEDGER[pk].state==='exists') || (pr && pr.state==='exists')));
         var ex=existsAll.length + ((pkExists && primaryMentioned) ? 1 : 0);
         var exSubs=existsAll.filter(function(k){ return k!==pk && LEDGER[k].code!==pcode; });                // existing names other than the primary
-        ending='No new company was created — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
+        ending='No new company was '+(other.some(function(f){ return !f.status && f.sent; }) ? 'confirmed' : 'created')+' — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
           ((subs && exSubs.length)
             ? ' The subsidiaries box only sets a parent on a company it creates, so it changed nothing: set '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>&rsquo;s' : 'each one&rsquo;s')+' Parent in Legal → Entities.'
             : ' Parent and Ownership % are set in Legal → Entities.');
