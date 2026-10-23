@@ -648,8 +648,8 @@ function handleSetup(v){
               // the list read just before that send had no record of this name, so the one there now is this form's own filing
               // (a later corrected spelling gets "rename it", never a second record); otherwise it is only "a record named …"
               var otherForm=!!(ph.id && OWNER_BY[ph.id] && OWNER_BY[ph.id]!==formId);          // another setup form filed it after this send
-              if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id){ OWNER_BY[ph.id]=formId; OWNER_SETTLED[ph.id]=1; } noteOwner(ph, pend); }
-              else if(pk2===ok_) noteOwner(ph, pend); else pendFound=pend;
+              if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id){ OWNER_BY[ph.id]=formId; OWNER_SETTLED[ph.id]=1; } noteOwner(ph, ph.label||pend); }
+              else if(pk2===ok_) noteOwner(ph, ph.label||pend); else pendFound=pend;
             }
           }
           var mineNow=!!(ownerRec && ownerRec.mine && !ownerRec.maybe);
