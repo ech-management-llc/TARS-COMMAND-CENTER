@@ -472,7 +472,7 @@ function handleSetup(v){
       var pvCodes=Object.create(null), pvKeys=Object.create(null), skippedLines=[], clashLines=[], same=(typeof sameName==='function') ? sameName : function(){ return true; };
       names.forEach(function(n,i){ var k=nkey(n), c=codes[i];
         if(pvKeys[k] || (pvCodes[c] && same(pvCodes[c], n))){ skippedLines.push(esc(n)+' ('+esc(c)+')'); return; }
-        if(pvCodes[c]){ clashLines.push(esc(n)+' ('+esc(c)+')'); return; }   // another company whose code is cut to the same 40 characters (round 20)
+        if(pvCodes[c]){ clashLines.push(esc(n)+' ('+esc(c)+')'); pvKeys[k]=1; return; }   // another company whose code is cut to the same 40 characters (round 20); a repeat of it is a duplicate, as the click counts it
         pvCodes[c]=n; pvKeys[k]=1; });
       var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i); });   // a stored line is permanent: never ask to rename it
       var anyStored=names.some(function(n,i){ return !!storedOf(n,i); });
@@ -544,7 +544,7 @@ function handleSetup(v){
       var subs=!!(biz && b.querySelector('#su-subs') && b.querySelector('#su-subs').checked);   // Parent entity only — never ownership
       var rec=function(name, code){ var k=nkey(name); if(!LEDGER[k]){ LEDGER[k]={ name:name, code:code, row:null, state:'', st:0, existing:null, unverified:false }; ORDER.push(k); } return LEDGER[k]; };
       // THIS click's primary, resolved from the ledger by the name in the field now (never a row from an earlier name)
-      var primary=null, primaryExisting=false, primaryStatus=0, primaryMaybe=false, primaryFailed=false, primaryGoneKind='', primaryGoneRow=null, primaryNoHolder=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz):null;
+      var primary=null, primaryExisting=false, primaryStatus=0, primaryMaybe=false, primaryFailed=false, primaryGoneKind='', primaryGoneRow=null, primaryNoHolder=false, primaryMany=null, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz):null;
       // rows stored by an EARLIER attempt are reported (and skipped) as Legal → Entities has them NOW — the user may have followed
       // the ending's advice there in between: one read of the list refreshes their Parent and Ownership, and a row it no
       // longer has was removed there (rounds 15-16)
@@ -559,16 +559,20 @@ function handleSetup(v){
       // another company holds the code (rounds 18-19); 'absent': no company with that code is in this caller's lists
       // a company in Legal → Entities with the typed NAME under ANOTHER code — added there with a code chosen there, as this walkthrough
       // advises for a code it cannot use — is the typed company (round 20); two of them cannot be told apart, so neither is assumed
-      var namedIn=function(rows, code, name){
-        if(rows.some(function(x){ return x && x.active!==false && byCode([x], code).length && sameCompany(x, name); })) return null;   // the typed company holds its own code: that is the one (round 22)
-        var m=rows.filter(function(x){ return x && x.active!==false && namesMatch(x.name, name) && !byCode([x], code).length; }); return m.length===1 ? m[0] : null; };
+      var namedAll=function(rows, code, name){
+        if(rows.some(function(x){ return x && x.active!==false && byCode([x], code).length && sameCompany(x, name); })) return [];   // the typed company holds its own code: that is the one (round 22)
+        return rows.filter(function(x){ return x && x.active!==false && namesMatch(x.name, name) && !byCode([x], code).length; }); };
+      var namedIn=function(rows, code, name){ var m=namedAll(rows, code, name); return m.length===1 ? m[0] : null; };
       var namedOf=async function(code, name){ var rows=await listActive(); return rows ? namedIn(rows, code, name) : null; };
+      // the typed name listed MORE THAN ONCE under other codes is in Legal → Entities — never "removed", "absent" or "add it again",
+      // whatever holds its derived code; which one is meant cannot be told (round 24)
+      var namedKind=function(rows, code, name){ var m=namedAll(rows, code, name); return m.length===1 ? { row:m[0], kind:'named' } : m.length>1 ? { row:null, rows:m, kind:'many' } : null; };
       var goneOf=async function(code, name){
         // a company this form stored under the code — possibly earlier in this very click, after the lists were read — holds it (round 21)
         var own=byCode(storedRows(), code).filter(function(x){ return !sameCompany(x, name); }); if(own.length===1) return { row:own[0], kind:'clash' };
         var rows=await listAll(), c, nm;
-        if(rows){ nm=namedIn(rows, code, name); if(nm) return { row:nm, kind:'named' }; c=byCode(rows, code); if(c.length!==1) return c.length ? null : { row:null, kind:'absent', wide:true }; if(!sameCompany(c[0], name)) return { row:c[0], kind:'clash' }; return c[0].active===false ? { row:c[0], kind:'removed' } : null; }
-        rows=await listActive(); if(!rows) return null; nm=namedIn(rows, code, name); if(nm) return { row:nm, kind:'named' }; c=byCode(rows, code);
+        if(rows){ nm=namedKind(rows, code, name); if(nm) return nm; c=byCode(rows, code); if(c.length!==1) return c.length ? null : { row:null, kind:'absent', wide:true }; if(!sameCompany(c[0], name)) return { row:c[0], kind:'clash' }; return c[0].active===false ? { row:c[0], kind:'removed' } : null; }
+        rows=await listActive(); if(!rows) return null; nm=namedKind(rows, code, name); if(nm) return nm; c=byCode(rows, code);
         return !c.length ? { row:null, kind:'absent' } : (c.length===1 && !sameCompany(c[0], name)) ? { row:c[0], kind:'clash' } : null;
       };
       if(ORDER.some(function(k){ return LEDGER[k].row || LEDGER[k].existing; })){
@@ -586,18 +590,20 @@ function handleSetup(v){
       // a line found BY NAME never sent its code: its company is the row found, which the refresh above keeps or drops — never
       // classified by a code it never sent (round 23: a second same-named company added by hand made it "taken")
       if(ORDER.some(function(k){ return LEDGER[k].state==='exists' && !LEDGER[k].row && !LEDGER[k].named; })){
-        for(var gi=0; gi<ORDER.length; gi++){ var GL=LEDGER[ORDER[gi]], gr=(GL.state==='exists' && !GL.row && !GL.named) ? await goneOf(GL.conflictCode||GL.code, GL.name) : null; if(gr && gr.kind==='named'){ GL.existing=gr.row; GL.named=true; } else if(gr){ GL.state='gone'; GL.goneRow=gr.row; GL.goneKind=gr.kind; GL.existing=null; } }
+        for(var gi=0; gi<ORDER.length; gi++){ var GL=LEDGER[ORDER[gi]], gr=(GL.state==='exists' && !GL.row && !GL.named) ? await goneOf(GL.conflictCode||GL.code, GL.name) : null; if(GL.state==='exists' && !GL.row && !GL.named) GL.many=(gr && gr.kind==='many') ? gr.rows : null;
+          if(gr && gr.kind==='many'){ /* still exists — more than once: told so below, looked at afresh every click */ } else if(gr && gr.kind==='named'){ GL.existing=gr.row; GL.named=true; } else if(gr){ GL.state='gone'; GL.goneRow=gr.row; GL.goneKind=gr.kind; GL.existing=null; } }
       }
       var pr = pk ? resolveL(pk, pcode, biz) : null;
       if(pr){
         if(pr.row && pr.removed){ primaryStatus='removed'; if(subs) primaryFailed=true; }   // removed in Legal → Entities since this form created it
         else if(pr.row){ primary=pr.row; }
+        else if(pr.state==='exists' && pr.many && !pr.existing){ primaryStatus='many'; primaryMany=pr.many; if(subs) primaryFailed=true; }   // listed more than once: which one cannot be told
         else if(pr.state==='exists'){ if(!pr.existing){ var px_=await findExisting(pr.code); pr.existing=sameCompany(px_, pr.name) ? px_ : null; } if(pr.existing){ primary=pr.existing; primaryExisting=true; } else { primaryStatus=409; if(subs) primaryFailed=true; } }
         else if(pr.state==='gone'){ primaryStatus='gone'; primaryGoneKind=pr.goneKind||'absent'; primaryGoneRow=pr.goneRow||null; if(subs) primaryFailed=true; }   // a code this walkthrough cannot use
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
         else if(pr.state==='unconfirmed'){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
       }
-      var entCreated=0, failedNow=[], unconfirmedNow=[], goneNow=[], namedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, skippedRemoved=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
+      var entCreated=0, failedNow=[], unconfirmedNow=[], goneNow=[], namedNow=[], manyNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, skippedRemoved=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name);
         if(seenKeys[k] || (seenCodes[code] && sameName(seenCodes[code], name))){ dupInList++; continue; }   // a later line of THIS list repeating an earlier one (same name, or same code and company)
@@ -607,13 +613,14 @@ function handleSetup(v){
         // again" (round 20); a stored row, one looked up by its code, a refusal or an unconfirmed save is already settled
         var named=(R && ((R.row && !R.removed) || (R.existing && !R.named) || R.state==='refused' || R.state==='unconfirmed')) ? null : await namedOf(code, name);
         if(named){
-          if(!R) R=rec(name, code); if(!R.row) R.state='exists'; R.existing=named; R.named=true; namedNow.push({ name:name, row:named });
-          if(i===0 && biz){ primary=named; primaryExisting=true; primaryStatus=409; primaryFailed=false; primaryGoneKind=''; primaryGoneRow=null; }
+          if(!R) R=rec(name, code); if(!R.row) R.state='exists'; R.existing=named; R.named=true; R.many=null; namedNow.push({ name:name, row:named });
+          if(i===0 && biz){ primary=named; primaryExisting=true; primaryStatus=409; primaryFailed=false; primaryGoneKind=''; primaryGoneRow=null; primaryMany=null; }
           continue;
         }
         if(R && R.row && R.removed){ skippedRemoved++; continue; }           // removed in Legal → Entities since: not sent again, not counted
         if(R && R.row){ skippedStored++; if(i===0 && biz && !primary){ primary=R.row; primaryExisting=false; } continue; }   // stored by an earlier attempt: never sent again
         if(R && R.state==='gone'){ goneNow.push({ name:name, code:R.conflictCode||code, row:R.goneRow||null, kind:R.goneKind||'absent' }); continue; }   // a code this walkthrough cannot use — said, named, never sent
+        if(R && R.state==='exists' && R.many && !R.existing){ manyNow.push({ name:name, rows:R.many }); continue; }   // listed more than once under other codes
         if(R && R.state==='exists'){ skippedExists++; continue; }           // the server said it exists: a retry cannot create it
         if(R && R.state==='refused'){ skippedRefused++; continue; }         // refused (403): a retry cannot change that
         if(R && R.state==='unconfirmed'){ skippedUnconfirmed++; continue; } // saved without a record in the reply: re-sending would duplicate or 409
@@ -659,6 +666,7 @@ function handleSetup(v){
           }
           var g409=(!mine && !ex && !legacy) ? await goneOf(code, name) : null;   // a code this walkthrough cannot use: removed, another company's, or not listed
           if(g409 && g409.kind==='named'){ R.existing=g409.row; R.named=true; namedNow.push({ name:name, row:g409.row }); if(i===0 && biz){ primary=g409.row; primaryExisting=true; primaryStatus=409; primaryFailed=false; } }   // the typed name under another code
+          else if(g409 && g409.kind==='many'){ R.many=g409.rows; manyNow.push({ name:name, rows:g409.rows }); if(i===0 && biz){ primaryStatus='many'; primaryMany=g409.rows; primaryFailed=!!subs; } }   // listed more than once (round 24)
           // FL answers ANY insert failure with 409: when even the read that includes removed companies has no company with the code,
           // the first such 409 is a failed send, retried like any other; refused AGAIN, the code is taken by a company out of this
           // account's reach, and the line says so. Without that read, a removed company may hold it: told at once (round 22)
@@ -706,8 +714,11 @@ function handleSetup(v){
         if(olist){                                                                          // the list is the truth for EVERY tie the page holds, not only this name's:
           var present=Object.create(null); olist.forEach(function(x){ if(x && x.id) present[x.id]=1; });   // a record it no longer has was removed there (round 18)
           Object.keys(OWNER_SEEN).forEach(function(id){ if(present[id]) delete OWNER_GONE[id]; else OWNER_GONE[id]=1; });
-          Object.keys(OWNER_FILED).forEach(function(k){ var f=OWNER_FILED[k]; if(f && f.rec && f.rec.id && !present[f.rec.id]){ OWNER_GONE[f.rec.id]=1; delete OWNER_FILED[k]; } });
-          Object.keys(OWNER_IDS).forEach(function(k){ if(!present[OWNER_IDS[k]]){ OWNER_GONE[OWNER_IDS[k]]=1; delete OWNER_IDS[k]; } });
+          // a tie whose record is gone moves to a record the same list has under that name (one of two identical records removed
+          // there); with none, the tie goes (round 24)
+          var twinOf=function(k){ return olist.filter(function(x){ return x && x.id && nkey(x.label)===k; })[0] || null; };
+          Object.keys(OWNER_FILED).forEach(function(k){ var f=OWNER_FILED[k]; if(f && f.rec && f.rec.id && !present[f.rec.id]){ OWNER_GONE[f.rec.id]=1; var tw=twinOf(k); if(tw) OWNER_FILED[k]={ label:tw.label, rec:tw }; else delete OWNER_FILED[k]; } });
+          Object.keys(OWNER_IDS).forEach(function(k){ if(!present[OWNER_IDS[k]]){ OWNER_GONE[OWNER_IDS[k]]=1; var tw=twinOf(k); if(tw) OWNER_IDS[k]=tw.id; else delete OWNER_IDS[k]; } });
         }
         var byName=function(l){ var k=nkey(l); return (olist||[]).filter(function(x){ return x && nkey(x.label)===k; })[0] || null; };
         var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
@@ -782,7 +793,7 @@ function handleSetup(v){
       done=(retryable===0 && !expired && (stored.length>0 || (!!ownerRec && allEnts.length===0)));
       busy=false;
       if(done){
-        var clean=!failedNow.length && !goneNow.length && !namedNow.length && !unconfirmedNow.length && !ownerRenamed && !ownerDup && !filedAs && !pendFound && !primaryFailed && (entCreated>0 || ownerSavedNow);   // THIS click saved something and nothing went wrong
+        var clean=!failedNow.length && !goneNow.length && !namedNow.length && !manyNow.length && !unconfirmedNow.length && !ownerRenamed && !ownerDup && !filedAs && !pendFound && !primaryFailed && (entCreated>0 || ownerSavedNow);   // THIS click saved something and nothing went wrong
         go.textContent=clean ? '✓ Saved' : '✓ Done';
         lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : ((ownerRenamed || ownerDup || filedAs || pendFound) ? 'Done — see the summary below.' : ownerSavedNow ? 'Saved.' : 'Nothing new to save — already filed.'));
       }
@@ -807,6 +818,8 @@ function handleSetup(v){
       var heldCode=function(f){ var h=byCode(allRows || activeRows || [], f.code).filter(function(x){ return x && sameCompany(x, f.name); }); return h.length===1 ? h[0].code : f.code; };
       if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || heldCode(f)); }).join(', ')+') — not created again');
       if(namedNow.length) out.push('⚠️ '+namedNow.length+' '+plural(namedNow.length,'is','are')+' already in Legal → Entities under another code: '+namedNow.map(function(f){ return esc(f.name)+' ('+esc((f.row && f.row.code) || '')+')'; }).join(', ')+' — not created again');
+      var codesOf=function(rows){ return (rows||[]).map(function(r){ return esc((r && r.code) || ''); }).join(', '); };
+      if(manyNow.length) out.push('⚠️ '+manyNow.length+' '+plural(manyNow.length,'is','are')+' in Legal → Entities more than once, under other codes: '+manyNow.map(function(f){ return esc(f.name)+' ('+codesOf(f.rows)+')'; }).join('; ')+' — not created again; this walkthrough cannot tell which one you mean');
       // a 409 this walkthrough cannot resolve to the typed company (rounds 18-19). FL keeps CODES unique, never names: Legal → Entities
       // adds the company under a code chosen there, so the remedy never asks for another legal name
       var goneBy=function(kind){ return goneNow.filter(function(f){ return f.kind===kind; }); }, gR=goneBy('removed'), gA=goneBy('absent'), gC=goneBy('clash');
@@ -861,6 +874,7 @@ function handleSetup(v){
         return t.length ? ' <span class="su-dim">'+t.join(' ')+'</span>' : '';
       };
       var pReason=function(){
+        if(primaryStatus==='many') return 'is in Legal → Entities more than once (under '+codesOf(primaryMany)+'), so this walkthrough cannot tell which one to file under';
         if(primaryStatus===409 && primaryNoHolder) return 'was refused by the server (HTTP 409), but no company in your lists has its code';
         if(primaryStatus===409) return 'already exists but could not be looked up';
         if(primaryStatus===403) return 'was refused by the server (not allowed) — this account cannot create it';
@@ -876,6 +890,7 @@ function handleSetup(v){
         return authed ? 'was not sent — your session expired' : 'was not sent — sign in to the Command Center first';   // no token at the send: certainly not sent
       };
       var pAdvice=function(){
+        if(primaryStatus==='many') return ' Set the Parents in Legal → Entities, on the one you mean.';
         if(primaryStatus===409 && primaryNoHolder) return ' Retry it; if it is refused again, add it in Legal → Entities, where you choose the code, then set the Parents there.';
         if(primaryStatus===409) return '';                                           // the clause below says: set its Parent to P
         if(primaryStatus===403) return ' Set the Parents in Legal → Entities once '+pname+' exists.';
@@ -911,6 +926,8 @@ function handleSetup(v){
         return ' <span class="su-dim">'+t.join(' ')+'</span>';
       };
       var ending=null;
+      var removedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].removed; }).length;   // rows this form created that Legal → Entities no longer has
+      var removedNote=function(){ return removedN ? ' <span class="su-dim">'+removedN+' this form created '+plural(removedN,'was','were')+' removed in Legal → Entities since and '+plural(removedN,'is','are')+' not counted.</span>' : ''; };
       if(n){
         ending='You created '+n+' compan'+plural(n,'y','ies')+'. ';
         var parts=[];
@@ -957,8 +974,7 @@ function handleSetup(v){
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
         if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted — check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
-        var removedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].removed; }).length;
-        if(removedN) ending+=' <span class="su-dim">'+removedN+' this form created '+plural(removedN,'was','were')+' removed in Legal → Entities since and '+plural(removedN,'is','are')+' not counted.</span>';
+        ending+=removedNote();
         if(refreshFailed) ending+=' <span class="su-dim">Parents and ownership are shown as this form stored them — Legal → Entities could not be read just now, so a change made there since is not shown.</span>';
         if(unverifiedN) ending+=' <span class="su-dim">'+unverifiedN+' could not be verified — the server did not echo a parent; check '+plural(unverifiedN,'its','their')+' Parent in Legal → Entities.</span>';
       } else if(existsAll.length || (pr && pr.state==='exists') || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
@@ -968,8 +984,16 @@ function handleSetup(v){
         var exSubs=existsAll.filter(function(k){ return k!==pk && LEDGER[k].code!==pcode; });                // existing names other than the primary
         ending='No new company was '+(unknownRows.length ? 'confirmed' : 'created')+' — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
           ((subs && exSubs.length)
-            ? ' The subsidiaries box only sets a parent on a company it creates, so it changed nothing: set '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>&rsquo;s' : 'each one&rsquo;s')+' Parent in Legal → Entities.'
+            ? ' The subsidiaries box only sets a parent on a company it creates, so it changed nothing: check '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>&rsquo;s' : 'each one&rsquo;s')+' Parent in Legal → Entities.'
             : ' Parent and Ownership % are set in Legal → Entities.');
+        if(other.length) ending+=notCountedNote();
+        if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
+        ending+=goneNote();
+        ending+=removedNote();
+      } else if(removedN){
+        // every company this form created was removed in Legal → Entities since: the ending shown before described them — it is
+        // replaced, never left standing as this form's status (round 24)
+        ending='No company this form created is in Legal → Entities now — '+plural(removedN,'the one','all '+removedN)+' it created '+plural(removedN,'was','were')+' removed there since.';
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
