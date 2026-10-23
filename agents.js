@@ -555,7 +555,7 @@ function handleSetup(v){
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
         else if(pr.state==='unconfirmed'){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
       }
-      var entCreated=0, createdNow=Object.create(null), failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, skippedRemoved=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
+      var entCreated=0, failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, skippedRemoved=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name);
         if(seenCodes[code] || seenKeys[k]){ dupInList++; continue; }       // a later line of THIS list repeating an earlier one (same name, or same code)
@@ -588,7 +588,7 @@ function handleSetup(v){
         if(payload.parent_entity_id && (res || okNoRecord || (!st && sent))) ASKED[code]=true;
         if(res){
           R.row=res; R.state='stored'; R.unverified=!!(payload.parent_entity_id && !('parent_entity_id' in res));   // asked for a parent, echo did not say
-          R.createdParent=res.parent_entity_id||null; if(res.id) createdNow[res.id]=1;   // the parent it was CREATED with (a later edit in the tile is not "from an earlier attempt")
+          R.createdParent=res.parent_entity_id||null;   // the parent it was CREATED with (a later edit in the tile is not "from an earlier attempt")
           entCreated++;
           if(i===0 && biz){ primary=res; primaryExisting=false; }
           fl.fileToDocNav(name+' — entity formation','entity','entities');
@@ -617,7 +617,7 @@ function handleSetup(v){
       // matched by name (never filed twice), a record this form filed is re-located by id (a rename or a removal made there
       // is seen), and an earlier send of this form that got no reply is settled. When it cannot be read, the page session's
       // memory decides, and an owner that may already be filed is held — never re-sent blind.
-      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerDupSettled=false, ownerFound=false, foundLabel=null, filedAs=null, filedAsStale=false, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null, heldPend=false;
+      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerDupSettled=false, ownerFound=false, foundLabel=null, filedAs=null, filedAsStale=false, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
       var noteOwner=function(rec, label){ var k=(rec && rec.id) || ('name:'+nkey(label)); if(!OWNER_NOTED[k]){ OWNER_NOTED[k]=1; fl.fileToDocNav(label+' — owner profile','personal-info','personal-information'); } };
       var sendOwner=async function(){
         var orec=null, otok=!!(window.flApi && flApi.authed && flApi.authed()), opay={ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' };
@@ -626,7 +626,7 @@ function handleSetup(v){
           else { orec=await fl.createRecord(opay); }
         } catch(e){ orec=null; }
         if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; OWNER_BY[orec.id]=formId; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
-        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist, beforeIds:olist ? olist.map(function(x){ return x && x.id; }) : null }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
+        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
       };
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
@@ -637,16 +637,11 @@ function handleSetup(v){
         var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
         if(olist){
           if(pend){                                                                          // settle this form's no-reply send
-            var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend, beforeIds=ownerRec.beforeIds; delete OWNER_MAYBE[pk2]; ownerRec=null;
-            if(!ph && wasAbsent && beforeIds){                                           // not under its name: renamed there since? the NEW records tell
-              var fresh=olist.filter(function(x){ return x && x.id && beforeIds.indexOf(x.id)<0 && !(OWNER_BY[x.id] && OWNER_BY[x.id]!==formId); });
-              if(fresh.length===1){ ph=fresh[0]; OWNER_IDS[pk2]=ph.id; }                     // that send's record, renamed: tied, never filed twice
-              else if(fresh.length>1){ heldPend=true; ownerRec={ label:pend, rec:null, mine:true, maybe:true, absentAtSend:true, beforeIds:beforeIds }; OWNER_MAYBE[pk2]={ label:pend }; ownerMaybe.push({ label:pend }); }
-            }
+            var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend; delete OWNER_MAYBE[pk2]; ownerRec=null;   // settled by NAME only
             if(ph){
               OWNER_FILED[pk2]={ label:pend, rec:ph }; if(ph.id) OWNER_IDS[pk2]=ph.id;
               // the list read just before that send had no record of this name, so the one there now is this form's own filing
-              // (a later corrected spelling gets "rename it", never a second record); otherwise it is only "a record named …"
+              // (a later corrected spelling is told to replace it there, never filed a second time); otherwise it is only "a record named …"
               var otherForm=!!(ph.id && OWNER_BY[ph.id] && OWNER_BY[ph.id]!==formId);          // another setup form filed it after this send
               if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id){ OWNER_BY[ph.id]=formId; OWNER_SETTLED[ph.id]=1; } noteOwner(ph, ph.label||pend); }
               else if(pk2===ok_) noteOwner(ph, ph.label||pend); else pendFound=pend;
@@ -674,8 +669,7 @@ function handleSetup(v){
             if(own && own.id!==tied.id){ ownerDup=own.label; ownerDupSettled=!!OWNER_SETTLED[own.id]; }
             if(!own) ownerRec={ label:tied.label, rec:tied, mine:false };
           }
-          else if(own){ ownerRenamed=true; ownerRec={ label:own.label, rec:own, mine:true }; if(own.id) OWNER_IDS[ok_]=own.id; }   // this form filed another spelling that is still there: rename it (another chip must not file this name)
-          else if(heldPend){}                                                                  // more than one new record since the no-reply send: held, never re-sent blind
+          else if(own){ ownerRenamed=true; ownerRec={ label:own.label, rec:own, mine:true }; if(own.id) OWNER_IDS[ok_]=own.id; }   // this form filed another spelling that is still there: replace it there (another chip must not file this name)
           else await sendOwner();
         } else {
           // Personal Information could not be read: the page session decides
@@ -729,8 +723,8 @@ function handleSetup(v){
                                                        : '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information'; };
       if(ownerFound) out.push('✅ The owner is in Personal Information — a record named &ldquo;'+esc(foundLabel || owner)+'&rdquo; is there; not filed again'+dupClause());
       if(pendFound) out.push('A record named &ldquo;'+esc(pendFound)+'&rdquo; is in Personal Information — if this form filed it under a mistyped name, remove it there');
-      if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record '+(filedAsStale ? 'was named &ldquo;'+esc(filedAs)+'&rdquo; when last checked (it cannot be checked now)' : 'is named &ldquo;'+esc(filedAs)+'&rdquo;')+' — rename it there if &ldquo;'+esc(owner)+'&rdquo; is right' : '')+dupClause());
-      if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again; rename it to &ldquo;'+esc(owner)+'&rdquo; in Personal Information'+(renameUnchecked ? ' (Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, remove &ldquo;'+esc(ownerRec.label)+'&rdquo; instead)' : ''));
+      if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record '+(filedAsStale ? 'was named &ldquo;'+esc(filedAs)+'&rdquo; when last checked (it cannot be checked now)' : 'is named &ldquo;'+esc(filedAs)+'&rdquo;')+' — if &ldquo;'+esc(owner)+'&rdquo; is right, remove &ldquo;'+esc(filedAs)+'&rdquo; there and add &ldquo;'+esc(owner)+'&rdquo; (records there cannot be renamed)' : '')+dupClause());
+      if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again. In Personal Information remove &ldquo;'+esc(ownerRec.label)+'&rdquo; and add &ldquo;'+esc(owner)+'&rdquo; (records there cannot be renamed)'+(renameUnchecked ? '; Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, only remove &ldquo;'+esc(ownerRec.label)+'&rdquo;' : ''));
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
       if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
       if(notAllowed.length) out.push('⚠️ '+notAllowed.length+' refused by the server (not allowed) — '+notAllowed.map(function(f){ return esc(f.name); }).join(', '));
