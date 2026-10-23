@@ -657,7 +657,7 @@ function handleSetup(v){
         ending='You created '+n+' compan'+plural(n,'y','ies')+'. ';
         var parts=[];
         if(primaryExisting) parts.push('<b>'+pname+'</b> already existed, so it was not created again.');
-        if(subs && primaryFailed) parts.push('<b>'+pname+'</b> '+pReason()+' — the subsidiaries box needs it, so nothing was filed under it.'+pAdvice());
+        if(subs && primaryFailed) parts.push('<b>'+pname+'</b> '+pReason()+'. The subsidiaries box needs it, so nothing was filed under it.'+pAdvice());
         if(underCurrent.length){
           var K=underCurrent.length;
           parts.push((others.length===1 ? (n===1 ? 'It is' : namesOf(underCurrent)+' is') : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
