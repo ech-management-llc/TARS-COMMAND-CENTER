@@ -407,6 +407,7 @@ var OWNER_FILED=Object.create(null), OWNER_MAYBE=Object.create(null), OWNER_NOTE
 var OWNER_IDS=Object.create(null);   // owner name -> the record id this page filed, found or advised for it (a rename made in Personal Information keeps the tie)
 var OWNER_SEEN=Object.create(null);  // record id -> the name Personal Information gave it when last read (said when it cannot be read now)
 var OWNER_BY=Object.create(null), FORM_SEQ=0;   // record id -> the setup form that filed it (another form's filing is never claimed as this form's)
+var OWNER_SETTLED=Object.create(null);          // record id -> claimed after a no-reply send, not from a 201 echo (it may be one added by hand)
 // zero-width / format characters never make a different (or a blank) company: stripped from every typed name
 var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
 function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
@@ -601,7 +602,7 @@ function handleSetup(v){
       // matched by name (never filed twice), a record this form filed is re-located by id (a rename or a removal made there
       // is seen), and an earlier send of this form that got no reply is settled. When it cannot be read, the page session's
       // memory decides, and an owner that may already be filed is held — never re-sent blind.
-      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerFound=false, foundLabel=null, filedAs=null, filedAsStale=false, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
+      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerDupSettled=false, ownerFound=false, foundLabel=null, filedAs=null, filedAsStale=false, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
       var noteOwner=function(rec, label){ var k=(rec && rec.id) || ('name:'+nkey(label)); if(!OWNER_NOTED[k]){ OWNER_NOTED[k]=1; fl.fileToDocNav(label+' — owner profile','personal-info','personal-information'); } };
       var sendOwner=async function(){
         var orec=null, otok=!!(window.flApi && flApi.authed && flApi.authed()), opay={ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' };
@@ -627,7 +628,7 @@ function handleSetup(v){
               // the list read just before that send had no record of this name, so the one there now is this form's own filing
               // (a later corrected spelling gets "rename it", never a second record); otherwise it is only "a record named …"
               var otherForm=!!(ph.id && OWNER_BY[ph.id] && OWNER_BY[ph.id]!==formId);          // another setup form filed it after this send
-              if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id) OWNER_BY[ph.id]=formId; noteOwner(ph, pend); }
+              if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id){ OWNER_BY[ph.id]=formId; OWNER_SETTLED[ph.id]=1; } noteOwner(ph, pend); }
               else if(pk2===ok_) noteOwner(ph, pend); else pendFound=pend;
             }
           }
@@ -644,13 +645,13 @@ function handleSetup(v){
             if(prevId && prevId===hit.id) ownerSkipped=true;                                 // the record this page tied to this name
             else { ownerFound=true; foundLabel=hit.label || owner; }
             if(OWNER_MAYBE[ok_]){ delete OWNER_MAYBE[ok_]; noteOwner(hit, owner); }       // another form's no-reply send may have filed it
-            if(own && own.id!==hit.id) ownerDup=own.label;                                 // this form's filing is a second record of the owner
+            if(own && own.id!==hit.id){ ownerDup=own.label; ownerDupSettled=!!OWNER_SETTLED[own.id]; }   // this form's filing is a second record of the owner
             OWNER_FILED[ok_]={ label:owner, rec:hit }; if(hit.id) OWNER_IDS[ok_]=hit.id;
             ownerRec=own ? { label:own.label, rec:own, mine:true } : { label:owner, rec:hit, mine:false };   // only this form's own filing outlives a new owner
           }
           else if(tied){                                                                     // this page filed (or was told of) this owner; Personal Information names the record differently now
             ownerSkipped=true; filedAs=tied.label;
-            if(own && own.id!==tied.id) ownerDup=own.label;
+            if(own && own.id!==tied.id){ ownerDup=own.label; ownerDupSettled=!!OWNER_SETTLED[own.id]; }
             if(!own) ownerRec={ label:tied.label, rec:tied, mine:false };
           }
           else if(own){ ownerRenamed=true; ownerRec={ label:own.label, rec:own, mine:true }; if(own.id) OWNER_IDS[ok_]=own.id; }   // this form filed another spelling that is still there: rename it (another chip must not file this name)
@@ -660,7 +661,7 @@ function handleSetup(v){
           if(pend && nkey(pend)!==ok_) ownerMaybe.push({ label:pend, unchecked:true });   // the earlier spelling is still unknown: said, never dropped
           if(OWNER_FILED[ok_]){
             ownerSkipped=true;
-            if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)!==ok_) ownerDup=ownerRec.label;
+            if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)!==ok_){ ownerDup=ownerRec.label; ownerDupSettled=!!(ownerRec.rec && OWNER_SETTLED[ownerRec.rec.id]); }
             if(!ownerRec) ownerRec={ label:OWNER_FILED[ok_].label, rec:OWNER_FILED[ok_].rec, mine:false };
           }
           else if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)===ok_) ownerSkipped=true;   // the name this form's filing was last seen under
@@ -715,9 +716,11 @@ function handleSetup(v){
       if(skippedUnconfirmed) out.push(skippedUnconfirmed+' saved earlier without a confirmation — not sent again; check Legal → Entities');
       if(dupInList) out.push(dupInList+' duplicate'+plural(dupInList,'','s')+' of an earlier line — skipped');
       if(ownerSavedNow) out.push('✅ Filed the owner under Personal Information');
-      if(ownerFound) out.push('✅ The owner is in Personal Information — a record named &ldquo;'+esc(foundLabel || owner)+'&rdquo; is there; not filed again'+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
+      var dupClause=function(){ return !ownerDup ? '' : ownerDupSettled ? '; &ldquo;'+esc(ownerDup)+'&rdquo; is also in Personal Information — remove that duplicate there'
+                                                       : '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information'; };
+      if(ownerFound) out.push('✅ The owner is in Personal Information — a record named &ldquo;'+esc(foundLabel || owner)+'&rdquo; is there; not filed again'+dupClause());
       if(pendFound) out.push('A record named &ldquo;'+esc(pendFound)+'&rdquo; is in Personal Information — if this form filed it under a mistyped name, remove it there');
-      if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record '+(filedAsStale ? 'was named &ldquo;'+esc(filedAs)+'&rdquo; when last checked (it cannot be checked now)' : 'is named &ldquo;'+esc(filedAs)+'&rdquo;')+' — rename it there if &ldquo;'+esc(owner)+'&rdquo; is right' : '')+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
+      if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record '+(filedAsStale ? 'was named &ldquo;'+esc(filedAs)+'&rdquo; when last checked (it cannot be checked now)' : 'is named &ldquo;'+esc(filedAs)+'&rdquo;')+' — rename it there if &ldquo;'+esc(owner)+'&rdquo; is right' : '')+dupClause());
       if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again; rename it to &ldquo;'+esc(owner)+'&rdquo; in Personal Information'+(renameUnchecked ? ' (Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, remove &ldquo;'+esc(ownerRec.label)+'&rdquo; instead)' : ''));
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
       if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
