@@ -480,7 +480,7 @@ function handleSetup(v){
         '<div>'+names.map(function(n,i){ var r=storedOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
         (anyStored ? 'Stored names and codes are permanent here — editing a stored line adds a new company. ' : 'The code is permanent — fix a typo here, before saving. ')+'Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
         (skippedLines.length ? ' <span class="su-err">Will not save — same code or name as an earlier line: '+skippedLines.join(', ')+'.</span>' : '')+
-        (clashLines.length ? ' <span class="su-err">Cannot be created here — a code keeps only the first 40 characters of a name, and an earlier line already has this one: '+clashLines.join(', ')+'. Add it in Legal → Entities, where you choose the code.</span>' : '')+
+        (clashLines.length ? ' <span class="su-err">Same code as an earlier line — a code keeps only the first 40 characters of a name, so this walkthrough can create only one of them: '+clashLines.join(', ')+'. Add the other in Legal → Entities, where you choose the code.</span>' : '')+
         (fallback.length ? ' <span class="su-err">A name with no A–Z letters or 0–9 digits falls back to '+esc(fallback[0])+' — other characters are dropped from the code. Give it a Latin name, or choose the code yourself in Legal → Entities.</span>' : '');
     };
     ['#su-biz','#su-ents'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.addEventListener('input', previewCodes); });
@@ -489,7 +489,9 @@ function handleSetup(v){
     // indexed by name AND by derived code (a stored row by code wins over a row-less entry by name), so a retry never
     // re-sends what is settled, the owner is filed once, and every sentence below states what the server echoed
     var LEDGER=Object.create(null), ORDER=[], BYCODE=Object.create(null), ASKED=Object.create(null), ownerRec=null, formId=++FORM_SEQ;
-    var nkey=function(name){ return cleanName(name).toLowerCase().replace(/\s+/g,' '); };   // case, edge and internal whitespace never make a second key
+    // case, edge and internal whitespace, Unicode composition and a typographic apostrophe (a phone's smart punctuation, a
+    // paste from a document) never make a second key — the owner record is matched by it (round 21)
+    var nkey=function(name){ return cleanName(name).normalize('NFKC').replace(/[‘’‛ʼ′]/g,"'").toLowerCase().replace(/\s+/g,' '); };
     // the ledger entry for a typed name: its own entry if that one has a stored row, else the row this form stored under the
     // same code (another spelling), else its own entry (exists / refused / failed), else none
     // two names that share a code are the same company unless the code cannot tell: a symbol-only name's ENTITY_<hex> is a hash
@@ -560,6 +562,8 @@ function handleSetup(v){
       var namedIn=function(rows, code, name){ var m=rows.filter(function(x){ return x && x.active!==false && namesMatch(x.name, name) && !byCode([x], code).length; }); return m.length===1 ? m[0] : null; };
       var namedOf=async function(code, name){ var rows=await listActive(); return rows ? namedIn(rows, code, name) : null; };
       var goneOf=async function(code, name){
+        // a company this form stored under the code — possibly earlier in this very click, after the lists were read — holds it (round 21)
+        var own=byCode(storedRows(), code).filter(function(x){ return !sameCompany(x, name); }); if(own.length===1) return { row:own[0], kind:'clash' };
         var rows=await listAll(), c, nm;
         if(rows){ nm=namedIn(rows, code, name); if(nm) return { row:nm, kind:'named' }; c=byCode(rows, code); if(c.length!==1) return c.length ? null : { row:null, kind:'absent' }; if(!sameCompany(c[0], name)) return { row:c[0], kind:'clash' }; return c[0].active===false ? { row:c[0], kind:'removed' } : null; }
         rows=await listActive(); if(!rows) return null; nm=namedIn(rows, code, name); if(nm) return { row:nm, kind:'named' }; c=byCode(rows, code);
@@ -593,8 +597,7 @@ function handleSetup(v){
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name);
         if(seenKeys[k] || (seenCodes[code] && sameName(seenCodes[code], name))){ dupInList++; continue; }   // a later line of THIS list repeating an earlier one (same name, or same code and company)
-        if(seenCodes[code]){ goneNow.push({ name:name, code:code, row:{ name:seenCodes[code], code:code }, kind:'clash' }); continue; }   // another line's company holds the cut code (round 20)
-        seenCodes[code]=name; seenKeys[k]=true;
+        if(!seenCodes[code]) seenCodes[code]=name; seenKeys[k]=true;   // another company of this list cut to the same code goes on: Legal → Entities and the server decide (round 21)
         var R=resolveL(k, code, name);                                      // by name, or by a code this form already stored
         // the typed name in Legal → Entities under another code is the typed company — never created a second time, never "add it
         // again" (round 20); a stored row, one looked up by its code, a refusal or an unconfirmed save is already settled
@@ -622,7 +625,8 @@ function handleSetup(v){
           else if(window.flEntities && flEntities.createX){ var r=await flEntities.createX(payload); st=(r && r.status)||0; res=(r && r.ok && r.data && typeof r.data==='object' && !Array.isArray(r.data)) ? r.data : null; okNoRecord=!!(r && r.ok && !res); }   // status-carrying: 409 exists · 403 refused · 0 no response
           else { res=await fl.createEntity(payload); }
         }catch(e){ res=null; }
-        R=rec(name, code); R.code=code; R.st=st; BYCODE[code]=R;
+        R=rec(name, code); R.code=code; R.st=st;
+        if(!(BYCODE[code] && BYCODE[code]!==R && BYCODE[code].row && !BYCODE[code].removed)) BYCODE[code]=R;   // never hide another company's stored row under its code
         // status 0 cannot be split on the client into "sent" and "not sent" (offline, a refresh that cleared the token, another
         // tab signing out, a lost reply): with a token at the send it is an UNKNOWN — it may or may not be on the server — and
         // that stays sticky for the row; only a send with no token at all is certainly not sent (fl-api returns before fetch)
@@ -759,7 +763,7 @@ function handleSetup(v){
       done=(retryable===0 && !expired && (stored.length>0 || (!!ownerRec && allEnts.length===0)));
       busy=false;
       if(done){
-        var clean=!failedNow.length && !goneNow.length && !namedNow.length && !unconfirmedNow.length && !ownerRenamed && !ownerDup && !primaryFailed && (entCreated>0 || ownerSavedNow);   // THIS click saved something and nothing went wrong
+        var clean=!failedNow.length && !goneNow.length && !namedNow.length && !unconfirmedNow.length && !ownerRenamed && !ownerDup && !filedAs && !pendFound && !primaryFailed && (entCreated>0 || ownerSavedNow);   // THIS click saved something and nothing went wrong
         go.textContent=clean ? '✓ Saved' : '✓ Done';
         lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : (ownerSavedNow ? 'Saved.' : (ownerRenamed || ownerDup) ? 'Done — see the summary below.' : 'Nothing new to save — already filed.'));
       }
