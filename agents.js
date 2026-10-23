@@ -482,19 +482,30 @@ function handleSetup(v){
       var foundOf=function(n,i){ if(storedOf(n,i)) return false; var s_=settledOf(n,i); return !!(s_ && s_.tag==='already in Legal → Entities'); };   // a line a click found in Legal → Entities
       // replay the click's own rule, in order: a line is skipped when its code or its name key matches an earlier line
       // that was NOT skipped — so the warning names exactly the lines the click will skip
-      var pvCodes=Object.create(null), pvKeys=Object.create(null), skippedLines=[], clashLines=[], same=(typeof sameName==='function') ? sameName : function(){ return true; };
+      var pvCodes=Object.create(null), pvKeys=Object.create(null), dupAt=Object.create(null), skippedLines=[], clashLines=[], same=(typeof sameName==='function') ? sameName : function(){ return true; };
       names.forEach(function(n,i){ var k=nkey(n), c=codes[i];
-        if(pvKeys[k] || (pvCodes[c] && same(pvCodes[c], n))){ skippedLines.push(esc(n)+' ('+esc(c)+')'); return; }
-        if(pvCodes[c] && foundOf(n,i)){ pvKeys[k]=1; return; }   // already in Legal → Entities under its own code: no clash to warn about (round 30)
-        if(pvCodes[c]){ clashLines.push(esc(n)+' ('+esc(c)+')'); pvKeys[k]=1; return; }   // another company whose code is cut to the same 40 characters (round 20); a repeat of it is a duplicate, as the click counts it
-        pvCodes[c]=n; pvKeys[k]=1; });
+        if(pvKeys[k] || (pvCodes[c] && same(pvCodes[c], n))){ skippedLines.push(esc(n)+' ('+esc(c)+')'); dupAt[i]=1; return; }
+        if(!pvCodes[c]) pvCodes[c]=n; pvKeys[k]=1; });
+      // the 40-character clash as the click meets it (round 31): a line the click would SEND cannot be created when another company
+      // of this list HOLDS the cut code (stored under it, found under it, saved without a confirmation — wherever it sits) or an
+      // earlier line it sends TAKES it first; a line found under another code, removed, refused or not created takes no code
+      var bare=function(x){ x=String(x||''); return /^t[0-9a-f]{8}_/.test(x) ? x.slice(10) : x; };
+      var holdsCode=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i], n) : null; if(!L) return false;
+        if(L.row) return !L.removed && bare(L.row.code)===codes[i];
+        if(L.state==='unconfirmed') return true;
+        return L.state==='exists' && !L.named && !(L.many && !L.existing) && bare((L.existing && L.existing.code) || L.heldCode || codes[i])===codes[i]; };
+      var holder=Object.create(null), taker=Object.create(null);
+      names.forEach(function(n,i){ if(!dupAt[i] && !holder[codes[i]] && holdsCode(n,i)) holder[codes[i]]=n; });
+      names.forEach(function(n,i){ if(dupAt[i] || storedOf(n,i) || settledOf(n,i)) return; var c=codes[i], h=holder[c] || taker[c];
+        if(h && !same(h, n)){ clashLines.push(esc(n)+' ('+esc(c)+')'); return; }
+        if(!taker[c]) taker[c]=n; });
       var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i) && !foundOf(names[i],i); });   // a stored or found line is permanent: never ask to rename it (round 30)
       var anyStored=names.some(function(n,i){ return !!storedOf(n,i) || foundOf(n,i); });
       box.innerHTML='Codes these names become — permanent keys (an owner account&rsquo;s prefix, t…_, is added on save; the summary shows the stored key):'+
         '<div>'+names.map(function(n,i){ var r=storedOf(n,i), st=r ? null : settledOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : st ? esc(n)+' → <b>'+esc(st.code)+'</b> <span class="su-dim">'+st.tag+'</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
         (anyStored ? 'Stored names and codes are permanent here — editing a stored line adds a new company. ' : 'The code is permanent — fix a typo here, before saving. ')+'Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
         (skippedLines.length ? ' <span class="su-err">Will not save — same code or name as an earlier line: '+skippedLines.join(', ')+'.</span>' : '')+
-        (clashLines.length ? ' <span class="su-err">Same code as an earlier line — a code keeps only the first 40 characters of a name, so this walkthrough can create only one of them: '+clashLines.join(', ')+'. Add the other in Legal → Entities, where you choose the code.</span>' : '')+
+        (clashLines.length ? ' <span class="su-err">Same code as another line — a code keeps only the first 40 characters of a name, so this walkthrough can create only one of them: '+clashLines.join(', ')+'. Add the other in Legal → Entities, where you choose the code.</span>' : '')+
         (fallback.length ? ' <span class="su-err">A name with no A–Z letters or 0–9 digits falls back to '+esc(fallback[0])+' — other characters are dropped from the code. Give it a Latin name, or choose the code yourself in Legal → Entities.</span>' : '');
     };
     ['#su-biz','#su-ents'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.addEventListener('input', previewCodes); });
