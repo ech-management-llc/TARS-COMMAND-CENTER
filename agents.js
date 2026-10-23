@@ -659,7 +659,11 @@ function handleSetup(v){
           var goneNamed=R.existing; R.existing=null; R.named=false; R.state='';
           if(i===0 && biz && primary && primary.id===goneNamed.id){ primary=null; primaryExisting=false; primaryStatus=0; primaryFailed=false; }
         }
-        if(R && R.row && R.removed){ skippedRemoved++; continue; }           // removed in Legal → Entities since: not sent again, not counted
+        if(R && R.row && R.removed){                                         // removed in Legal → Entities since: not sent again, not counted
+          // ... unless the typed name is listed there more than once now: said so, never "add it again" (round 33)
+          var nkR=readNow ? namedKind(readNow, code, name) : null;
+          if(nkR && nkR.kind==='many'){ manyNow.push({ name:name, rows:nkR.rows }); if(i===0 && biz){ primaryStatus='many'; primaryMany=nkR.rows; primaryFailed=!!subs; } continue; }
+          skippedRemoved++; continue; }
         if(R && R.row){ skippedStored++; if(i===0 && biz && !primary){ primary=R.row; primaryExisting=false; } continue; }   // stored by an earlier attempt: never sent again
         if(R && R.state==='gone'){ goneNow.push({ name:name, code:R.conflictCode||code, row:R.goneRow||null, kind:R.goneKind||'absent' }); continue; }   // a code this walkthrough cannot use — said, named, never sent
         if(R && R.state==='exists' && R.many && !R.existing){ manyNow.push({ name:name, rows:R.many }); continue; }   // listed more than once under other codes
