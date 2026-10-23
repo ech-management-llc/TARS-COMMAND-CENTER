@@ -408,6 +408,7 @@ var OWNER_IDS=Object.create(null);   // owner name -> the record id this page fi
 var OWNER_SEEN=Object.create(null);  // record id -> the name Personal Information gave it when last read (said when it cannot be read now)
 var OWNER_BY=Object.create(null), FORM_SEQ=0;   // record id -> the setup form that filed it (another form's filing is never claimed as this form's)
 var OWNER_SETTLED=Object.create(null);          // record id -> claimed after a no-reply send, not from a 201 echo (it may be one added by hand)
+var OWNER_GONE=Object.create(null);             // record id -> the last readable Personal Information list did not have it: removed there
 // zero-width / format characters never make a different (or a blank) company: stripped from every typed name
 var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
 function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
@@ -538,24 +539,34 @@ function handleSetup(v){
       // the ending's advice there in between: one read of the list refreshes their Parent and Ownership, and a row it no
       // longer has was removed there (rounds 15-16)
       var refreshFailed=false;
+      // every company this caller can see INCLUDING those removed in Legal → Entities, read at most once per click (null: unreadable).
+      // FL keeps a removed company's code, so a 409 means "exists" or "was removed" — only this read tells them apart (round 18)
+      var allRows, listAll=async function(){ if(allRows!==undefined) return allRows; try{ var ar=(window.flApi && flApi.callX) ? await flApi.callX('GET', '/api/entities?include_inactive=true') : null; allRows=(ar && ar.ok && Array.isArray(ar.data)) ? ar.data : null; }catch(e){ allRows=null; } return allRows; };
+      var goneOf=async function(code, name){ var rows=await listAll(); if(!rows) return null; var c=rows.filter(function(x){ var xc=String((x&&x.code)||''); return xc===code || (/^t[0-9a-f]{8}_/.test(xc) && xc.slice(10)===code); }); return (c.length===1 && c[0].active===false && sameCompany(c[0], name)) ? c[0] : null; };
       if(ORDER.some(function(k){ return LEDGER[k].row || LEDGER[k].existing; })){
         var fr=null; try{ fr=(window.flEntities && flEntities.listX) ? await flEntities.listX() : null; }catch(e){ fr=null; }
         var frows=(fr && fr.ok && Array.isArray(fr.data)) ? fr.data : null, nowById=Object.create(null);
         if(frows){
           frows.forEach(function(x){ if(x && x.id) nowById[x.id]=x; });
           var syncRow=function(r){ var f=r && nowById[r.id]; if(f){ r.parent_entity_id=f.parent_entity_id||null; if('ownership_pct' in f) r.ownership_pct=f.ownership_pct; } return !!f; };
-          ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row){ if(syncRow(L.row)){ L.removed=false; if('parent_entity_id' in nowById[L.row.id]) L.unverified=false; } else L.removed=true; } syncRow(L.existing); });
+          ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row){ if(syncRow(L.row)){ L.removed=false; if('parent_entity_id' in nowById[L.row.id]) L.unverified=false; } else L.removed=true; } else if(L.existing && !syncRow(L.existing)) L.existing=null; });   // a looked-up company no longer listed is never a parent: looked up afresh below
         } else if(storedRows().length) refreshFailed=true;
+      }
+      // a company the server said EXISTS may have been removed in Legal → Entities since (or already was): never a Parent target,
+      // never "check its Parent" — the read that includes removed companies tells (round 18)
+      if(ORDER.some(function(k){ return LEDGER[k].state==='exists' && !LEDGER[k].row; })){
+        for(var gi=0; gi<ORDER.length; gi++){ var GL=LEDGER[ORDER[gi]], gr=(GL.state==='exists' && !GL.row) ? await goneOf(GL.code, GL.name) : null; if(gr){ GL.state='gone'; GL.goneRow=gr; GL.existing=null; } }
       }
       var pr = pk ? resolveL(pk, pcode) : null;
       if(pr){
         if(pr.row && pr.removed){ primaryStatus='removed'; if(subs) primaryFailed=true; }   // removed in Legal → Entities since this form created it
         else if(pr.row){ primary=pr.row; }
         else if(pr.state==='exists'){ if(!pr.existing){ var px_=await findExisting(pr.code); pr.existing=sameCompany(px_, pr.name) ? px_ : null; } if(pr.existing){ primary=pr.existing; primaryExisting=true; } else { primaryStatus=409; if(subs) primaryFailed=true; } }
+        else if(pr.state==='gone'){ primaryStatus='gone'; if(subs) primaryFailed=true; }   // removed in Legal → Entities: its code stays taken
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
         else if(pr.state==='unconfirmed'){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
       }
-      var entCreated=0, failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, skippedRemoved=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
+      var entCreated=0, failedNow=[], unconfirmedNow=[], goneNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, skippedRemoved=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name);
         if(seenCodes[code] || seenKeys[k]){ dupInList++; continue; }       // a later line of THIS list repeating an earlier one (same name, or same code)
@@ -563,6 +574,7 @@ function handleSetup(v){
         var R=resolveL(k, code);                                            // by name, or by a code this form already stored
         if(R && R.row && R.removed){ skippedRemoved++; continue; }           // removed in Legal → Entities since: not sent again, not counted
         if(R && R.row){ skippedStored++; if(i===0 && biz && !primary){ primary=R.row; primaryExisting=false; } continue; }   // stored by an earlier attempt: never sent again
+        if(R && R.state==='gone'){ goneNow.push({ name:name, code:code, row:R.goneRow||null }); continue; }   // removed in Legal → Entities: its code stays taken — said, named, never sent
         if(R && R.state==='exists'){ skippedExists++; continue; }           // the server said it exists: a retry cannot create it
         if(R && R.state==='refused'){ skippedRefused++; continue; }         // refused (403): a retry cannot change that
         if(R && R.state==='unconfirmed'){ skippedUnconfirmed++; continue; } // saved without a record in the reply: re-sending would duplicate or 409
@@ -605,7 +617,9 @@ function handleSetup(v){
             else if(ex){ R.existing=ex; primary=ex; primaryExisting=true; primaryStatus=409; }
             else { primaryStatus=409; if(subs) primaryFailed=true; }
           }
-          if(!mine) failedNow.push({ name:name, code:code, status:st });
+          var goneRow=(!mine && !ex && !legacy) ? await goneOf(code, name) : null;   // the code of a company removed in Legal → Entities (round 18)
+          if(goneRow){ R.state='gone'; R.goneRow=goneRow; goneNow.push({ name:name, code:code, row:goneRow }); if(i===0 && biz) primaryStatus='gone'; }
+          else if(!mine) failedNow.push({ name:name, code:code, status:st });
         } else {
           failedNow.push({ name:name, code:code, status:st, maybe:!!R.maybeStored });
           if(st===403){ R.state='refused'; if(i===0 && biz){ primaryStatus=403; if(subs) primaryFailed=true; } }
@@ -633,6 +647,12 @@ function handleSetup(v){
         var prevId=OWNER_IDS[ok_];                                                          // the record this page tied to this name before this click
         var olist=await listOwners();
         (olist||[]).forEach(function(x){ if(x && x.id) OWNER_SEEN[x.id]=x.label; });
+        if(olist){                                                                          // the list is the truth for EVERY tie the page holds, not only this name's:
+          var present=Object.create(null); olist.forEach(function(x){ if(x && x.id) present[x.id]=1; });   // a record it no longer has was removed there (round 18)
+          Object.keys(OWNER_SEEN).forEach(function(id){ if(present[id]) delete OWNER_GONE[id]; else OWNER_GONE[id]=1; });
+          Object.keys(OWNER_FILED).forEach(function(k){ var f=OWNER_FILED[k]; if(f && f.rec && f.rec.id && !present[f.rec.id]){ OWNER_GONE[f.rec.id]=1; delete OWNER_FILED[k]; } });
+          Object.keys(OWNER_IDS).forEach(function(k){ if(!present[OWNER_IDS[k]]){ OWNER_GONE[OWNER_IDS[k]]=1; delete OWNER_IDS[k]; } });
+        }
         var byName=function(l){ var k=nkey(l); return (olist||[]).filter(function(x){ return x && nkey(x.label)===k; })[0] || null; };
         var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
         if(olist){
@@ -673,6 +693,7 @@ function handleSetup(v){
           else await sendOwner();
         } else {
           // Personal Information could not be read: the page session decides
+          if(ownerRec && ownerRec.rec && ownerRec.rec.id && OWNER_GONE[ownerRec.rec.id]) ownerRec=null;   // a later read (by any setup form) showed it removed
           if(pend && nkey(pend)!==ok_) ownerMaybe.push({ label:pend, unchecked:true });   // the earlier spelling is still unknown: said, never dropped
           if(OWNER_FILED[ok_]){
             ownerSkipped=true;
@@ -727,6 +748,7 @@ function handleSetup(v){
       if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again. In Personal Information remove &ldquo;'+esc(ownerRec.label)+'&rdquo; and add &ldquo;'+esc(owner)+'&rdquo; (records there cannot be renamed)'+(renameUnchecked ? '; Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, only remove &ldquo;'+esc(ownerRec.label)+'&rdquo;' : ''));
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
       if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
+      if(goneNow.length) out.push('⚠️ '+goneNow.length+' '+plural(goneNow.length,'was','were')+' removed from Legal → Entities earlier: '+goneNow.map(function(f){ return esc(f.name); }).join(', ')+' — '+plural(goneNow.length,'its code','their codes')+' ('+goneNow.map(function(f){ return esc((f.row && f.row.code) || f.code); }).join(', ')+') '+plural(goneNow.length,'stays','stay')+' taken, so '+plural(goneNow.length,'it','they')+' cannot be created again under '+plural(goneNow.length,'that name','those names')+'. Give '+plural(goneNow.length,'it','each one')+' a different name');
       if(notAllowed.length) out.push('⚠️ '+notAllowed.length+' refused by the server (not allowed) — '+notAllowed.map(function(f){ return esc(f.name); }).join(', '));
       if(unconfirmedNow.length) out.push('⚠️ '+unconfirmedNow.length+' saved without a confirmation (the reply carried no record) — check '+plural(unconfirmedNow.length,'it','them')+' in Legal → Entities');
       // an unknown is never "Not saved" / "needs sign-in to persist": it may already be on the server
@@ -762,10 +784,13 @@ function handleSetup(v){
       var unresolved=function(k){ var r=resolveL(k, LEDGER[k].code); return !(r && r.row); };
       var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && unresolved(k) && !(primaryMentioned && (k===pk || L.code===pcode)); });
       var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused' && seenKeys[k] && unresolved(k); }).length;
+      var goneAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='gone' && seenKeys[k] && unresolved(k) && !(primaryMentioned && (k===pk || L.code===pcode)); }).length;
+      var goneNote=function(){ return goneAll ? ' <span class="su-dim">'+goneAll+' removed from Legal → Entities earlier '+plural(goneAll,'is','are')+' not counted — '+plural(goneAll,'its code stays','their codes stay')+' taken; give '+plural(goneAll,'it','each one')+' a different name.</span>' : ''; };
       var pReason=function(){
         if(primaryStatus===409) return 'already exists but could not be looked up';
         if(primaryStatus===403) return 'was refused by the server (not allowed) — this account cannot create it';
         if(primaryStatus==='removed') return 'was removed in Legal → Entities after this form created it';
+        if(primaryStatus==='gone') return 'was removed from Legal → Entities earlier, and its code stays taken — it cannot be created again under this name';
         if(primaryStatus==='unconfirmed') return 'was saved without a confirmation from the server';
         if(primaryMaybe) return primaryStatus ? 'didn&rsquo;t save this time (HTTP '+primaryStatus+'), but an earlier send got no reply — it may already be on the server'
                                               : 'got no reply — it may or may not have reached the server';   // sticky: a send that got no reply may have saved it
@@ -777,6 +802,7 @@ function handleSetup(v){
         if(primaryStatus===409) return '';                                           // the clause below says: set its Parent to P
         if(primaryStatus===403) return ' Set the Parents in Legal → Entities once '+pname+' exists.';
         if(primaryStatus==='removed') return ' Add it again in Legal → Entities, then set the Parents there.';
+        if(primaryStatus==='gone') return ' Give it a different name, then set the Parents in Legal → Entities.';
         if(primaryStatus==='unconfirmed') return ' Check it in Legal → Entities, then set the Parents there.';
         if(primaryMaybe) return (expired || !nowAuthed ? ' Sign in again, then check' : ' Check')+' Legal → Entities before retrying it — it may already be there.';
         if(primaryStatus===401 && expired) return ' Sign in again, then retry it.';
@@ -849,6 +875,7 @@ function handleSetup(v){
         ending+=parts.join(' ');
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
+        ending+=goneNote();
         if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted — check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
         var removedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].removed; }).length;
         if(removedN) ending+=' <span class="su-dim">'+removedN+' this form created '+plural(removedN,'was','were')+' removed in Legal → Entities since and '+plural(removedN,'is','are')+' not counted.</span>';
@@ -865,6 +892,7 @@ function handleSetup(v){
             : ' Parent and Ownership % are set in Legal → Entities.');
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
+        ending+=goneNote();
       }
       if(ending){
         if(endingEl){ try{ endingEl.remove(); }catch(e){} endingEl=null; }
