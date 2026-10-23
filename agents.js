@@ -567,7 +567,7 @@ function handleSetup(v){
         // a company this form stored under the code — possibly earlier in this very click, after the lists were read — holds it (round 21)
         var own=byCode(storedRows(), code).filter(function(x){ return !sameCompany(x, name); }); if(own.length===1) return { row:own[0], kind:'clash' };
         var rows=await listAll(), c, nm;
-        if(rows){ nm=namedIn(rows, code, name); if(nm) return { row:nm, kind:'named' }; c=byCode(rows, code); if(c.length!==1) return c.length ? null : { row:null, kind:'absent' }; if(!sameCompany(c[0], name)) return { row:c[0], kind:'clash' }; return c[0].active===false ? { row:c[0], kind:'removed' } : null; }
+        if(rows){ nm=namedIn(rows, code, name); if(nm) return { row:nm, kind:'named' }; c=byCode(rows, code); if(c.length!==1) return c.length ? null : { row:null, kind:'absent', wide:true }; if(!sameCompany(c[0], name)) return { row:c[0], kind:'clash' }; return c[0].active===false ? { row:c[0], kind:'removed' } : null; }
         rows=await listActive(); if(!rows) return null; nm=namedIn(rows, code, name); if(nm) return { row:nm, kind:'named' }; c=byCode(rows, code);
         return !c.length ? { row:null, kind:'absent' } : (c.length===1 && !sameCompany(c[0], name)) ? { row:c[0], kind:'clash' } : null;
       };
@@ -657,10 +657,10 @@ function handleSetup(v){
           }
           var g409=(!mine && !ex && !legacy) ? await goneOf(code, name) : null;   // a code this walkthrough cannot use: removed, another company's, or not listed
           if(g409 && g409.kind==='named'){ R.existing=g409.row; R.named=true; namedNow.push({ name:name, row:g409.row }); if(i===0 && biz){ primary=g409.row; primaryExisting=true; primaryStatus=409; primaryFailed=false; } }   // the typed name under another code
-          // FL answers ANY insert failure with 409: when no company in this caller's lists has the code, the first such 409 is a
-          // failed send, retried like any other; refused AGAIN, the code is taken by a company out of reach (or removed, when only
-          // the active list could be read), and the line says so (round 22)
-          else if(g409 && g409.kind==='absent' && !R.noHolder){ R.noHolder=true; R.state='failed'; failedNow.push({ name:name, code:code, status:409, noHolder:true }); if(i===0 && biz){ primaryNoHolder=true; if(subs) primaryFailed=true; } }
+          // FL answers ANY insert failure with 409: when even the read that includes removed companies has no company with the code,
+          // the first such 409 is a failed send, retried like any other; refused AGAIN, the code is taken by a company out of this
+          // account's reach, and the line says so. Without that read, a removed company may hold it: told at once (round 22)
+          else if(g409 && g409.kind==='absent' && g409.wide && !R.noHolder){ R.noHolder=true; R.state='failed'; failedNow.push({ name:name, code:code, status:409, noHolder:true }); if(i===0 && biz){ primaryNoHolder=true; if(subs) primaryFailed=true; } }
           else if(g409){ R.state='gone'; R.goneRow=g409.row; R.goneKind=g409.kind; goneNow.push({ name:name, code:code, row:g409.row, kind:g409.kind }); if(i===0 && biz){ primaryStatus='gone'; primaryGoneKind=g409.kind; primaryGoneRow=g409.row; } }
           else if(!mine) failedNow.push({ name:name, code:code, status:st });
         } else {
