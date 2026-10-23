@@ -588,34 +588,38 @@ function handleSetup(v){
       }
       // The OWNER (a person) is the personal_info record — NOT the business name. Filed ONCE: per form, and across forms in
       // this page session by normalised name; a renamed owner is never a second record.
-      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerFound=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
+      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerFound=false, foundLabel=null, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
-        var willSend=!OWNER_FILED[ok_] && !(ownerRec && ownerRec.mine && !ownerRec.maybe);
-        // personal_info has no unique key (FL files the same name twice): before the owner is sent — and to settle pend —
-        // Personal Information is listed once and matched by name. A match only says a record with that name is there.
-        var olist=(willSend || pend) ? await listOwners() : null;
+        var ownFiled=!!(ownerRec && ownerRec.mine && !ownerRec.maybe);                    // this form filed (201) a spelling of the owner
+        // personal_info has no unique key (FL files the same name twice): before the owner is sent, before a rename is advised,
+        // and to settle pend, Personal Information is listed once and matched by name. A match only says a record with that name is there.
+        var olist=(!OWNER_FILED[ok_] || pend) ? await listOwners() : null;
         var byName=function(l){ var k=nkey(l); return (olist||[]).filter(function(x){ return x && nkey(x.label)===k; })[0] || null; };
         if(pend){
           var pk2=nkey(pend);
           if(olist){
-            var ph=byName(pend); delete OWNER_MAYBE[pk2]; ownerRec=null;
-            if(ph){ OWNER_FILED[pk2]={ label:pend, rec:ph }; if(pk2===ok_) fl.fileToDocNav(pend+' — owner profile','personal-info','personal-information'); else pendFound=pend; }
+            var ph=byName(pend), had=!!OWNER_FILED[pk2]; delete OWNER_MAYBE[pk2]; ownerRec=null; ownFiled=false;
+            if(ph){ OWNER_FILED[pk2]={ label:pend, rec:ph }; if(pk2!==ok_) pendFound=pend; else if(!had) fl.fileToDocNav(pend+' — owner profile','personal-info','personal-information'); }   // another form may have filed the note already
           }
           else if(pk2!==ok_) ownerMaybe.push({ label:pend, unchecked:true });   // the earlier spelling is still unknown: said, never dropped
         }
         if(OWNER_FILED[ok_]){
-          if(pend && olist && nkey(pend)===ok_) ownerFound=true; else ownerSkipped=true;
+          if(pend && olist && nkey(pend)===ok_){ ownerFound=true; foundLabel=(OWNER_FILED[ok_].rec && OWNER_FILED[ok_].rec.label) || OWNER_FILED[ok_].label; } else ownerSkipped=true;
           if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)!==ok_) ownerDup=ownerRec.label;   // this form filed another spelling before the right one was found filed
           if(!ownerRec) ownerRec={ label:OWNER_FILED[ok_].label, rec:OWNER_FILED[ok_].rec, mine:false };
         }
-        else if(ownerRec && ownerRec.mine && !ownerRec.maybe){ ownerRenamed=true; }   // this form filed another spelling: never a second record
+        else if(ownFiled){                                                         // this form filed another spelling: never a second record
+          var rh=olist ? byName(owner) : null;
+          if(rh){ ownerFound=true; foundLabel=rh.label || owner; ownerDup=ownerRec.label; OWNER_FILED[ok_]={ label:owner, rec:rh }; }   // the corrected name is already there: the spelling this form filed is the extra one
+          else { ownerRenamed=true; renameUnchecked=!olist; }
+        }
         else {
           var hit=olist ? byName(owner) : null;
           if(hit){
-            ownerFound=true; OWNER_FILED[ok_]={ label:owner, rec:hit };
+            ownerFound=true; foundLabel=hit.label || owner; OWNER_FILED[ok_]={ label:owner, rec:hit };
             if(OWNER_MAYBE[ok_]){ delete OWNER_MAYBE[ok_]; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); }   // another form's no-reply send may have filed it
-            if(!ownerRec || ownerRec.maybe) ownerRec={ label:owner, rec:hit, mine:false };
+            if(!ownerRec || ownerRec.maybe || !ownerRec.mine) ownerRec={ label:owner, rec:hit, mine:false };   // only this form's own filing outlives a new owner
           }
           else if(!olist && ((ownerRec && ownerRec.maybe && nkey(ownerRec.label)===ok_) || OWNER_MAYBE[ok_])){ ownerMaybe.push({ label:owner, unchecked:true }); }   // may be filed, cannot check: never re-sent blind
           else {
@@ -657,10 +661,10 @@ function handleSetup(v){
       if(skippedUnconfirmed) out.push(skippedUnconfirmed+' saved earlier without a confirmation — not sent again; check Legal → Entities');
       if(dupInList) out.push(dupInList+' duplicate'+plural(dupInList,'','s')+' of an earlier line — skipped');
       if(ownerSavedNow) out.push('✅ Filed the owner under Personal Information');
-      if(ownerFound) out.push('✅ The owner is in Personal Information — a record named &ldquo;'+esc((ownerRec && ownerRec.rec && ownerRec.rec.label) || owner)+'&rdquo; is there; not filed again');
+      if(ownerFound) out.push('✅ The owner is in Personal Information — a record named &ldquo;'+esc(foundLabel || owner)+'&rdquo; is there; not filed again'+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
       if(pendFound) out.push('A record named &ldquo;'+esc(pendFound)+'&rdquo; is in Personal Information — if this form filed it under a mistyped name, remove it there');
       if(ownerSkipped) out.push('Owner already filed — not sent again'+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
-      if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again; rename it in Personal Information');
+      if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again; rename it to &ldquo;'+esc(owner)+'&rdquo; in Personal Information'+(renameUnchecked ? ' (Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, remove &ldquo;'+esc(ownerRec.label)+'&rdquo; instead)' : ''));
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
       if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || f.code); }).join(', ')+') — not created again');
       if(notAllowed.length) out.push('⚠️ '+notAllowed.length+' refused by the server (not allowed) — '+notAllowed.map(function(f){ return esc(f.name); }).join(', '));
