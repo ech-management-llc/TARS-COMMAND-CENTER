@@ -595,11 +595,13 @@ function handleSetup(v){
       // whatever holds its derived code; which one is meant cannot be told (round 24)
       var namedKind=function(rows, code, name){ var m=namedAll(rows, code, name); return m.length===1 ? { row:m[0], kind:'named' } : m.length>1 ? { row:null, rows:m, kind:'many' } : null; };
       var goneOf=async function(code, name){
+        // the typed name found in Legal → Entities (once, or more than once) answers first — whatever holds its code (round 32)
+        var rows=await listAll(), c, nm, ownClash=function(){ var own=byCode(storedRows(), code).filter(function(x){ return !sameCompany(x, name); }); return own.length===1 ? { row:own[0], kind:'clash' } : null; };
+        var early=rows || await listActive(); nm=early ? namedKind(early, code, name) : null; if(nm) return nm;
         // a company this form stored under the code — possibly earlier in this very click, after the lists were read — holds it (round 21)
-        var own=byCode(storedRows(), code).filter(function(x){ return !sameCompany(x, name); }); if(own.length===1) return { row:own[0], kind:'clash' };
-        var rows=await listAll(), c, nm;
-        if(rows){ nm=namedKind(rows, code, name); if(nm) return nm; c=byCode(rows, code); if(c.length!==1) return c.length ? null : { row:null, kind:'absent', wide:true }; if(!sameCompany(c[0], name)) return { row:c[0], kind:'clash' }; return c[0].active===false ? { row:c[0], kind:'removed' } : null; }
-        rows=await listActive(); if(!rows) return null; nm=namedKind(rows, code, name); if(nm) return nm; c=byCode(rows, code);
+        var oc=ownClash(); if(oc) return oc;
+        if(rows){ c=byCode(rows, code); if(c.length!==1) return c.length ? null : { row:null, kind:'absent', wide:true }; if(!sameCompany(c[0], name)) return { row:c[0], kind:'clash' }; return c[0].active===false ? { row:c[0], kind:'removed' } : null; }
+        rows=await listActive(); if(!rows) return null; c=byCode(rows, code);
         return !c.length ? { row:null, kind:'absent' } : (c.length===1 && !sameCompany(c[0], name)) ? { row:c[0], kind:'clash' } : null;
       };
       if(ORDER.some(function(k){ return LEDGER[k].row || LEDGER[k].existing; })){
@@ -725,6 +727,12 @@ function handleSetup(v){
         if(f.status===403 || (f.status===409 && !f.noHolder)) return true;
         var h=byCode(storedRows(), f.code).filter(function(x){ return !sameCompany(x, f.name); });
         if(h.length!==1) return true;
+        // the typed name in Legal → Entities first: found once — a retry finds it by name; more than once — said so (round 32)
+        var rd=Array.isArray(allRows) ? allRows : Array.isArray(activeRows) ? activeRows : null, nk=rd ? namedKind(rd, f.code, f.name) : null;
+        if(nk && nk.kind==='named') return true;
+        if(nk && nk.kind==='many'){ var FM_=LEDGER[nkey(f.name)]; if(FM_){ FM_.state='exists'; FM_.many=nk.rows; FM_.maybeStored=false; } manyNow.push({ name:f.name, rows:nk.rows });
+          if(pk && nkey(f.name)===pk){ primaryStatus='many'; primaryMany=nk.rows; primaryMaybe=false; primaryNoHolder=false; }
+          return false; }
         var FL_=LEDGER[nkey(f.name)]; if(FL_){ FL_.state='gone'; FL_.goneKind='clash'; FL_.goneRow=h[0]; FL_.maybeStored=false; }   // the code is that line's: this one is not under it
         goneNow.push({ name:f.name, code:f.code, row:h[0], kind:'clash' });
         if(pk && nkey(f.name)===pk){ primaryStatus='gone'; primaryGoneKind='clash'; primaryGoneRow=h[0]; primaryMaybe=false; primaryNoHolder=false; }
@@ -744,7 +752,7 @@ function handleSetup(v){
           else { orec=await fl.createRecord(opay); }
         } catch(e){ orec=null; }
         if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; OWNER_BY[orec.id]=formId; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
-        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist, seenAtSend:Object.keys(OWNER_SEEN).filter(function(id){ return nkey(OWNER_SEEN[id])===ok_; }) }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
+        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist, seenAtSend:Object.keys(OWNER_SEEN).filter(function(id){ return nkey(OWNER_SEEN[id])===ok_; }) }; OWNER_MAYBE[ok_]={ label:owner, seen:ownerRec.seenAtSend, absent:!!olist }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
       };
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
@@ -775,7 +783,8 @@ function handleSetup(v){
               // (a later corrected spelling is told to replace it there, never filed a second time); otherwise it is only "a record named …"
               var otherForm=!!(ph.id && OWNER_BY[ph.id] && OWNER_BY[ph.id]!==formId);          // another setup form filed it after this send
               if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id){ OWNER_BY[ph.id]=formId; OWNER_SETTLED[ph.id]=1; } noteOwner(ph, ph.label||pend); }
-              else if(pk2===ok_) noteOwner(ph, ph.label||pend); else if(!preOnly) pendFound=pend;
+              else if(pk2===ok_){ if(!preOnly) noteOwner(ph, ph.label||pend); }   // a record that was there before the send is no filing of it: no second note (round 32)
+              else if(!preOnly) pendFound=pend;
             }
           }
           var mineNow=!!(ownerRec && ownerRec.mine && !ownerRec.maybe);
@@ -790,7 +799,7 @@ function handleSetup(v){
           if(hit){
             if(prevId && prevId===hit.id) ownerSkipped=true;                                 // the record this page tied to this name
             else { ownerFound=true; foundLabel=hit.label || owner; }
-            if(OWNER_MAYBE[ok_]){ delete OWNER_MAYBE[ok_]; noteOwner(hit, owner); }       // another form's no-reply send may have filed it
+            if(OWNER_MAYBE[ok_]){ var mb_=OWNER_MAYBE[ok_]; delete OWNER_MAYBE[ok_]; if(!(mb_.seen && !mb_.absent && hit.id && mb_.seen.indexOf(hit.id)>=0)) noteOwner(hit, owner); }   // another form's no-reply send may have filed it — not a record that send's page had read before it (round 32)
             if(own && own.id!==hit.id){ ownerDup=own.label; ownerDupSettled=!!OWNER_SETTLED[own.id]; }   // this form's filing is a second record of the owner
             OWNER_FILED[ok_]={ label:owner, rec:hit }; if(hit.id) OWNER_IDS[ok_]=hit.id;
             ownerRec=own ? { label:own.label, rec:own, mine:true } : { label:owner, rec:hit, mine:false };   // only this form's own filing outlives a new owner
