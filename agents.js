@@ -455,11 +455,11 @@ function handleSetup(v){
       var box=b.querySelector('#su-codes'); if(!box) return;
       if(!names.length){ box.innerHTML=''; return; }
       var codes=names.map(function(n,i){ return deriveCode(n,i); });
-      var counts={}; codes.forEach(function(c){ counts[c]=(counts[c]||0)+1; });
-      var dups=Object.keys(counts).filter(function(c){ return counts[c]>1; });            // every duplicated code, not only the first pair
-      var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]); });
       // a line this form already stored is permanent: say so, and that editing it adds a company (the ledger is the form's, declared below)
       var storedOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i]) : null; return (L && L.row) ? L.row : null; };
+      var counts={}; codes.forEach(function(c){ counts[c]=(counts[c]||0)+1; });
+      var dups=Object.keys(counts).filter(function(c){ return counts[c]>1; });            // every duplicated code, not only the first pair
+      var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i); });   // a stored line is permanent: never ask to rename it
       var anyStored=names.some(function(n,i){ return !!storedOf(n,i); });
       box.innerHTML='Codes these names become — permanent keys (an owner account&rsquo;s prefix, t…_, is added on save; the summary shows the stored key):'+
         '<div>'+names.map(function(n,i){ var r=storedOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
@@ -473,10 +473,18 @@ function handleSetup(v){
     // indexed by name AND by derived code (a stored row by code wins over a row-less entry by name), so a retry never
     // re-sends what is settled, the owner is filed once, and every sentence below states what the server echoed
     var LEDGER={}, ORDER=[], BYCODE={}, ownerRec=null;
-    var nkey=function(name){ return String(name||'').trim().toLowerCase(); };
+    var nkey=function(name){ return String(name||'').trim().toLowerCase().replace(/\s+/g,' '); };   // case, edge and internal whitespace never make a second key
     // the ledger entry for a typed name: its own entry if that one has a stored row, else the row this form stored under the
     // same code (another spelling), else its own entry (exists / refused / failed), else none
-    var resolveL=function(k, code){ var Lk=LEDGER[k], own=BYCODE[code]; if(Lk && Lk.row) return Lk; if(own && own.row) return own; return Lk||null; };
+    var resolveL=function(k, code){
+      var Lk=LEDGER[k], own=BYCODE[code];
+      if(Lk && Lk.row) return Lk;
+      // by code only when the code says something about the name: a symbol-only name's ENTITY_<hex> is a hash, and a
+      // different name with the same hash is a different company (round 5)
+      if(own && own.row && !(codeIsFallback(own.name) && nkey(own.name)!==k)) return own;
+      return Lk||null;
+    };
+    var sameCompany=function(row, name){ return !!row && !(codeIsFallback(name) && nkey(row.name)!==nkey(name)); };   // a looked-up row for a hash code must carry the same name
     var lockForm=function(text){
       ['#su-biz','#su-owner','#su-ents','#su-subs'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.disabled=true; });
       var box=b.querySelector('#su-codes'); if(box) box.innerHTML=text;   // the preview no longer invites edits
@@ -513,7 +521,7 @@ function handleSetup(v){
       var pr = pk ? resolveL(pk, pcode) : null;
       if(pr){
         if(pr.row){ primary=pr.row; }
-        else if(pr.state==='exists'){ if(!pr.existing) pr.existing=await findExisting(pr.code); if(pr.existing){ primary=pr.existing; primaryExisting=true; } else { primaryStatus=409; if(subs) primaryFailed=true; } }
+        else if(pr.state==='exists'){ if(!pr.existing){ var px_=await findExisting(pr.code); pr.existing=sameCompany(px_, pr.name) ? px_ : null; } if(pr.existing){ primary=pr.existing; primaryExisting=true; } else { primaryStatus=409; if(subs) primaryFailed=true; } }
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
         else if(pr.state==='unconfirmed'){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
       }
@@ -547,7 +555,7 @@ function handleSetup(v){
           R.state='exists';
           var mine=null, ex=null;
           if(i===0 && biz){
-            ex=await findExisting(code);
+            ex=await findExisting(code); if(!sameCompany(ex, name)) ex=null;
             mine=ex ? storedRows().filter(function(x){ return x.id===ex.id; })[0] : null;   // the "existing" row is one this form stored
             if(mine){ R.row=mine; R.state='stored'; primary=mine; primaryExisting=false; }
             else if(ex){ R.existing=ex; primary=ex; primaryExisting=true; primaryStatus=409; }
@@ -570,7 +578,7 @@ function handleSetup(v){
           if(ownerRec && ownerRec.mine && nkey(ownerRec.label)!==ok_) ownerDup=ownerRec.label;   // this form filed another spelling before the right one was found filed
           if(!ownerRec) ownerRec={ label:OWNER_FILED[ok_].label, rec:OWNER_FILED[ok_].rec, mine:false };
         }
-        else if(ownerRec){ ownerRenamed=true; }
+        else if(ownerRec && ownerRec.mine){ ownerRenamed=true; }                 // this form filed another spelling: never a second record
         else { var orec=null; try { orec=await fl.createRecord({ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' }); } catch(e){ orec=null; }
           if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; ownerSavedNow=true; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); } }
       }
@@ -587,9 +595,9 @@ function handleSetup(v){
       done=(retryable===0 && !expired && (stored.length>0 || (!!ownerRec && allEnts.length===0)));
       busy=false;
       if(done){
-        var clean=!failedNow.length && !unconfirmedNow.length && (stored.length>0 || ownerMine);
+        var clean=!failedNow.length && !unconfirmedNow.length && !ownerRenamed && !ownerDup && (entCreated>0 || ownerSavedNow);   // THIS click saved something and nothing went wrong
         go.textContent=clean ? '✓ Saved' : '✓ Done';
-        lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : (ownerMine ? 'Saved.' : 'Nothing new to save — already filed.'));
+        lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : (ownerSavedNow ? 'Saved.' : (ownerRenamed || ownerDup) ? 'Done — see the summary below.' : 'Nothing new to save — already filed.'));
       }
       else { go.disabled=false; try{ previewCodes(); }catch(e){} }   // the form stays open: the preview now marks the lines that are stored
       var out=[];
@@ -630,15 +638,17 @@ function handleSetup(v){
       var unverifiedN=others.filter(function(r){ return !!unverifiedIds[r.id]; }).length;
       var primaryMentioned=primaryExisting || (subs && primaryFailed);
       // only names still in the typed list count: a line the user removed or renamed away is no longer theirs to act on
-      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && !(primaryMentioned && (k===pk || L.code===pcode)); });
-      var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused' && seenKeys[k]; }).length;
+      // only names still in the typed list, and only names that do not resolve to a row this form stored (by code, another spelling)
+      var unresolved=function(k){ var r=resolveL(k, LEDGER[k].code); return !(r && r.row); };
+      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && unresolved(k) && !(primaryMentioned && (k===pk || L.code===pcode)); });
+      var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused' && seenKeys[k] && unresolved(k); }).length;
       var pReason=function(){
         if(primaryStatus===409) return 'already exists but could not be looked up';
         if(primaryStatus===403) return 'was refused by the server (not allowed) — this account cannot create it';
         if(primaryStatus==='unconfirmed') return 'was saved without a confirmation from the server';
         if(!authed) return 'was not sent — sign in to the Command Center first';
         if(expired && primaryStatus===401) return 'was rejected — your session expired';
-        if(expired && !primaryStatus) return 'was not sent — your session expired';
+        if(expired && !primaryStatus) return 'didn&rsquo;t save — your session expired';
         if(primaryStatus) return 'didn&rsquo;t save (HTTP '+primaryStatus+')';
         return 'didn&rsquo;t save — the service did not confirm it';
       };
@@ -650,7 +660,12 @@ function handleSetup(v){
         if(expired) return ' Sign in again, then retry it.';
         return ' Retry it, then set the Parents in Legal → Entities.';
       };
-      var target=primary ? pname : ((subs && primaryFailed && primaryStatus===409) ? pname : null);   // a parent the user can pick for the top-level rows
+      // the primary's OWN parent is a fact too (a row this form stored under an earlier primary, now typed as the primary)
+      var pParentRow=(primary && primary.parent_entity_id) ? knownRows().filter(function(x){ return x.id===primary.parent_entity_id; })[0] : null;
+      var pFact=(primary && primary.parent_entity_id && (pParentRow || !primaryExisting))
+        ? '<b>'+pname+'</b> is filed under <b>'+esc(pParentRow ? (pParentRow.name||pParentRow.code) : 'another company')+'</b>'+(primaryExisting ? '' : ' from an earlier attempt')+'.' : null;
+      // a parent the user can pick for the top-level rows — never while the primary itself has a parent (that advice could name its own ancestor: a cycle)
+      var target=(primary && primary.parent_entity_id) ? null : primary ? pname : ((subs && primaryFailed && primaryStatus===409) ? pname : null);
       var boxRule=' The subsidiaries box only sets a parent on a company it creates while <b>'+pname+'</b> is saved or found; it does not change a company that is already stored.';
       var ending=null;
       if(n){
@@ -658,17 +673,18 @@ function handleSetup(v){
         var parts=[];
         if(primaryExisting) parts.push('<b>'+pname+'</b> already existed, so it was not created again.');
         if(subs && primaryFailed) parts.push('<b>'+pname+'</b> '+pReason()+'. The subsidiaries box needs it, so nothing was filed under it.'+pAdvice());
+        if(pFact) parts.push(pFact);
         if(underCurrent.length){
           var K=underCurrent.length;
-          parts.push((others.length===1 ? (n===1 ? 'It is' : namesOf(underCurrent)+' is') : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
+          parts.push((others.length===1 ? namesOf(underCurrent)+' is' : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
         }
         if(underOther.length){
           var byParent={}, order=[]; underOther.forEach(function(r){ var p=knownRows().filter(function(x){ return x.id===r.parent_entity_id; })[0]; var nm=p ? (p.name||p.code) : 'another company'; if(!byParent[nm]){ byParent[nm]=[]; order.push(nm); } byParent[nm].push(r); });
           order.forEach(function(nm){ var rows=byParent[nm], M=rows.length; parts.push((M<=3 ? namesOf(rows) : M+' of them')+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b> from an earlier attempt.'); });
         }
         if(topLevel.length){
-          var T=topLevel.length, allTop=(T===others.length) && !underCurrent.length && !underOther.length && !unverifiedN;
-          var subj=(T<=3 ? namesOf(topLevel) : 'The other '+T)+' '+plural(T,'has','have');
+          var T=topLevel.length, allTop=(T===others.length) && !underCurrent.length && !underOther.length && !unverifiedN && !pFact;
+          var subj=(T<=3 ? namesOf(topLevel) : ((underCurrent.length || underOther.length || pFact) ? 'The other '+T : T+' of them'))+' '+plural(T,'has','have');
           if(allTop && !(subs && target)){
             if(n===1 && others.length===1){
               parts.push(parts.length || primaryExisting
