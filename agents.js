@@ -417,7 +417,9 @@ function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
 // saving so a typo is caught while it is still a name, not a key (TD-239).
 function deriveCode(name){
   // EXACTLY the deployed derivation for any name with A–Z/0–9 (trim edge underscores, then cut to 40), so a name the
-  // walkthrough stored before keeps its code and a re-run gets FL's 409 instead of a second company (review round 14)
+  // walkthrough stored before keeps its code and a re-run gets FL's 409 instead of a second company (review round 14).
+  // One difference, by design: an invisible character INSIDE a name (zero-width, soft hyphen) is dropped by cleanName
+  // before this runs, where the deployed walkthrough turned it into "_" (round 27, a known exotic difference)
   var c=String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40);
   if(c) return c;
   // no A–Z / 0–9 at all: a key derived from the NAME (FNV-1a), so a name keeps its key at any line position and two
@@ -563,7 +565,9 @@ function handleSetup(v){
         if(rows.some(function(x){ return x && x.active!==false && byCode([x], code).length && sameCompany(x, name); })) return [];   // the typed company holds its own code: that is the one (round 22)
         return rows.filter(function(x){ return x && x.active!==false && namesMatch(x.name, name) && !byCode([x], code).length; }); };
       var namedIn=function(rows, code, name){ var m=namedAll(rows, code, name); return m.length===1 ? m[0] : null; };
-      var namedOf=async function(code, name){ var rows=await listActive(); return rows ? namedIn(rows, code, name) : null; };
+      // one failed read of the default list never switches the name check off for the click: the read that includes removed
+      // companies answers it too (namedAll keeps active rows only) (round 27)
+      var namedOf=async function(code, name){ var rows=await listActive(); if(!rows) rows=await listAll(); return rows ? namedIn(rows, code, name) : null; };
       // the typed name listed MORE THAN ONCE under other codes is in Legal → Entities — never "removed", "absent" or "add it again",
       // whatever holds its derived code; which one is meant cannot be told (round 24)
       var namedKind=function(rows, code, name){ var m=namedAll(rows, code, name); return m.length===1 ? { row:m[0], kind:'named' } : m.length>1 ? { row:null, rows:m, kind:'many' } : null; };
@@ -624,7 +628,8 @@ function handleSetup(v){
         // a line found BY NAME whose row a list read in THIS click does not have was removed there (the start-of-click read may
         // have failed): it is not this line's company any more — never a Parent, looked at afresh like a new line. A row still
         // listed (the name now ambiguous) stays the line's company (round 25)
-        if(R && R.named && R.existing && !R.row && Array.isArray(activeRows) && !activeRows.some(function(x){ return x && x.id===R.existing.id; })){
+        var readNow=Array.isArray(activeRows) ? activeRows : Array.isArray(allRows) ? allRows : null;   // a read of this click: the default list, else the wider one
+        if(R && R.named && R.existing && !R.row && readNow && !readNow.some(function(x){ return x && x.id===R.existing.id && x.active!==false; })){
           var goneNamed=R.existing; R.existing=null; R.named=false; R.state='';
           if(i===0 && biz && primary && primary.id===goneNamed.id){ primary=null; primaryExisting=false; primaryStatus=0; primaryFailed=false; }
         }
@@ -990,7 +995,9 @@ function handleSetup(v){
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
-        if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted — check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
+        // the box beside existing companies says what it did not do, as the nothing-new ending does (round 27)
+        var exOthers=subs ? existsAll.filter(function(k){ return k!==pk && LEDGER[k].code!==pcode; }).length : 0;
+        if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted'+(exOthers ? ' — the subsidiaries box only sets a parent on a company it creates, so it did not change '+plural(existsAll.length,'it','them')+':' : ' —')+' check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
         ending+=removedNote();
         if(refreshFailed) ending+=' <span class="su-dim">Parents and ownership are shown as this form last saw them — Legal → Entities could not be read just now, so a change made there since is not shown.</span>';
         if(unverifiedN) ending+=' <span class="su-dim">'+unverifiedN+' could not be verified — the server did not echo a parent; check '+plural(unverifiedN,'its','their')+' Parent in Legal → Entities.</span>';
