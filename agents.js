@@ -909,8 +909,11 @@ function handleSetup(v){
       // "from an earlier attempt" only for a parent the row was CREATED with by this form (a Parent set later in the tile is not that)
       var ledgerOf=Object.create(null); ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row && L.row.id) ledgerOf[L.row.id]=L; });
       var fromEarlier=function(r){ var L=r && ledgerOf[r.id]; return !!(L && L.createdParent!==undefined && L.createdParent===(r.parent_entity_id||null)); };
+      // a parent with the same name as the company under it, or as the primary, is named with its code — "P LLC is filed under
+      // P LLC" says nothing (two same-named companies; round 24-2)
+      var parentLabel=function(p, names){ if(!p) return 'another company'; var nm=p.name||p.code; return (p.code && p.name && names.some(function(n){ return n && nkey(n)===nkey(p.name); })) ? nm+' ('+p.code+')' : nm; };
       var pFact=(primary && primary.parent_entity_id && (pParentRow || !primaryExisting))
-        ? '<b>'+pname+'</b> is filed under <b>'+esc(pParentRow ? (pParentRow.name||pParentRow.code) : 'another company')+'</b>'+((!primaryExisting && fromEarlier(primary)) ? ' from an earlier attempt' : '')+'.' : null;
+        ? '<b>'+pname+'</b> is filed under <b>'+esc(parentLabel(pParentRow, [primary.name||biz]))+'</b>'+((!primaryExisting && fromEarlier(primary)) ? ' from an earlier attempt' : '')+'.' : null;
       // a parent the user can pick for the top-level rows — never while the primary itself has a parent (that advice could name its own ancestor: a cycle)
       var target=(primary && primary.parent_entity_id) ? null : primary ? pname
         : ((subs && primaryFailed && primaryStatus===409 && !primaryNoHolder && !(pcode && ASKED[pcode]) && !(pr && pr.code && ASKED[pr.code]) && !(pk && LEDGER[pk] && ASKED[LEDGER[pk].code])) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
@@ -945,8 +948,9 @@ function handleSetup(v){
             return '<b>'+esc(r.name||r.code)+'</b> is filed under <b>'+pname+'</b> at '+esc(String(r.ownership_pct))+'% — '+(full ? 'it consolidates into '+pname+'&rsquo;s rollup' : 'it does not consolidate into '+pname+'&rsquo;s rollup; only 100.00 does'); }).join('. ')+'.');
         }
         if(underOther.length){
-          var byParent=Object.create(null), order=[]; underOther.forEach(function(r){ var p=rowById(r.parent_entity_id); var nm=p ? (p.name||p.code) : 'another company'; if(!byParent[nm]){ byParent[nm]=[]; order.push(nm); } byParent[nm].push(r); });
-          order.forEach(function(nm){ var rows=byParent[nm], M=rows.length; parts.push((M<=3 ? namesOf(rows) : M+' of them')+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b>'+(rows.every(fromEarlier) ? ' from an earlier attempt' : '')+'.'); });
+          // grouped by the parent's id (an unknown parent is one group); each parent is labelled once, against every row under it
+          var byParent=Object.create(null), order=[]; underOther.forEach(function(r){ var p=rowById(r.parent_entity_id), key=p ? 'id:'+p.id : 'unknown'; if(!byParent[key]){ byParent[key]={ p:p, rows:[] }; order.push(key); } byParent[key].rows.push(r); });
+          order.forEach(function(key){ var g=byParent[key], rows=g.rows, M=rows.length, nm=parentLabel(g.p, rows.map(function(r){ return r.name; }).concat([(primary && primary.name) || biz])); parts.push((M<=3 ? namesOf(rows) : M+' of them')+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b>'+(rows.every(fromEarlier) ? ' from an earlier attempt' : '')+'.'); });
         }
         if(topLevel.length){
           var T=topLevel.length, allTop=(T===others.length) && !underCurrent.length && !underOther.length && !unverifiedN && !pFact;
