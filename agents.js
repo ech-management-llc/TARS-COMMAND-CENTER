@@ -474,18 +474,22 @@ function handleSetup(v){
       var settledOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i], n) : null; if(!L) return null;
         if(L.row && L.removed) return { code:L.row.code||codes[i], tag:'removed in Legal → Entities — see the summary' };
         if(L.row) return null;
-        if(L.state==='exists' && !(L.many && !L.existing)) return { code:(L.existing && L.existing.code)||codes[i], tag:'already in Legal → Entities' };
+        if(L.state==='exists' && !(L.many && !L.existing)) return { code:(L.existing && L.existing.code)||L.heldCode||codes[i], tag:'already in Legal → Entities' };
         if(L.state==='gone' || L.state==='exists') return { code:codes[i], tag:'not created — see the summary' };
+        if(L.state==='refused') return { code:codes[i], tag:'refused by the server — not sent again' };   // round 30
+        if(L.state==='unconfirmed') return { code:codes[i], tag:'saved without a confirmation — check Legal → Entities' };
         return null; };
+      var foundOf=function(n,i){ if(storedOf(n,i)) return false; var s_=settledOf(n,i); return !!(s_ && s_.tag==='already in Legal → Entities'); };   // a line a click found in Legal → Entities
       // replay the click's own rule, in order: a line is skipped when its code or its name key matches an earlier line
       // that was NOT skipped — so the warning names exactly the lines the click will skip
       var pvCodes=Object.create(null), pvKeys=Object.create(null), skippedLines=[], clashLines=[], same=(typeof sameName==='function') ? sameName : function(){ return true; };
       names.forEach(function(n,i){ var k=nkey(n), c=codes[i];
         if(pvKeys[k] || (pvCodes[c] && same(pvCodes[c], n))){ skippedLines.push(esc(n)+' ('+esc(c)+')'); return; }
+        if(pvCodes[c] && foundOf(n,i)){ pvKeys[k]=1; return; }   // already in Legal → Entities under its own code: no clash to warn about (round 30)
         if(pvCodes[c]){ clashLines.push(esc(n)+' ('+esc(c)+')'); pvKeys[k]=1; return; }   // another company whose code is cut to the same 40 characters (round 20); a repeat of it is a duplicate, as the click counts it
         pvCodes[c]=n; pvKeys[k]=1; });
-      var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i); });   // a stored line is permanent: never ask to rename it
-      var anyStored=names.some(function(n,i){ return !!storedOf(n,i); });
+      var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i) && !foundOf(names[i],i); });   // a stored or found line is permanent: never ask to rename it (round 30)
+      var anyStored=names.some(function(n,i){ return !!storedOf(n,i) || foundOf(n,i); });
       box.innerHTML='Codes these names become — permanent keys (an owner account&rsquo;s prefix, t…_, is added on save; the summary shows the stored key):'+
         '<div>'+names.map(function(n,i){ var r=storedOf(n,i), st=r ? null : settledOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : st ? esc(n)+' → <b>'+esc(st.code)+'</b> <span class="su-dim">'+st.tag+'</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
         (anyStored ? 'Stored names and codes are permanent here — editing a stored line adds a new company. ' : 'The code is permanent — fix a typo here, before saving. ')+'Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
@@ -752,7 +756,8 @@ function handleSetup(v){
             var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend, seenAt=ownerRec.seenAtSend||[]; delete OWNER_MAYBE[pk2]; ownerRec=null;   // settled by NAME only
             // every record of that name is one this page read BEFORE the send: the send filed nothing — never "remove it there" about
             // a record that was already there (round 29)
-            var preOnly=!wasAbsent && (olist||[]).filter(function(x){ return x && nkey(x.label)===pk2; }).every(function(x){ return x.id && seenAt.indexOf(x.id)>=0; });
+            // ... nor about a record ANOTHER setup form filed (its 201 echo told this page so) (round 30)
+            var preOnly=(olist||[]).filter(function(x){ return x && nkey(x.label)===pk2; }).every(function(x){ return x.id && ((!wasAbsent && seenAt.indexOf(x.id)>=0) || (OWNER_BY[x.id] && OWNER_BY[x.id]!==formId)); });
             if(ph){
               OWNER_FILED[pk2]={ label:pend, rec:ph }; if(ph.id) OWNER_IDS[pk2]=ph.id;
               // the list read just before that send had no record of this name, so the one there now is this form's own filing
@@ -810,6 +815,10 @@ function handleSetup(v){
       var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed || ownerFound));
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
       var nowAuthed=!!(window.flApi && flApi.authed && flApi.authed());
+      // the STORED key of the company holding the code when this click read it (the preview and the summary show stored keys); kept
+      // on the line so the preview drawn below shows it too (round 30)
+      var heldCode=function(f){ var h=byCode(allRows || activeRows || [], f.code).filter(function(x){ return x && sameCompany(x, f.name); }); return h.length===1 ? h[0].code : f.code; };
+      failedNow.forEach(function(f){ if(f.status===409 && !f.noHolder){ var L=LEDGER[nkey(f.name)]; if(L && !L.existing) L.heldCode=heldCode(f); } });
       var exists=failedNow.filter(function(f){ return f.status===409 && !f.noHolder; }), notAllowed=failedNow.filter(function(f){ return f.status===403; }), other=failedNow.filter(function(f){ return (f.status!==409 || f.noHolder) && f.status!==403; });
       // three buckets, used by BOTH the summary and the ending: unknown (may be on the server) · HTTP error · not sent
       var unknownRows=other.filter(function(f){ return f.maybe; }), httpRows=other.filter(function(f){ return !f.maybe && f.status; }), unsentRows=other.filter(function(f){ return !f.maybe && !f.status; });
@@ -842,8 +851,6 @@ function handleSetup(v){
       if(ownerSkipped) out.push('Owner already filed — not sent again'+(filedAs ? '; in Personal Information the record '+(filedAsStale ? 'was named &ldquo;'+esc(filedAs)+'&rdquo; when last checked (it cannot be checked now)' : 'is named &ldquo;'+esc(filedAs)+'&rdquo;')+' — if &ldquo;'+esc(owner)+'&rdquo; is right, remove &ldquo;'+esc(filedAs)+'&rdquo; there and add &ldquo;'+esc(owner)+'&rdquo; (records there cannot be renamed)' : '')+dupClause());
       if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again. In Personal Information remove &ldquo;'+esc(ownerRec.label)+'&rdquo; and add &ldquo;'+esc(owner)+'&rdquo; (records there cannot be renamed)'+(renameUnchecked ? '; Personal Information could not be checked — if &ldquo;'+esc(owner)+'&rdquo; is already there, only remove &ldquo;'+esc(ownerRec.label)+'&rdquo;' : ''));
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
-      // the STORED key of the company holding the code when this click read it (the preview promises the summary shows stored keys)
-      var heldCode=function(f){ var h=byCode(allRows || activeRows || [], f.code).filter(function(x){ return x && sameCompany(x, f.name); }); return h.length===1 ? h[0].code : f.code; };
       if(exists.length) out.push('⚠️ '+exists.length+' already exist'+plural(exists.length,'s','')+' with the same code ('+exists.map(function(f){ var L=LEDGER[nkey(f.name)]; return esc((L && L.existing && L.existing.code) || heldCode(f)); }).join(', ')+') — not created again');
       if(namedNow.length) out.push('⚠️ '+namedNow.length+' '+plural(namedNow.length,'is','are')+' already in Legal → Entities under another code: '+namedNow.map(function(f){ return esc(f.name)+' ('+esc((f.row && f.row.code) || '')+')'; }).join(', ')+' — not created again');
       var codesOf=function(rows){ return (rows||[]).map(function(r){ return esc((r && r.code) || ''); }).join(', '); };
