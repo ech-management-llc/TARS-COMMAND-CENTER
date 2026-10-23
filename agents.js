@@ -544,7 +544,7 @@ function handleSetup(v){
       var subs=!!(biz && b.querySelector('#su-subs') && b.querySelector('#su-subs').checked);   // Parent entity only — never ownership
       var rec=function(name, code){ var k=nkey(name); if(!LEDGER[k]){ LEDGER[k]={ name:name, code:code, row:null, state:'', st:0, existing:null, unverified:false }; ORDER.push(k); } return LEDGER[k]; };
       // THIS click's primary, resolved from the ledger by the name in the field now (never a row from an earlier name)
-      var primary=null, primaryExisting=false, primaryStatus=0, primaryMaybe=false, primaryFailed=false, primaryGoneKind='', primaryGoneRow=null, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz):null;
+      var primary=null, primaryExisting=false, primaryStatus=0, primaryMaybe=false, primaryFailed=false, primaryGoneKind='', primaryGoneRow=null, primaryNoHolder=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz):null;
       // rows stored by an EARLIER attempt are reported (and skipped) as Legal → Entities has them NOW — the user may have followed
       // the ending's advice there in between: one read of the list refreshes their Parent and Ownership, and a row it no
       // longer has was removed there (rounds 15-16)
@@ -559,7 +559,9 @@ function handleSetup(v){
       // another company holds the code (rounds 18-19); 'absent': no company with that code is in this caller's lists
       // a company in Legal → Entities with the typed NAME under ANOTHER code — added there with a code chosen there, as this walkthrough
       // advises for a code it cannot use — is the typed company (round 20); two of them cannot be told apart, so neither is assumed
-      var namedIn=function(rows, code, name){ var m=rows.filter(function(x){ return x && x.active!==false && namesMatch(x.name, name) && !byCode([x], code).length; }); return m.length===1 ? m[0] : null; };
+      var namedIn=function(rows, code, name){
+        if(rows.some(function(x){ return x && x.active!==false && byCode([x], code).length && sameCompany(x, name); })) return null;   // the typed company holds its own code: that is the one (round 22)
+        var m=rows.filter(function(x){ return x && x.active!==false && namesMatch(x.name, name) && !byCode([x], code).length; }); return m.length===1 ? m[0] : null; };
       var namedOf=async function(code, name){ var rows=await listActive(); return rows ? namedIn(rows, code, name) : null; };
       var goneOf=async function(code, name){
         // a company this form stored under the code — possibly earlier in this very click, after the lists were read — holds it (round 21)
@@ -655,6 +657,10 @@ function handleSetup(v){
           }
           var g409=(!mine && !ex && !legacy) ? await goneOf(code, name) : null;   // a code this walkthrough cannot use: removed, another company's, or not listed
           if(g409 && g409.kind==='named'){ R.existing=g409.row; R.named=true; namedNow.push({ name:name, row:g409.row }); if(i===0 && biz){ primary=g409.row; primaryExisting=true; primaryStatus=409; primaryFailed=false; } }   // the typed name under another code
+          // FL answers ANY insert failure with 409: when no company in this caller's lists has the code, the first such 409 is a
+          // failed send, retried like any other; refused AGAIN, the code is taken by a company out of reach (or removed, when only
+          // the active list could be read), and the line says so (round 22)
+          else if(g409 && g409.kind==='absent' && !R.noHolder){ R.noHolder=true; R.state='failed'; failedNow.push({ name:name, code:code, status:409, noHolder:true }); if(i===0 && biz){ primaryNoHolder=true; if(subs) primaryFailed=true; } }
           else if(g409){ R.state='gone'; R.goneRow=g409.row; R.goneKind=g409.kind; goneNow.push({ name:name, code:code, row:g409.row, kind:g409.kind }); if(i===0 && biz){ primaryStatus='gone'; primaryGoneKind=g409.kind; primaryGoneRow=g409.row; } }
           else if(!mine) failedNow.push({ name:name, code:code, status:st });
         } else {
@@ -663,6 +669,17 @@ function handleSetup(v){
           else { R.state='failed'; if(i===0 && biz){ primaryStatus=st; primaryMaybe=!!R.maybeStored; if(subs) primaryFailed=true; } }
         }
       }
+      // a line that failed while a later line of this click took its cut code: a retry cannot create it — it is a clash with that
+      // line, said now (round 22)
+      failedNow=failedNow.filter(function(f){
+        if(f.status===403 || (f.status===409 && !f.noHolder)) return true;
+        var h=byCode(storedRows(), f.code).filter(function(x){ return !sameCompany(x, f.name); });
+        if(h.length!==1) return true;
+        var FL_=LEDGER[nkey(f.name)]; if(FL_){ FL_.state='gone'; FL_.goneKind='clash'; FL_.goneRow=h[0]; FL_.maybeStored=false; }   // the code is that line's: this one is not under it
+        goneNow.push({ name:f.name, code:f.code, row:h[0], kind:'clash' });
+        if(pk && nkey(f.name)===pk){ primaryStatus='gone'; primaryGoneKind='clash'; primaryGoneRow=h[0]; primaryMaybe=false; primaryNoHolder=false; }
+        return false;
+      });
       // The OWNER (a person) is the personal_info record — NOT the business name — and FL does not deduplicate personal_info.
       // Whenever an owner is typed, Personal Information is listed and, when it can be read, it decides: the owner typed is
       // matched by name (never filed twice), a record this form filed is re-located by id (a rename or a removal made there
@@ -752,7 +769,7 @@ function handleSetup(v){
       var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed || ownerFound));
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
       var nowAuthed=!!(window.flApi && flApi.authed && flApi.authed());
-      var exists=failedNow.filter(function(f){ return f.status===409; }), notAllowed=failedNow.filter(function(f){ return f.status===403; }), other=failedNow.filter(function(f){ return f.status!==409 && f.status!==403; });
+      var exists=failedNow.filter(function(f){ return f.status===409 && !f.noHolder; }), notAllowed=failedNow.filter(function(f){ return f.status===403; }), other=failedNow.filter(function(f){ return (f.status!==409 || f.noHolder) && f.status!==403; });
       // three buckets, used by BOTH the summary and the ending: unknown (may be on the server) · HTTP error · not sent
       var unknownRows=other.filter(function(f){ return f.maybe; }), httpRows=other.filter(function(f){ return !f.maybe && f.status; }), unsentRows=other.filter(function(f){ return !f.maybe && !f.status; });
       var expired=authed && !nowAuthed && (other.length>0 || (!!owner && !ownerSaved));   // a session that was alive at the click and is gone now (fl-auth cleared it)
@@ -765,7 +782,7 @@ function handleSetup(v){
       if(done){
         var clean=!failedNow.length && !goneNow.length && !namedNow.length && !unconfirmedNow.length && !ownerRenamed && !ownerDup && !filedAs && !pendFound && !primaryFailed && (entCreated>0 || ownerSavedNow);   // THIS click saved something and nothing went wrong
         go.textContent=clean ? '✓ Saved' : '✓ Done';
-        lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : (ownerSavedNow ? 'Saved.' : (ownerRenamed || ownerDup) ? 'Done — see the summary below.' : 'Nothing new to save — already filed.'));
+        lockForm(stored.length ? (clean ? 'Saved' : 'Done')+' — the stored keys are in the summary below.' : (ownerSavedNow ? 'Saved.' : (ownerRenamed || ownerDup || filedAs || pendFound) ? 'Done — see the summary below.' : 'Nothing new to save — already filed.'));
       }
       else { go.disabled=false; try{ previewCodes(); }catch(e){} }   // the form stays open: the preview now marks the lines that are stored
       var out=[];
@@ -803,7 +820,9 @@ function handleSetup(v){
         var notSaved=httpRows.concat(unsentRows).map(function(f){ return esc(f.name); }); if(owner && !ownerSaved && !ownerUnknown) notSaved.push('the owner');
         out.push('⚠️ Your session expired — sign in to the Command Center again'+(notSaved.length ? ', then retry. Not saved: '+notSaved.join(', ') : ''));
       } else {
-        if(httpRows.length) out.push('⚠️ '+httpRows.length+' entit'+plural(httpRows.length,'y','ies')+' failed ('+httpRows.map(function(f){ return 'HTTP '+f.status; }).join(', ')+') — retry');
+        var httpPlain=httpRows.filter(function(f){ return !f.noHolder; }), httpNo=httpRows.filter(function(f){ return f.noHolder; });
+        if(httpPlain.length) out.push('⚠️ '+httpPlain.length+' entit'+plural(httpPlain.length,'y','ies')+' failed ('+httpPlain.map(function(f){ return 'HTTP '+f.status; }).join(', ')+') — retry');
+        if(httpNo.length) out.push('⚠️ '+httpNo.length+' refused by the server (HTTP 409), but no company in your lists has '+plural(httpNo.length,'its code','their codes')+': '+httpNo.map(function(f){ return esc(f.name); }).join(', ')+' — retry; if refused again, add '+plural(httpNo.length,'it','them')+' in Legal → Entities, where you choose the code');
         if(unsentRows.length) out.push('⚠️ '+unsentRows.length+' entit'+plural(unsentRows.length,'y','ies')+' '+plural(unsentRows.length,'needs','need')+' sign-in to persist');
         if(owner && !ownerSaved && !ownerUnknown) out.push('⚠️ Owner '+(ownerStatus===403 ? 'refused by the server (not allowed)' : ownerStatus ? 'didn’t save (HTTP '+ownerStatus+') — retry' : 'needs sign-in to persist'));
       }
@@ -838,6 +857,7 @@ function handleSetup(v){
         return t.length ? ' <span class="su-dim">'+t.join(' ')+'</span>' : '';
       };
       var pReason=function(){
+        if(primaryStatus===409 && primaryNoHolder) return 'was refused by the server (HTTP 409), but no company in your lists has its code';
         if(primaryStatus===409) return 'already exists but could not be looked up';
         if(primaryStatus===403) return 'was refused by the server (not allowed) — this account cannot create it';
         if(primaryStatus==='removed') return 'was removed in Legal → Entities after this form created it';
@@ -852,6 +872,7 @@ function handleSetup(v){
         return authed ? 'was not sent — your session expired' : 'was not sent — sign in to the Command Center first';   // no token at the send: certainly not sent
       };
       var pAdvice=function(){
+        if(primaryStatus===409 && primaryNoHolder) return ' Retry it; if it is refused again, add it in Legal → Entities, where you choose the code, then set the Parents there.';
         if(primaryStatus===409) return '';                                           // the clause below says: set its Parent to P
         if(primaryStatus===403) return ' Set the Parents in Legal → Entities once '+pname+' exists.';
         if(primaryStatus==='removed') return ' Add it again in Legal → Entities, where you choose the code, then set the Parents there.';
@@ -871,7 +892,7 @@ function handleSetup(v){
         ? '<b>'+pname+'</b> is filed under <b>'+esc(pParentRow ? (pParentRow.name||pParentRow.code) : 'another company')+'</b>'+((!primaryExisting && fromEarlier(primary)) ? ' from an earlier attempt' : '')+'.' : null;
       // a parent the user can pick for the top-level rows — never while the primary itself has a parent (that advice could name its own ancestor: a cycle)
       var target=(primary && primary.parent_entity_id) ? null : primary ? pname
-        : ((subs && primaryFailed && primaryStatus===409 && !(pcode && ASKED[pcode]) && !(pr && pr.code && ASKED[pr.code]) && !(pk && LEDGER[pk] && ASKED[LEDGER[pk].code])) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
+        : ((subs && primaryFailed && primaryStatus===409 && !primaryNoHolder && !(pcode && ASKED[pcode]) && !(pr && pr.code && ASKED[pr.code]) && !(pk && LEDGER[pk] && ASKED[LEDGER[pk].code])) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
       // the one-company advice names which record to open for each direction: the OWNED company carries the Parent (review round 14)
       var oneAdvice=function(row){ var nm=esc((row && (row.name||row.code)) || ''); return 'If another of your companies owns it, open it in Legal → Entities and set its Parent to that company. If it owns one of them, open that one instead and set its Parent to <b>'+nm+'</b>. Then set the Ownership %.'; };
       var boxRule=' The subsidiaries box only sets a parent on a company it creates while <b>'+pname+'</b> is saved or found; it does not change a company that is already stored.';
