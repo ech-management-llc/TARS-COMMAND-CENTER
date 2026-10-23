@@ -400,9 +400,6 @@ function paintHire(b){
   b.querySelectorAll('[data-hire]').forEach(function(btn){ btn.onclick=function(){ var g=btn.getAttribute('data-hire'); fl.hireArea(g, fl.areaHire(g)==='hire'?null:'hire'); paintHire(b); }; });
   b.querySelectorAll('[data-skip]').forEach(function(btn){ btn.onclick=function(){ var g=btn.getAttribute('data-skip'); fl.hireArea(g, fl.areaHire(g)==='skip'?null:'skip'); paintHire(b); }; });
 }
-// The walkthrough derives each entity's CODE (the permanent natural key an FK web references) from the
-// typed name; the server prefixes an owner's code with the account namespace (t<sha8>_). Shown BEFORE
-// saving so a typo is caught while it is still a name, not a key (TD-239).
 // owner profiles filed by ANY setup form in this page session, by normalised name — a re-opened chip never files the
 // same person twice (the per-form ledger below covers retries inside one form)
 // name- and code-keyed maps are prototype-free: a company or owner named "Constructor" / "__proto__" is an ordinary key
@@ -411,9 +408,13 @@ var OWNER_IDS=Object.create(null);   // owner name -> the record id this page fi
 // zero-width / format characters never make a different (or a blank) company: stripped from every typed name
 var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
 function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
-function deriveCode(name, i){
-  // cut to 40 FIRST, then trim edge underscores, so a long name never ends in '_' (review round 1)
-  var c=String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').slice(0,40).replace(/^_+|_+$/g,'');
+// The walkthrough derives each entity's CODE (the permanent natural key an FK web references) from the
+// typed name; the server prefixes an owner's code with the account namespace (t<sha8>_). Shown BEFORE
+// saving so a typo is caught while it is still a name, not a key (TD-239).
+function deriveCode(name){
+  // EXACTLY the deployed derivation for any name with A–Z/0–9 (trim edge underscores, then cut to 40), so a name the
+  // walkthrough stored before keeps its code and a re-run gets FL's 409 instead of a second company (review round 14)
+  var c=String(name||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40);
   if(c) return c;
   // no A–Z / 0–9 at all: a key derived from the NAME (FNV-1a), so a name keeps its key at any line position and two
   // names never share one by position (review round 4: a positional ENTITY_<n> made retries and edits collide)
@@ -459,7 +460,7 @@ function handleSetup(v){
       if(cb){ cb.disabled=!biz; if(!biz) cb.checked=false; if(note) note.textContent=biz?'':'Enter the primary business first.'; }
       var box=b.querySelector('#su-codes'); if(!box) return;
       if(!names.length){ box.innerHTML=''; return; }
-      var codes=names.map(function(n,i){ return deriveCode(n,i); });
+      var codes=names.map(function(n){ return deriveCode(n); });
       // a line this form already stored is permanent: say so, and that editing it adds a company (the ledger is the form's, declared below)
       var storedOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i]) : null; return (L && L.row) ? L.row : null; };
       // replay the click's own rule, in order: a line is skipped when its code or its name key matches an earlier line
@@ -498,12 +499,12 @@ function handleSetup(v){
     };
     var storedRows=function(){ var seen=Object.create(null), out=[]; ORDER.forEach(function(k){ var r=LEDGER[k].row; if(r && !seen[r.id]){ seen[r.id]=1; out.push(r); } }); return out; };
     var knownRows=function(){ return ORDER.map(function(k){ return LEDGER[k].row||LEDGER[k].existing; }).filter(Boolean); };   // stored here, or looked up
-    // the ONE company this caller can see whose code is CODE or t<sha8>_CODE; two candidates = not looked up (never guess)
     // Personal Information's owner records (personal_info), or null when they could not be read
     var listOwners=async function(){
       try{ var r=(window.flRecords && flRecords.listX) ? await flRecords.listX('personal_info') : null; return (r && r.ok && Array.isArray(r.data)) ? r.data : null; }
       catch(e){ return null; }
     };
+    // the ONE company this caller can see whose code is CODE or t<sha8>_CODE; two candidates = not looked up (never guess)
     var findExisting=async function(code){
       try{
         if(!(window.flEntities && flEntities.listX)) return null;
@@ -529,7 +530,7 @@ function handleSetup(v){
       var subs=!!(biz && b.querySelector('#su-subs') && b.querySelector('#su-subs').checked);   // Parent entity only — never ownership
       var rec=function(name, code){ var k=nkey(name); if(!LEDGER[k]){ LEDGER[k]={ name:name, code:code, row:null, state:'', st:0, existing:null, unverified:false }; ORDER.push(k); } return LEDGER[k]; };
       // THIS click's primary, resolved from the ledger by the name in the field now (never a row from an earlier name)
-      var primary=null, primaryExisting=false, primaryStatus=0, primaryMaybe=false, primaryFailed=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz,0):null;
+      var primary=null, primaryExisting=false, primaryStatus=0, primaryMaybe=false, primaryFailed=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz):null;
       var pr = pk ? resolveL(pk, pcode) : null;
       if(pr){
         if(pr.row){ primary=pr.row; }
@@ -539,7 +540,7 @@ function handleSetup(v){
       }
       var entCreated=0, failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
       for(var i=0;i<allEnts.length;i++){
-        var name=allEnts[i], k=nkey(name), code=deriveCode(name,i);
+        var name=allEnts[i], k=nkey(name), code=deriveCode(name);
         if(seenCodes[code] || seenKeys[k]){ dupInList++; continue; }       // a later line of THIS list repeating an earlier one (same name, or same code)
         seenCodes[code]=true; seenKeys[k]=true;
         var R=resolveL(k, code);                                            // by name, or by a code this form already stored
@@ -550,8 +551,13 @@ function handleSetup(v){
         var payload={ code:code, name:name, legal_form:'LLC' };
         if(subs && i>0 && primary && primary.id) payload.parent_entity_id=primary.id;
         var res=null, st=0, okNoRecord=false, tokBefore=!!(window.flApi && flApi.authed && flApi.authed());
+        // a symbol-only name the deployed walkthrough stored before was keyed ENTITY_<line number>: a company under that key
+        // with this name already exists, so it is not created again under the name-stable key (review round 14)
+        var legacy=null;
+        if(codeIsFallback(name)){ var lg=await findExisting('ENTITY_'+(i+1)); if(lg && nkey(lg.name)===k) legacy=lg; }
         try{
-          if(window.flEntities && flEntities.createX){ var r=await flEntities.createX(payload); st=(r && r.status)||0; res=(r && r.ok && r.data && typeof r.data==='object' && !Array.isArray(r.data)) ? r.data : null; okNoRecord=!!(r && r.ok && !res); }   // status-carrying: 409 exists · 403 refused · 0 no response
+          if(legacy){ st=409; }
+          else if(window.flEntities && flEntities.createX){ var r=await flEntities.createX(payload); st=(r && r.status)||0; res=(r && r.ok && r.data && typeof r.data==='object' && !Array.isArray(r.data)) ? r.data : null; okNoRecord=!!(r && r.ok && !res); }   // status-carrying: 409 exists · 403 refused · 0 no response
           else { res=await fl.createEntity(payload); }
         }catch(e){ res=null; }
         R=rec(name, code); R.code=code; R.st=st; BYCODE[code]=R;
@@ -571,10 +577,10 @@ function handleSetup(v){
           R.state='unconfirmed'; unconfirmedNow.push({ name:name, code:code, status:st });
           if(i===0 && biz){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
         } else if(st===409){
-          R.state='exists';
+          R.state='exists'; if(legacy) R.existing=legacy;   // the stored key is shown in the summary
           var mine=null, ex=null;
           if(i===0 && biz){
-            ex=await findExisting(code); if(!sameCompany(ex, name)) ex=null;
+            ex=legacy || await findExisting(code); if(!sameCompany(ex, name)) ex=null;
             mine=ex ? storedRows().filter(function(x){ return x.id===ex.id; })[0] : null;   // the "existing" row is one this form stored
             if(mine){ R.row=mine; R.state='stored'; primary=mine; primaryExisting=false; }
             else if(ex){ R.existing=ex; primary=ex; primaryExisting=true; primaryStatus=409; }
@@ -647,7 +653,10 @@ function handleSetup(v){
             if(!ownerRec) ownerRec={ label:OWNER_FILED[ok_].label, rec:OWNER_FILED[ok_].rec, mine:false };
           }
           else if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)===ok_) ownerSkipped=true;   // the name this form's filing was last seen under
-          else if(ownerRec && ownerRec.mine && !ownerRec.maybe){ ownerRenamed=true; renameUnchecked=true; }
+          else if(ownerRec && ownerRec.mine && !ownerRec.maybe && (!OWNER_IDS[ok_] || (ownerRec.rec && OWNER_IDS[ok_]===ownerRec.rec.id))){
+            ownerRenamed=true; renameUnchecked=true; if(ownerRec.rec && ownerRec.rec.id) OWNER_IDS[ok_]=ownerRec.rec.id;   // advised for this record: another chip must not file this name
+          }
+          else if(OWNER_IDS[ok_]) ownerSkipped=true;   // this page tied this name to a record it filed, found or advised for: never filed twice
           else if((pend && nkey(pend)===ok_) || OWNER_MAYBE[ok_]) ownerMaybe.push({ label:owner, unchecked:true });   // may be filed, cannot check: never re-sent blind
           else await sendOwner();
         }
@@ -716,8 +725,8 @@ function handleSetup(v){
       var topLevel=others.filter(function(r){ return !r.parent_entity_id && !unverifiedIds[r.id]; });
       var unverifiedN=others.filter(function(r){ return !!unverifiedIds[r.id]; }).length;
       var primaryMentioned=primaryExisting || (subs && primaryFailed);
-      // only names still in the typed list count: a line the user removed or renamed away is no longer theirs to act on
-      // only names still in the typed list, and only names that do not resolve to a row this form stored (by code, another spelling)
+      // only names still in the typed list, and only names that do not resolve to a row this form stored (by code, another spelling):
+      // a line the user removed or renamed away is no longer theirs to act on
       var unresolved=function(k){ var r=resolveL(k, LEDGER[k].code); return !(r && r.row); };
       var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && unresolved(k) && !(primaryMentioned && (k===pk || L.code===pcode)); });
       var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused' && seenKeys[k] && unresolved(k); }).length;
@@ -747,6 +756,8 @@ function handleSetup(v){
       // a parent the user can pick for the top-level rows — never while the primary itself has a parent (that advice could name its own ancestor: a cycle)
       var target=(primary && primary.parent_entity_id) ? null : primary ? pname
         : ((subs && primaryFailed && primaryStatus===409 && !(pcode && ASKED[pcode]) && !(pr && pr.code && ASKED[pr.code]) && !(pk && LEDGER[pk] && ASKED[LEDGER[pk].code])) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
+      // the one-company advice names which record to open for each direction: the OWNED company carries the Parent (review round 14)
+      var oneAdvice=function(row){ var nm=esc((row && (row.name||row.code)) || ''); return 'If another of your companies owns it, open it in Legal → Entities and set its Parent to that company. If it owns one of them, open that one instead and set its Parent to <b>'+nm+'</b>. Then set the Ownership %.'; };
       var boxRule=' The subsidiaries box only sets a parent on a company it creates while <b>'+pname+'</b> is saved or found; it does not change a company that is already stored.';
       // rows this click could not save: an HTTP error "didn't save"; no response means the form cannot know (the reply was lost, not the row)
       var notCountedNote=function(){
@@ -778,10 +789,10 @@ function handleSetup(v){
           if(allTop && !(subs && target)){
             if(n===1 && others.length===1){
               parts.push(parts.length || primaryExisting
-                ? subj+' no parent'+(target ? ' — if '+target+' owns it, open it in Legal → Entities and set its Parent to '+target+', then the Ownership %.' : '. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.')
-                : 'It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.');
+                ? subj+' no parent'+(target ? ' — if '+target+' owns it, open it in Legal → Entities and set its Parent to '+target+', then the Ownership %.' : '. '+oneAdvice(others[0]))
+                : 'It has no parent. '+oneAdvice(others[0]));
             } else {
-              parts.push('None of them are related to '+(primaryExisting ? pname+' or to each other' : 'each other')+' yet — if one owns another, open it in Legal → Entities and set its Parent, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).');
+              parts.push('None of them are related to '+(primaryExisting ? pname+' or to each other' : 'each other')+' yet — if one owns another, open the one that is owned in Legal → Entities and set its Parent to its owner, then its Ownership % (only 100.00 consolidates into the parent&rsquo;s rollup).');
             }
             if(rule) parts[parts.length-1]+=rule;
           } else {
@@ -791,7 +802,7 @@ function handleSetup(v){
               rule);
           }
         }
-        if(!parts.length && n===1) parts.push('It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.');   // only the primary itself was stored
+        if(!parts.length && n===1) parts.push('It has no parent. '+oneAdvice(primary || { name:biz }));   // only the primary itself was stored
         ending+=parts.join(' ');
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
