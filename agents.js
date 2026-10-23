@@ -469,6 +469,14 @@ function handleSetup(v){
       var codes=names.map(function(n){ return deriveCode(n); });
       // a line this form already stored is permanent: say so, and that editing it adds a company (the ledger is the form's, declared below)
       var storedOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i], n) : null; return (L && L.row && !L.removed) ? L.row : null; };
+      // a line a click already settled without storing it is never offered as "the code it becomes": found in Legal → Entities,
+      // removed since, or not created — the summary says which (round 29)
+      var settledOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i], n) : null; if(!L) return null;
+        if(L.row && L.removed) return { code:L.row.code||codes[i], tag:'removed in Legal → Entities — see the summary' };
+        if(L.row) return null;
+        if(L.state==='exists' && !(L.many && !L.existing)) return { code:(L.existing && L.existing.code)||codes[i], tag:'already in Legal → Entities' };
+        if(L.state==='gone' || L.state==='exists') return { code:codes[i], tag:'not created — see the summary' };
+        return null; };
       // replay the click's own rule, in order: a line is skipped when its code or its name key matches an earlier line
       // that was NOT skipped — so the warning names exactly the lines the click will skip
       var pvCodes=Object.create(null), pvKeys=Object.create(null), skippedLines=[], clashLines=[], same=(typeof sameName==='function') ? sameName : function(){ return true; };
@@ -479,7 +487,7 @@ function handleSetup(v){
       var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i); });   // a stored line is permanent: never ask to rename it
       var anyStored=names.some(function(n,i){ return !!storedOf(n,i); });
       box.innerHTML='Codes these names become — permanent keys (an owner account&rsquo;s prefix, t…_, is added on save; the summary shows the stored key):'+
-        '<div>'+names.map(function(n,i){ var r=storedOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
+        '<div>'+names.map(function(n,i){ var r=storedOf(n,i), st=r ? null : settledOf(n,i); return r ? esc(n)+' → <b>'+esc(r.code||codes[i])+'</b> <span class="su-dim">stored</span>' : st ? esc(n)+' → <b>'+esc(st.code)+'</b> <span class="su-dim">'+st.tag+'</span>' : esc(n)+' → <b>'+esc(codes[i])+'</b>'; }).join('<br>')+'</div>'+
         (anyStored ? 'Stored names and codes are permanent here — editing a stored line adds a new company. ' : 'The code is permanent — fix a typo here, before saving. ')+'Prefer to choose the code yourself? Add the company in Legal → Entities instead.'+
         (skippedLines.length ? ' <span class="su-err">Will not save — same code or name as an earlier line: '+skippedLines.join(', ')+'.</span>' : '')+
         (clashLines.length ? ' <span class="su-err">Same code as an earlier line — a code keeps only the first 40 characters of a name, so this walkthrough can create only one of them: '+clashLines.join(', ')+'. Add the other in Legal → Entities, where you choose the code.</span>' : '')+
@@ -675,7 +683,7 @@ function handleSetup(v){
           R.state='exists'; if(legacy){ R.existing=legacy; R.conflictCode=legacy.code; }   // the stored key is shown in the summary; a later click classifies the code the 409 came from
           var mine=null, ex=null;
           if(i===0 && biz){
-            ex=legacy || await findExisting(code); if(!sameCompany(ex, name)) ex=null; if(ex && ex.id && !legacy) freshIds[ex.id]=1;
+            ex=legacy || await findExisting(code); if(!sameCompany(ex, name)) ex=null; if(ex && ex.id) freshIds[ex.id]=1;   // a legacy ENTITY_<n> row was read in this click too
             mine=ex ? storedRows().filter(function(x){ return x.id===ex.id; })[0] : null;   // the "existing" row is one this form stored
             if(mine){ R.row=mine; R.state='stored'; primary=mine; primaryExisting=false; }
             else if(ex){ R.existing=ex; primary=ex; primaryExisting=true; primaryStatus=409; }
@@ -721,7 +729,7 @@ function handleSetup(v){
           else { orec=await fl.createRecord(opay); }
         } catch(e){ orec=null; }
         if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; OWNER_BY[orec.id]=formId; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
-        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
+        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist, seenAtSend:Object.keys(OWNER_SEEN).filter(function(id){ return nkey(OWNER_SEEN[id])===ok_; }) }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
       };
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
@@ -741,14 +749,17 @@ function handleSetup(v){
         var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
         if(olist){
           if(pend){                                                                          // settle this form's no-reply send
-            var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend; delete OWNER_MAYBE[pk2]; ownerRec=null;   // settled by NAME only
+            var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend, seenAt=ownerRec.seenAtSend||[]; delete OWNER_MAYBE[pk2]; ownerRec=null;   // settled by NAME only
+            // every record of that name is one this page read BEFORE the send: the send filed nothing — never "remove it there" about
+            // a record that was already there (round 29)
+            var preOnly=!wasAbsent && (olist||[]).filter(function(x){ return x && nkey(x.label)===pk2; }).every(function(x){ return x.id && seenAt.indexOf(x.id)>=0; });
             if(ph){
               OWNER_FILED[pk2]={ label:pend, rec:ph }; if(ph.id) OWNER_IDS[pk2]=ph.id;
               // the list read just before that send had no record of this name, so the one there now is this form's own filing
               // (a later corrected spelling is told to replace it there, never filed a second time); otherwise it is only "a record named …"
               var otherForm=!!(ph.id && OWNER_BY[ph.id] && OWNER_BY[ph.id]!==formId);          // another setup form filed it after this send
               if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id){ OWNER_BY[ph.id]=formId; OWNER_SETTLED[ph.id]=1; } noteOwner(ph, ph.label||pend); }
-              else if(pk2===ok_) noteOwner(ph, ph.label||pend); else pendFound=pend;
+              else if(pk2===ok_) noteOwner(ph, ph.label||pend); else if(!preOnly) pendFound=pend;
             }
           }
           var mineNow=!!(ownerRec && ownerRec.mine && !ownerRec.maybe);
@@ -881,10 +892,12 @@ function handleSetup(v){
       // only names still in the typed list, and only names that do not resolve to a row this form stored (by code, another spelling):
       // a line the user removed or renamed away is no longer theirs to act on
       var unresolved=function(k){ var r=resolveL(k, LEDGER[k].code, LEDGER[k].name); return !(r && r.row); };
-      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && unresolved(k) && !(primaryMentioned && (k===pk || L.code===pcode)); });
+      // the primary's own line is left out where its sentence names it — never ANOTHER company cut to the same 40 characters (round 29)
+      var isPrimaryLine=function(k){ var L=LEDGER[k]; return k===pk || (L.code===pcode && sameName(L.name, biz)); };
+      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && unresolved(k) && !(primaryMentioned && isPrimaryLine(k)); });
       var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused' && seenKeys[k] && unresolved(k); }).length;
       // the primary is left out only where its own sentence names it (pReason runs in the ending that counts stored companies)
-      var goneKeys=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='gone' && seenKeys[k] && unresolved(k) && !(n>0 && primaryMentioned && (k===pk || L.code===pcode)); });
+      var goneKeys=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='gone' && seenKeys[k] && unresolved(k) && !(n>0 && primaryMentioned && isPrimaryLine(k)); });
       var goneNote=function(){
         var by=function(kind){ return goneKeys.filter(function(k){ return (LEDGER[k].goneKind||'absent')===kind; }).length; }, gr=by('removed'), ga=by('absent'), gc=by('clash'), t=[];
         if(gr) t.push(gr+' removed from Legal → Entities earlier '+plural(gr,'is','are')+' not counted — add '+plural(gr,'it','them')+' again there, where you choose the code.');
@@ -999,7 +1012,7 @@ function handleSetup(v){
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
         // the box beside existing companies says what it did not do, as the nothing-new ending does (round 27)
-        var exOthers=subs ? existsAll.filter(function(k){ return k!==pk && LEDGER[k].code!==pcode; }).length : 0;
+        var exOthers=subs ? existsAll.filter(function(k){ return !isPrimaryLine(k); }).length : 0;
         if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted'+(exOthers ? ' — the subsidiaries box only sets a parent on a company it creates, so it did not change '+plural(existsAll.length,'it','them')+':' : ' —')+' check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
         ending+=removedNote();
         if(refreshFailed) ending+=' <span class="su-dim">Parents and ownership are shown as this form last saw them — Legal → Entities could not be read just now, so a change made there since is not shown.</span>';
@@ -1008,7 +1021,7 @@ function handleSetup(v){
         // no company stored by this form, but the names exist: still end honestly — no relationship was touched
         var pkExists=!!(pk && ((LEDGER[pk] && LEDGER[pk].state==='exists') || (pr && pr.state==='exists')));
         var ex=existsAll.length + ((pkExists && primaryMentioned) ? 1 : 0);
-        var exSubs=existsAll.filter(function(k){ return k!==pk && LEDGER[k].code!==pcode; });                // existing names other than the primary
+        var exSubs=existsAll.filter(function(k){ return !isPrimaryLine(k); });                // existing names other than the primary
         ending='No new company was '+(unknownRows.length ? 'confirmed' : 'created')+' — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
           ((subs && exSubs.length)
             ? ' The subsidiaries box only sets a parent on a company it creates, so it changed nothing: check '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>&rsquo;s' : 'each one&rsquo;s')+' Parent in Legal → Entities.'
