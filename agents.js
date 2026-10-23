@@ -539,7 +539,7 @@ function handleSetup(v){
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
         else if(pr.state==='unconfirmed'){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
       }
-      var entCreated=0, failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
+      var entCreated=0, createdNow=Object.create(null), failedNow=[], unconfirmedNow=[],skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name);
         if(seenCodes[code] || seenKeys[k]){ dupInList++; continue; }       // a later line of THIS list repeating an earlier one (same name, or same code)
@@ -571,6 +571,7 @@ function handleSetup(v){
         if(payload.parent_entity_id && (res || okNoRecord || (!st && sent))) ASKED[code]=true;
         if(res){
           R.row=res; R.state='stored'; R.unverified=!!(payload.parent_entity_id && !('parent_entity_id' in res));   // asked for a parent, echo did not say
+          R.createdParent=res.parent_entity_id||null; if(res.id) createdNow[res.id]=1;   // the parent it was CREATED with (a later edit in the tile is not "from an earlier attempt")
           entCreated++;
           if(i===0 && biz){ primary=res; primaryExisting=false; }
           fl.fileToDocNav(name+' — entity formation','entity','entities');
@@ -608,7 +609,7 @@ function handleSetup(v){
           else { orec=await fl.createRecord(opay); }
         } catch(e){ orec=null; }
         if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
-        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed
+        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
       };
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
@@ -619,8 +620,14 @@ function handleSetup(v){
         var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
         if(olist){
           if(pend){                                                                          // settle this form's no-reply send
-            var pk2=nkey(pend), ph=byName(pend); delete OWNER_MAYBE[pk2]; ownerRec=null;
-            if(ph){ OWNER_FILED[pk2]={ label:pend, rec:ph }; if(ph.id) OWNER_IDS[pk2]=ph.id; if(pk2===ok_) noteOwner(ph, pend); else pendFound=pend; }
+            var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend; delete OWNER_MAYBE[pk2]; ownerRec=null;
+            if(ph){
+              OWNER_FILED[pk2]={ label:pend, rec:ph }; if(ph.id) OWNER_IDS[pk2]=ph.id;
+              // the list read just before that send had no record of this name, so the one there now is this form's own filing
+              // (a later corrected spelling gets "rename it", never a second record); otherwise it is only "a record named …"
+              if(wasAbsent){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; noteOwner(ph, pend); }
+              else if(pk2===ok_) noteOwner(ph, pend); else pendFound=pend;
+            }
           }
           var mineNow=!!(ownerRec && ownerRec.mine && !ownerRec.maybe);
           // this form's filing, as Personal Information has it now — by its id (a same-named record of someone else is not it)
@@ -673,6 +680,19 @@ function handleSetup(v){
       // three buckets, used by BOTH the summary and the ending: unknown (may be on the server) · HTTP error · not sent
       var unknownRows=other.filter(function(f){ return f.maybe; }), httpRows=other.filter(function(f){ return !f.maybe && f.status; }), unsentRows=other.filter(function(f){ return !f.maybe && !f.status; });
       var expired=authed && !nowAuthed && (other.length>0 || (!!owner && !ownerSaved));   // a session that was alive at the click and is gone now (fl-auth cleared it)
+      // rows stored by an EARLIER attempt (or a looked-up primary) are reported as Legal → Entities has them NOW — the user may
+      // have followed the ending's advice there in between: one read of the list refreshes their Parent and Ownership (round 15)
+      var refreshFailed=false;
+      if(storedRows().some(function(r){ return !createdNow[r.id]; }) || (primary && primaryExisting)){
+        var fr=null; try{ fr=(window.flEntities && flEntities.listX) ? await flEntities.listX() : null; }catch(e){ fr=null; }
+        var frows=(fr && fr.ok && Array.isArray(fr.data)) ? fr.data : null, nowById=Object.create(null);
+        if(frows){
+          frows.forEach(function(x){ if(x && x.id) nowById[x.id]=x; });
+          var syncRow=function(r){ var f=r && nowById[r.id]; if(f){ r.parent_entity_id=f.parent_entity_id||null; if('ownership_pct' in f) r.ownership_pct=f.ownership_pct; } return !!f; };
+          ORDER.forEach(function(k){ var L=LEDGER[k]; if(syncRow(L.row) && 'parent_entity_id' in nowById[L.row.id]) L.unverified=false; syncRow(L.existing); });
+          syncRow(primary);
+        } else if(storedRows().some(function(r){ return !createdNow[r.id]; })) refreshFailed=true;
+      }
       var stored=storedRows();
       var retryable=other.length + ((owner && !ownerSaved) ? 1 : 0);
       // lock when this form stored a company and nothing is left to retry, or when it only ever filed the owner; a click that stored
@@ -755,8 +775,11 @@ function handleSetup(v){
       };
       // the primary's OWN parent is a fact too (a row this form stored under an earlier primary, now typed as the primary)
       var pParentRow=(primary && primary.parent_entity_id) ? knownRows().filter(function(x){ return x.id===primary.parent_entity_id; })[0] : null;
+      // "from an earlier attempt" only for a parent the row was CREATED with by this form (a Parent set later in the tile is not that)
+      var ledgerOf=Object.create(null); ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row && L.row.id) ledgerOf[L.row.id]=L; });
+      var fromEarlier=function(r){ var L=r && ledgerOf[r.id]; return !!(L && L.createdParent!==undefined && L.createdParent===(r.parent_entity_id||null)); };
       var pFact=(primary && primary.parent_entity_id && (pParentRow || !primaryExisting))
-        ? '<b>'+pname+'</b> is filed under <b>'+esc(pParentRow ? (pParentRow.name||pParentRow.code) : 'another company')+'</b>'+(primaryExisting ? '' : ' from an earlier attempt')+'.' : null;
+        ? '<b>'+pname+'</b> is filed under <b>'+esc(pParentRow ? (pParentRow.name||pParentRow.code) : 'another company')+'</b>'+((!primaryExisting && fromEarlier(primary)) ? ' from an earlier attempt' : '')+'.' : null;
       // a parent the user can pick for the top-level rows — never while the primary itself has a parent (that advice could name its own ancestor: a cycle)
       var target=(primary && primary.parent_entity_id) ? null : primary ? pname
         : ((subs && primaryFailed && primaryStatus===409 && !(pcode && ASKED[pcode]) && !(pr && pr.code && ASKED[pr.code]) && !(pk && LEDGER[pk] && ASKED[LEDGER[pk].code])) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
@@ -779,12 +802,18 @@ function handleSetup(v){
         if(subs && primaryFailed) parts.push('<b>'+pname+'</b> '+pReason()+'. The subsidiaries box needs it, so nothing was filed under it.'+pAdvice());
         if(pFact) parts.push(pFact);
         if(underCurrent.length){
-          var K=underCurrent.length;
-          parts.push((others.length===1 ? namesOf(underCurrent)+' is' : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
+          // the ownership % as Legal → Entities has it: not established (null) never consolidates; only 100.00 does
+          var notEst=underCurrent.filter(function(r){ return r.ownership_pct==null; }), est=underCurrent.filter(function(r){ return r.ownership_pct!=null; });
+          if(notEst.length){
+            var K=notEst.length;
+            parts.push((others.length===1 ? namesOf(notEst)+' is' : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
+          }
+          if(est.length) parts.push(est.map(function(r){ var full=Number(r.ownership_pct)===100;
+            return '<b>'+esc(r.name||r.code)+'</b> is filed under <b>'+pname+'</b> at '+esc(String(r.ownership_pct))+'% — '+(full ? 'it consolidates into '+pname+'&rsquo;s rollup' : 'it does not consolidate into '+pname+'&rsquo;s rollup; only 100.00 does'); }).join('. ')+'.');
         }
         if(underOther.length){
           var byParent=Object.create(null), order=[]; underOther.forEach(function(r){ var p=knownRows().filter(function(x){ return x.id===r.parent_entity_id; })[0]; var nm=p ? (p.name||p.code) : 'another company'; if(!byParent[nm]){ byParent[nm]=[]; order.push(nm); } byParent[nm].push(r); });
-          order.forEach(function(nm){ var rows=byParent[nm], M=rows.length; parts.push((M<=3 ? namesOf(rows) : M+' of them')+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b> from an earlier attempt.'); });
+          order.forEach(function(nm){ var rows=byParent[nm], M=rows.length; parts.push((M<=3 ? namesOf(rows) : M+' of them')+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b>'+(rows.every(fromEarlier) ? ' from an earlier attempt' : '')+'.'); });
         }
         if(topLevel.length){
           var T=topLevel.length, allTop=(T===others.length) && !underCurrent.length && !underOther.length && !unverifiedN && !pFact;
@@ -811,6 +840,7 @@ function handleSetup(v){
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted — check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
+        if(refreshFailed) ending+=' <span class="su-dim">Parents and ownership are shown as this form stored them — Legal → Entities could not be read just now, so a change made there since is not shown.</span>';
         if(unverifiedN) ending+=' <span class="su-dim">'+unverifiedN+' could not be verified — the server did not echo a parent; check '+plural(unverifiedN,'its','their')+' Parent in Legal → Entities.</span>';
       } else if(existsAll.length || (pr && pr.state==='exists') || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
         // no company stored by this form, but the names exist: still end honestly — no relationship was touched
