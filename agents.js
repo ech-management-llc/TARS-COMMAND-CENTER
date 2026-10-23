@@ -1064,7 +1064,9 @@ function handleSetup(v){
       } else if(removedN){
         // every company this form created was removed in Legal → Entities since: the ending shown before described them — it is
         // replaced, never left standing as this form's status (round 24)
-        ending='No company this form created is in Legal → Entities now — '+plural(removedN,'the one','all '+removedN)+' it created '+plural(removedN,'was','were')+' removed there since.';
+        // a send of this form that got no reply may have created a company it cannot see: say "confirmed", never "created" (round 34)
+        var anyMaybe=ORDER.some(function(k){ return LEDGER[k].maybeStored && !LEDGER[k].row; });
+        ending='No company this form '+(anyMaybe ? 'confirmed' : 'created')+' is in Legal → Entities now — '+plural(removedN,'the one','all '+removedN)+' it created '+plural(removedN,'was','were')+' removed there since.'+(anyMaybe ? ' <span class="su-dim">A send that got no reply may have saved a company — check Legal → Entities.</span>' : '');
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
