@@ -670,6 +670,13 @@ function handleSetup(v){
       var target=(primary && primary.parent_entity_id) ? null : primary ? pname
         : ((subs && primaryFailed && primaryStatus===409 && !(pL && pL.askedParent)) ? pname : null);   // an unresolved primary this form once sent WITH a parent could sit under the advised row
       var boxRule=' The subsidiaries box only sets a parent on a company it creates while <b>'+pname+'</b> is saved or found; it does not change a company that is already stored.';
+      // rows this click could not save: an HTTP error "didn't save"; no response means the form cannot know (the reply was lost, not the row)
+      var notCountedNote=function(){
+        var noResp=other.filter(function(f){ return !f.status; }).length, errs=other.length-noResp, t=[];
+        if(errs) t.push('The '+errs+' that didn&rsquo;t save '+plural(errs,'isn&rsquo;t','aren&rsquo;t')+' counted.');
+        if(noResp) t.push('The '+noResp+' the server did not confirm '+plural(noResp,'isn&rsquo;t','aren&rsquo;t')+' counted.');
+        return ' <span class="su-dim">'+t.join(' ')+'</span>';
+      };
       var ending=null;
       if(n){
         ending='You created '+n+' compan'+plural(n,'y','ies')+'. ';
@@ -707,7 +714,7 @@ function handleSetup(v){
         }
         if(!parts.length && n===1) parts.push('It has no parent. If one of your other companies owns it, or it owns one, open it in Legal → Entities and set its Parent, then the Ownership %.');   // only the primary itself was stored
         ending+=parts.join(' ');
-        if(other.length) ending+=' <span class="su-dim">The '+other.length+' that didn&rsquo;t save '+plural(other.length,'isn&rsquo;t','aren&rsquo;t')+' counted.</span>';
+        if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted — check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
         if(unverifiedN) ending+=' <span class="su-dim">'+unverifiedN+' could not be verified — the server did not echo a parent; check '+plural(unverifiedN,'its','their')+' Parent in Legal → Entities.</span>';
@@ -720,7 +727,7 @@ function handleSetup(v){
           ((subs && exSubs.length)
             ? ' The subsidiaries box only sets a parent on a company it creates, so it changed nothing: set '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>&rsquo;s' : 'each one&rsquo;s')+' Parent in Legal → Entities.'
             : ' Parent and Ownership % are set in Legal → Entities.');
-        if(other.length) ending+=' <span class="su-dim">The '+other.length+' that didn&rsquo;t save '+plural(other.length,'isn&rsquo;t','aren&rsquo;t')+' counted.</span>';
+        if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
       }
       if(ending){
