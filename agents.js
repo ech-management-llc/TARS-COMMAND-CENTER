@@ -406,6 +406,7 @@ function paintHire(b){
 var OWNER_FILED=Object.create(null), OWNER_MAYBE=Object.create(null), OWNER_NOTED=Object.create(null);   // MAYBE: a send of that owner got no reply · NOTED: Document Navigator owner notes filed (by record id)
 var OWNER_IDS=Object.create(null);   // owner name -> the record id this page filed, found or advised for it (a rename made in Personal Information keeps the tie)
 var OWNER_SEEN=Object.create(null);  // record id -> the name Personal Information gave it when last read (said when it cannot be read now)
+var OWNER_BY=Object.create(null), FORM_SEQ=0;   // record id -> the setup form that filed it (another form's filing is never claimed as this form's)
 // zero-width / format characters never make a different (or a blank) company: stripped from every typed name
 var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
 function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
@@ -481,7 +482,7 @@ function handleSetup(v){
     // ACROSS ATTEMPTS (review rounds 1-4): ONE ledger per typed name — stored / exists / refused / failed / unconfirmed —
     // indexed by name AND by derived code (a stored row by code wins over a row-less entry by name), so a retry never
     // re-sends what is settled, the owner is filed once, and every sentence below states what the server echoed
-    var LEDGER=Object.create(null), ORDER=[], BYCODE=Object.create(null), ASKED=Object.create(null), ownerRec=null;
+    var LEDGER=Object.create(null), ORDER=[], BYCODE=Object.create(null), ASKED=Object.create(null), ownerRec=null, formId=++FORM_SEQ;
     var nkey=function(name){ return cleanName(name).toLowerCase().replace(/\s+/g,' '); };   // case, edge and internal whitespace never make a second key
     // the ledger entry for a typed name: its own entry if that one has a stored row, else the row this form stored under the
     // same code (another spelling), else its own entry (exists / refused / failed), else none
@@ -608,7 +609,7 @@ function handleSetup(v){
           if(window.flApi && flApi.callX){ var orr=await flApi.callX('POST', '/api/admin-records', opay); ownerStatus=(orr && orr.status)||0; orec=(orr && orr.ok) ? (orr.data || {}) : null; }   // status-carrying
           else { orec=await fl.createRecord(opay); }
         } catch(e){ orec=null; }
-        if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
+        if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; OWNER_BY[orec.id]=formId; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
         else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
       };
       if(owner){
@@ -625,7 +626,8 @@ function handleSetup(v){
               OWNER_FILED[pk2]={ label:pend, rec:ph }; if(ph.id) OWNER_IDS[pk2]=ph.id;
               // the list read just before that send had no record of this name, so the one there now is this form's own filing
               // (a later corrected spelling gets "rename it", never a second record); otherwise it is only "a record named …"
-              if(wasAbsent){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; noteOwner(ph, pend); }
+              var otherForm=!!(ph.id && OWNER_BY[ph.id] && OWNER_BY[ph.id]!==formId);          // another setup form filed it after this send
+              if(wasAbsent && !otherForm){ ownerRec={ label:ph.label||pend, rec:ph, mine:true }; if(ph.id) OWNER_BY[ph.id]=formId; noteOwner(ph, pend); }
               else if(pk2===ok_) noteOwner(ph, pend); else pendFound=pend;
             }
           }
