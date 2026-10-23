@@ -465,7 +465,7 @@ function handleSetup(v){
       if(!names.length){ box.innerHTML=''; return; }
       var codes=names.map(function(n){ return deriveCode(n); });
       // a line this form already stored is permanent: say so, and that editing it adds a company (the ledger is the form's, declared below)
-      var storedOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i]) : null; return (L && L.row) ? L.row : null; };
+      var storedOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i]) : null; return (L && L.row && !L.removed) ? L.row : null; };
       // replay the click's own rule, in order: a line is skipped when its code or its name key matches an earlier line
       // that was NOT skipped — so the warning names exactly the lines the click will skip
       var pvCodes=Object.create(null), pvKeys=Object.create(null), skippedLines=[];
@@ -500,7 +500,7 @@ function handleSetup(v){
       ['#su-biz','#su-owner','#su-ents','#su-subs'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.disabled=true; });
       var box=b.querySelector('#su-codes'); if(box) box.innerHTML=text;   // the preview no longer invites edits
     };
-    var storedRows=function(){ var seen=Object.create(null), out=[]; ORDER.forEach(function(k){ var r=LEDGER[k].row; if(r && !seen[r.id]){ seen[r.id]=1; out.push(r); } }); return out; };
+    var storedRows=function(){ var seen=Object.create(null), out=[]; ORDER.forEach(function(k){ var r=LEDGER[k].row; if(r && !LEDGER[k].removed && !seen[r.id]){ seen[r.id]=1; out.push(r); } }); return out; };   // a row removed in Legal → Entities is not counted
     var knownRows=function(){ return ORDER.map(function(k){ return LEDGER[k].row||LEDGER[k].existing; }).filter(Boolean); };   // stored here, or looked up
     // Personal Information's owner records (personal_info), or null when they could not be read
     var listOwners=async function(){
@@ -534,19 +534,34 @@ function handleSetup(v){
       var rec=function(name, code){ var k=nkey(name); if(!LEDGER[k]){ LEDGER[k]={ name:name, code:code, row:null, state:'', st:0, existing:null, unverified:false }; ORDER.push(k); } return LEDGER[k]; };
       // THIS click's primary, resolved from the ledger by the name in the field now (never a row from an earlier name)
       var primary=null, primaryExisting=false, primaryStatus=0, primaryMaybe=false, primaryFailed=false, pk=biz?nkey(biz):null, pcode=biz?deriveCode(biz):null;
+      // rows stored by an EARLIER attempt are reported (and skipped) as Legal → Entities has them NOW — the user may have followed
+      // the ending's advice there in between: one read of the list refreshes their Parent and Ownership, and a row it no
+      // longer has was removed there (rounds 15-16)
+      var refreshFailed=false;
+      if(ORDER.some(function(k){ return LEDGER[k].row || LEDGER[k].existing; })){
+        var fr=null; try{ fr=(window.flEntities && flEntities.listX) ? await flEntities.listX() : null; }catch(e){ fr=null; }
+        var frows=(fr && fr.ok && Array.isArray(fr.data)) ? fr.data : null, nowById=Object.create(null);
+        if(frows){
+          frows.forEach(function(x){ if(x && x.id) nowById[x.id]=x; });
+          var syncRow=function(r){ var f=r && nowById[r.id]; if(f){ r.parent_entity_id=f.parent_entity_id||null; if('ownership_pct' in f) r.ownership_pct=f.ownership_pct; } return !!f; };
+          ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row){ if(syncRow(L.row)){ L.removed=false; if('parent_entity_id' in nowById[L.row.id]) L.unverified=false; } else L.removed=true; } syncRow(L.existing); });
+        } else if(storedRows().length) refreshFailed=true;
+      }
       var pr = pk ? resolveL(pk, pcode) : null;
       if(pr){
-        if(pr.row){ primary=pr.row; }
+        if(pr.row && pr.removed){ primaryStatus='removed'; if(subs) primaryFailed=true; }   // removed in Legal → Entities since this form created it
+        else if(pr.row){ primary=pr.row; }
         else if(pr.state==='exists'){ if(!pr.existing){ var px_=await findExisting(pr.code); pr.existing=sameCompany(px_, pr.name) ? px_ : null; } if(pr.existing){ primary=pr.existing; primaryExisting=true; } else { primaryStatus=409; if(subs) primaryFailed=true; } }
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
         else if(pr.state==='unconfirmed'){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
       }
-      var entCreated=0, createdNow=Object.create(null), failedNow=[], unconfirmedNow=[],skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
+      var entCreated=0, createdNow=Object.create(null), failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, skippedRemoved=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name);
         if(seenCodes[code] || seenKeys[k]){ dupInList++; continue; }       // a later line of THIS list repeating an earlier one (same name, or same code)
         seenCodes[code]=true; seenKeys[k]=true;
         var R=resolveL(k, code);                                            // by name, or by a code this form already stored
+        if(R && R.row && R.removed){ skippedRemoved++; continue; }           // removed in Legal → Entities since: not sent again, not counted
         if(R && R.row){ skippedStored++; if(i===0 && biz && !primary){ primary=R.row; primaryExisting=false; } continue; }   // stored by an earlier attempt: never sent again
         if(R && R.state==='exists'){ skippedExists++; continue; }           // the server said it exists: a retry cannot create it
         if(R && R.state==='refused'){ skippedRefused++; continue; }         // refused (403): a retry cannot change that
@@ -602,7 +617,7 @@ function handleSetup(v){
       // matched by name (never filed twice), a record this form filed is re-located by id (a rename or a removal made there
       // is seen), and an earlier send of this form that got no reply is settled. When it cannot be read, the page session's
       // memory decides, and an owner that may already be filed is held — never re-sent blind.
-      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerDupSettled=false, ownerFound=false, foundLabel=null, filedAs=null, filedAsStale=false, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null;
+      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerDupSettled=false, ownerFound=false, foundLabel=null, filedAs=null, filedAsStale=false, renameUnchecked=false, ownerMaybe=[], ownerStatus=0, pendFound=null, heldPend=false;
       var noteOwner=function(rec, label){ var k=(rec && rec.id) || ('name:'+nkey(label)); if(!OWNER_NOTED[k]){ OWNER_NOTED[k]=1; fl.fileToDocNav(label+' — owner profile','personal-info','personal-information'); } };
       var sendOwner=async function(){
         var orec=null, otok=!!(window.flApi && flApi.authed && flApi.authed()), opay={ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' };
@@ -611,7 +626,7 @@ function handleSetup(v){
           else { orec=await fl.createRecord(opay); }
         } catch(e){ orec=null; }
         if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; if(orec.id){ OWNER_IDS[ok_]=orec.id; OWNER_SEEN[orec.id]=owner; OWNER_BY[orec.id]=formId; } delete OWNER_MAYBE[ok_]; ownerSavedNow=true; noteOwner(orec, owner); }
-        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
+        else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true, absentAtSend:!!olist, beforeIds:olist ? olist.map(function(x){ return x && x.id; }) : null }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybe.push({ label:owner }); }   // no reply: may be filed (absentAtSend: the list read just before showed no record of this name)
       };
       if(owner){
         var ok_=nkey(owner), pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : null;   // pend: this form's earlier send that got no reply
@@ -622,7 +637,12 @@ function handleSetup(v){
         var byId=function(id){ return id ? ((olist||[]).filter(function(x){ return x && x.id===id; })[0] || null) : null; };
         if(olist){
           if(pend){                                                                          // settle this form's no-reply send
-            var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend; delete OWNER_MAYBE[pk2]; ownerRec=null;
+            var pk2=nkey(pend), ph=byName(pend), wasAbsent=!!ownerRec.absentAtSend, beforeIds=ownerRec.beforeIds; delete OWNER_MAYBE[pk2]; ownerRec=null;
+            if(!ph && wasAbsent && beforeIds){                                           // not under its name: renamed there since? the NEW records tell
+              var fresh=olist.filter(function(x){ return x && x.id && beforeIds.indexOf(x.id)<0 && !(OWNER_BY[x.id] && OWNER_BY[x.id]!==formId); });
+              if(fresh.length===1){ ph=fresh[0]; OWNER_IDS[pk2]=ph.id; }                     // that send's record, renamed: tied, never filed twice
+              else if(fresh.length>1){ heldPend=true; ownerRec={ label:pend, rec:null, mine:true, maybe:true, absentAtSend:true, beforeIds:beforeIds }; OWNER_MAYBE[pk2]={ label:pend }; ownerMaybe.push({ label:pend }); }
+            }
             if(ph){
               OWNER_FILED[pk2]={ label:pend, rec:ph }; if(ph.id) OWNER_IDS[pk2]=ph.id;
               // the list read just before that send had no record of this name, so the one there now is this form's own filing
@@ -655,6 +675,7 @@ function handleSetup(v){
             if(!own) ownerRec={ label:tied.label, rec:tied, mine:false };
           }
           else if(own){ ownerRenamed=true; ownerRec={ label:own.label, rec:own, mine:true }; if(own.id) OWNER_IDS[ok_]=own.id; }   // this form filed another spelling that is still there: rename it (another chip must not file this name)
+          else if(heldPend){}                                                                  // more than one new record since the no-reply send: held, never re-sent blind
           else await sendOwner();
         } else {
           // Personal Information could not be read: the page session decides
@@ -683,19 +704,6 @@ function handleSetup(v){
       // three buckets, used by BOTH the summary and the ending: unknown (may be on the server) · HTTP error · not sent
       var unknownRows=other.filter(function(f){ return f.maybe; }), httpRows=other.filter(function(f){ return !f.maybe && f.status; }), unsentRows=other.filter(function(f){ return !f.maybe && !f.status; });
       var expired=authed && !nowAuthed && (other.length>0 || (!!owner && !ownerSaved));   // a session that was alive at the click and is gone now (fl-auth cleared it)
-      // rows stored by an EARLIER attempt (or a looked-up primary) are reported as Legal → Entities has them NOW — the user may
-      // have followed the ending's advice there in between: one read of the list refreshes their Parent and Ownership (round 15)
-      var refreshFailed=false;
-      if(storedRows().some(function(r){ return !createdNow[r.id]; }) || (primary && primaryExisting)){
-        var fr=null; try{ fr=(window.flEntities && flEntities.listX) ? await flEntities.listX() : null; }catch(e){ fr=null; }
-        var frows=(fr && fr.ok && Array.isArray(fr.data)) ? fr.data : null, nowById=Object.create(null);
-        if(frows){
-          frows.forEach(function(x){ if(x && x.id) nowById[x.id]=x; });
-          var syncRow=function(r){ var f=r && nowById[r.id]; if(f){ r.parent_entity_id=f.parent_entity_id||null; if('ownership_pct' in f) r.ownership_pct=f.ownership_pct; } return !!f; };
-          ORDER.forEach(function(k){ var L=LEDGER[k]; if(syncRow(L.row) && 'parent_entity_id' in nowById[L.row.id]) L.unverified=false; syncRow(L.existing); });
-          syncRow(primary);
-        } else if(storedRows().some(function(r){ return !createdNow[r.id]; })) refreshFailed=true;
-      }
       var stored=storedRows();
       var retryable=other.length + ((owner && !ownerSaved) ? 1 : 0);
       // lock when this form stored a company and nothing is left to retry, or when it only ever filed the owner; a click that stored
@@ -711,6 +719,7 @@ function handleSetup(v){
       var out=[];
       if(entCreated) out.push('✅ Created '+entCreated+' entit'+plural(entCreated,'y','ies')+' in the entities table');
       if(skippedStored) out.push(skippedStored+' already stored by an earlier attempt — not sent again');
+      if(skippedRemoved) out.push(skippedRemoved+' removed in Legal → Entities since this form created '+plural(skippedRemoved,'it','them')+' — not sent again');
       if(skippedExists) out.push(skippedExists+' already exist'+plural(skippedExists,'s','')+' — not sent again');
       if(skippedRefused) out.push(skippedRefused+' refused by the server earlier — not sent again');
       if(skippedUnconfirmed) out.push(skippedUnconfirmed+' saved earlier without a confirmation — not sent again; check Legal → Entities');
@@ -762,6 +771,7 @@ function handleSetup(v){
       var pReason=function(){
         if(primaryStatus===409) return 'already exists but could not be looked up';
         if(primaryStatus===403) return 'was refused by the server (not allowed) — this account cannot create it';
+        if(primaryStatus==='removed') return 'was removed in Legal → Entities after this form created it';
         if(primaryStatus==='unconfirmed') return 'was saved without a confirmation from the server';
         if(primaryMaybe) return primaryStatus ? 'didn&rsquo;t save this time (HTTP '+primaryStatus+'), but an earlier send got no reply — it may already be on the server'
                                               : 'got no reply — it may or may not have reached the server';   // sticky: a send that got no reply may have saved it
@@ -772,6 +782,7 @@ function handleSetup(v){
       var pAdvice=function(){
         if(primaryStatus===409) return '';                                           // the clause below says: set its Parent to P
         if(primaryStatus===403) return ' Set the Parents in Legal → Entities once '+pname+' exists.';
+        if(primaryStatus==='removed') return ' Add it again in Legal → Entities, then set the Parents there.';
         if(primaryStatus==='unconfirmed') return ' Check it in Legal → Entities, then set the Parents there.';
         if(primaryMaybe) return (expired || !nowAuthed ? ' Sign in again, then check' : ' Check')+' Legal → Entities before retrying it — it may already be there.';
         if(primaryStatus===401 && expired) return ' Sign in again, then retry it.';
@@ -845,6 +856,8 @@ function handleSetup(v){
         if(other.length) ending+=notCountedNote();
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         if(existsAll.length) ending+=' <span class="su-dim">'+existsAll.length+' already existed and '+plural(existsAll.length,'is','are')+' not counted — check '+plural(existsAll.length,'its','their')+' Parent in Legal → Entities.</span>';
+        var removedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].removed; }).length;
+        if(removedN) ending+=' <span class="su-dim">'+removedN+' this form created '+plural(removedN,'was','were')+' removed in Legal → Entities since and '+plural(removedN,'is','are')+' not counted.</span>';
         if(refreshFailed) ending+=' <span class="su-dim">Parents and ownership are shown as this form stored them — Legal → Entities could not be read just now, so a change made there since is not shown.</span>';
         if(unverifiedN) ending+=' <span class="su-dim">'+unverifiedN+' could not be verified — the server did not echo a parent; check '+plural(unverifiedN,'its','their')+' Parent in Legal → Entities.</span>';
       } else if(existsAll.length || (pr && pr.state==='exists') || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
