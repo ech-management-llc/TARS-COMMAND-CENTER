@@ -405,7 +405,8 @@ function paintHire(b){
 // saving so a typo is caught while it is still a name, not a key (TD-239).
 // owner profiles filed by ANY setup form in this page session, by normalised name — a re-opened chip never files the
 // same person twice (the per-form ledger below covers retries inside one form)
-var OWNER_FILED={};
+// name- and code-keyed maps are prototype-free: a company or owner named "Constructor" / "__proto__" is an ordinary key
+var OWNER_FILED=Object.create(null), OWNER_MAYBE=Object.create(null);   // MAYBE: a send of that owner got no reply
 // zero-width / format characters never make a different (or a blank) company: stripped from every typed name
 var ZW_RE=/[\u00AD\u180E\u200B-\u200D\u2060\uFEFF]/g;
 function cleanName(v){ return String(v==null?'':v).replace(ZW_RE,'').trim(); }
@@ -462,7 +463,7 @@ function handleSetup(v){
       var storedOf=function(n,i){ var L=(typeof resolveL==='function') ? resolveL(nkey(n), codes[i]) : null; return (L && L.row) ? L.row : null; };
       // replay the click's own rule, in order: a line is skipped when its code or its name key matches an earlier line
       // that was NOT skipped — so the warning names exactly the lines the click will skip
-      var pvCodes={}, pvKeys={}, skippedLines=[];
+      var pvCodes=Object.create(null), pvKeys=Object.create(null), skippedLines=[];
       names.forEach(function(n,i){ var k=nkey(n), c=codes[i]; if(pvCodes[c] || pvKeys[k]){ skippedLines.push(esc(n)+' ('+esc(c)+')'); return; } pvCodes[c]=1; pvKeys[k]=1; });
       var fallback=codes.filter(function(c,i){ return codeIsFallback(names[i]) && !storedOf(names[i],i); });   // a stored line is permanent: never ask to rename it
       var anyStored=names.some(function(n,i){ return !!storedOf(n,i); });
@@ -477,7 +478,7 @@ function handleSetup(v){
     // ACROSS ATTEMPTS (review rounds 1-4): ONE ledger per typed name — stored / exists / refused / failed / unconfirmed —
     // indexed by name AND by derived code (a stored row by code wins over a row-less entry by name), so a retry never
     // re-sends what is settled, the owner is filed once, and every sentence below states what the server echoed
-    var LEDGER={}, ORDER=[], BYCODE={}, ASKED={}, ownerRec=null;
+    var LEDGER=Object.create(null), ORDER=[], BYCODE=Object.create(null), ASKED=Object.create(null), ownerRec=null;
     var nkey=function(name){ return cleanName(name).toLowerCase().replace(/\s+/g,' '); };   // case, edge and internal whitespace never make a second key
     // the ledger entry for a typed name: its own entry if that one has a stored row, else the row this form stored under the
     // same code (another spelling), else its own entry (exists / refused / failed), else none
@@ -494,9 +495,18 @@ function handleSetup(v){
       ['#su-biz','#su-owner','#su-ents','#su-subs'].forEach(function(sel){ var el=b.querySelector(sel); if(el) el.disabled=true; });
       var box=b.querySelector('#su-codes'); if(box) box.innerHTML=text;   // the preview no longer invites edits
     };
-    var storedRows=function(){ var seen={}, out=[]; ORDER.forEach(function(k){ var r=LEDGER[k].row; if(r && !seen[r.id]){ seen[r.id]=1; out.push(r); } }); return out; };
+    var storedRows=function(){ var seen=Object.create(null), out=[]; ORDER.forEach(function(k){ var r=LEDGER[k].row; if(r && !seen[r.id]){ seen[r.id]=1; out.push(r); } }); return out; };
     var knownRows=function(){ return ORDER.map(function(k){ return LEDGER[k].row||LEDGER[k].existing; }).filter(Boolean); };   // stored here, or looked up
     // the ONE company this caller can see whose code is CODE or t<sha8>_CODE; two candidates = not looked up (never guess)
+    // the owner by name in Personal Information: {rec} found · {absent:true} listed and not there · {} could not tell
+    var findOwner=async function(label){
+      try{
+        var r=(window.flRecords && flRecords.listX) ? await flRecords.listX('personal_info') : null;
+        if(!r || !r.ok || !Array.isArray(r.data)) return {};
+        var k=nkey(label), hit=r.data.filter(function(x){ return x && nkey(x.label)===k; })[0];
+        return hit ? { rec:hit } : { absent:true };
+      }catch(e){ return {}; }
+    };
     var findExisting=async function(code){
       try{
         if(!(window.flEntities && flEntities.listX)) return null;
@@ -530,7 +540,7 @@ function handleSetup(v){
         else if(pr.state==='refused'){ primaryStatus=pr.st||403; if(subs) primaryFailed=true; }
         else if(pr.state==='unconfirmed'){ primaryStatus='unconfirmed'; if(subs) primaryFailed=true; }
       }
-      var entCreated=0, failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, seenCodes={}, seenKeys={};
+      var entCreated=0, failedNow=[], unconfirmedNow=[], skippedStored=0, skippedExists=0, skippedRefused=0, skippedUnconfirmed=0, dupInList=0, seenCodes=Object.create(null), seenKeys=Object.create(null);
       for(var i=0;i<allEnts.length;i++){
         var name=allEnts[i], k=nkey(name), code=deriveCode(name,i);
         if(seenCodes[code] || seenKeys[k]){ dupInList++; continue; }       // a later line of THIS list repeating an earlier one (same name, or same code)
@@ -582,19 +592,36 @@ function handleSetup(v){
       }
       // The OWNER (a person) is the personal_info record — NOT the business name. Filed ONCE: per form, and across forms in
       // this page session by normalised name; a renamed owner is never a second record.
-      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null;
+      var ownerSavedNow=false, ownerSkipped=false, ownerRenamed=false, ownerDup=null, ownerFound=false, ownerMaybeNow=false, ownerUnchecked=false, ownerStatus=0;
       if(owner){
         var ok_=nkey(owner);
+        // a send that got no reply may have filed the owner, and personal_info has no unique key: before anything is sent
+        // again, look it up in Personal Information by name — found: filed; absent: forget it; the lookup failed: still unknown
+        var pend=(ownerRec && ownerRec.maybe) ? ownerRec.label : (OWNER_MAYBE[ok_] ? OWNER_MAYBE[ok_].label : null);
+        if(pend){
+          var hit=await findOwner(pend), pk_=nkey(pend);
+          if(hit.rec){ OWNER_FILED[pk_]={ label:pend, rec:hit.rec }; delete OWNER_MAYBE[pk_]; if(ownerRec && ownerRec.maybe) ownerRec={ label:pend, rec:hit.rec, mine:true }; if(pk_===ok_) ownerFound=true; }
+          else if(hit.absent){ delete OWNER_MAYBE[pk_]; if(ownerRec && ownerRec.maybe) ownerRec=null; }
+          else ownerUnchecked=true;
+        }
         if(OWNER_FILED[ok_]){
-          ownerSkipped=true;
-          if(ownerRec && ownerRec.mine && nkey(ownerRec.label)!==ok_) ownerDup=ownerRec.label;   // this form filed another spelling before the right one was found filed
+          if(!ownerFound) ownerSkipped=true;
+          if(ownerRec && ownerRec.mine && !ownerRec.maybe && nkey(ownerRec.label)!==ok_) ownerDup=ownerRec.label;   // this form filed another spelling before the right one was found filed
           if(!ownerRec) ownerRec={ label:OWNER_FILED[ok_].label, rec:OWNER_FILED[ok_].rec, mine:false };
         }
+        else if((ownerRec && ownerRec.maybe) || OWNER_MAYBE[ok_]){ ownerMaybeNow=true; }   // still unknown: never re-sent blind
         else if(ownerRec && ownerRec.mine){ ownerRenamed=true; }                 // this form filed another spelling: never a second record
-        else { var orec=null; try { orec=await fl.createRecord({ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' }); } catch(e){ orec=null; }
-          if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; ownerSavedNow=true; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); } }
+        else {
+          var orec=null, otok=!!(window.flApi && flApi.authed && flApi.authed()), opay={ kind:'personal_info', label:owner, details:{ role:'Owner' }, retention:'7yr' };
+          try {
+            if(window.flApi && flApi.callX){ var orr=await flApi.callX('POST', '/api/admin-records', opay); ownerStatus=(orr && orr.status)||0; orec=(orr && orr.ok) ? (orr.data || {}) : null; }   // status-carrying
+            else { orec=await fl.createRecord(opay); }
+          } catch(e){ orec=null; }
+          if(orec){ ownerRec={ label:owner, rec:orec, mine:true }; OWNER_FILED[ok_]={ label:owner, rec:orec }; ownerSavedNow=true; fl.fileToDocNav(owner+' — owner profile','personal-info','personal-information'); }
+          else if(!ownerStatus && otok){ ownerRec={ label:owner, rec:null, mine:true, maybe:true }; OWNER_MAYBE[ok_]={ label:owner }; ownerMaybeNow=true; }   // no reply: may be filed
+        }
       }
-      var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed));
+      var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed || ownerFound));
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
       var nowAuthed=!!(window.flApi && flApi.authed && flApi.authed());
       var exists=failedNow.filter(function(f){ return f.status===409; }), notAllowed=failedNow.filter(function(f){ return f.status===403; }), other=failedNow.filter(function(f){ return f.status!==409 && f.status!==403; });
@@ -603,7 +630,6 @@ function handleSetup(v){
       var expired=authed && !nowAuthed && (other.length>0 || (!!owner && !ownerSaved));   // a session that was alive at the click and is gone now (fl-auth cleared it)
       var stored=storedRows();
       var retryable=other.length + ((owner && !ownerSaved) ? 1 : 0);
-      var ownerMine=!!(ownerRec && ownerRec.mine);
       // lock when this form stored a company and nothing is left to retry, or when it only ever filed the owner; a click that stored
       // no company stays open so a mistyped (existing) name can be corrected — the owner is not filed again (ownerRec / OWNER_FILED)
       done=(retryable===0 && !expired && (stored.length>0 || (!!ownerRec && allEnts.length===0)));
@@ -622,6 +648,7 @@ function handleSetup(v){
       if(skippedUnconfirmed) out.push(skippedUnconfirmed+' saved earlier without a confirmation — not sent again; check Legal → Entities');
       if(dupInList) out.push(dupInList+' duplicate'+plural(dupInList,'','s')+' of an earlier line — skipped');
       if(ownerSavedNow) out.push('✅ Filed the owner under Personal Information');
+      if(ownerFound) out.push('✅ The owner is filed in Personal Information (found there — the earlier send did reach it); not sent again');
       if(ownerSkipped) out.push('Owner already filed — not sent again'+(ownerDup ? '; this form also filed &ldquo;'+esc(ownerDup)+'&rdquo; — remove that duplicate in Personal Information' : ''));
       if(ownerRenamed) out.push('The owner was already filed as &ldquo;'+esc(ownerRec.label)+'&rdquo; — not filed again; rename it in Personal Information');
       // failures by what the server said (createX carries the status); an existing row's stored key when it was looked up
@@ -629,14 +656,16 @@ function handleSetup(v){
       if(notAllowed.length) out.push('⚠️ '+notAllowed.length+' refused by the server (not allowed) — '+notAllowed.map(function(f){ return esc(f.name); }).join(', '));
       if(unconfirmedNow.length) out.push('⚠️ '+unconfirmedNow.length+' saved without a confirmation (the reply carried no record) — check '+plural(unconfirmedNow.length,'it','them')+' in Legal → Entities');
       // an unknown is never "Not saved" / "needs sign-in to persist": it may already be on the server
-      if(unknownRows.length) out.push('⚠️ '+unknownRows.length+' may already be on the server — a send got no reply: '+unknownRows.map(function(f){ return esc(f.name); }).join(', ')+'. Check Legal → Entities before retrying');
+      var checkFirst=nowAuthed ? 'Check' : 'Sign in, then check';   // a click made signed out still says what unblocks it
+      if(unknownRows.length) out.push('⚠️ '+unknownRows.length+' may already be on the server — a send got no reply: '+unknownRows.map(function(f){ return esc(f.name); }).join(', ')+'. '+checkFirst+' Legal → Entities before retrying');
+      if(ownerMaybeNow) out.push('⚠️ The owner &ldquo;'+esc(ownerRec ? ownerRec.label : owner)+'&rdquo; may already be filed — a send got no reply'+(ownerUnchecked ? ' and Personal Information could not be checked, so it was not sent again' : '')+'. '+checkFirst+' Personal Information'+(ownerUnchecked ? '' : ' — the next Create &amp; file looks it up there before sending it again'));
       if(expired){
-        var notSaved=httpRows.concat(unsentRows).map(function(f){ return esc(f.name); }); if(owner && !ownerSaved) notSaved.push('the owner');
+        var notSaved=httpRows.concat(unsentRows).map(function(f){ return esc(f.name); }); if(owner && !ownerSaved && !ownerMaybeNow) notSaved.push('the owner');
         out.push('⚠️ Your session expired — sign in to the Command Center again'+(notSaved.length ? ', then retry. Not saved: '+notSaved.join(', ') : ''));
       } else {
         if(httpRows.length) out.push('⚠️ '+httpRows.length+' entit'+plural(httpRows.length,'y','ies')+' failed ('+httpRows.map(function(f){ return 'HTTP '+f.status; }).join(', ')+') — retry');
         if(unsentRows.length) out.push('⚠️ '+unsentRows.length+' entit'+plural(unsentRows.length,'y','ies')+' '+plural(unsentRows.length,'needs','need')+' sign-in to persist');
-        if(owner && !ownerSaved) out.push('⚠️ Owner '+(authed?'didn’t save — retry':'needs sign-in to persist'));
+        if(owner && !ownerSaved && !ownerMaybeNow) out.push('⚠️ Owner '+(ownerStatus===403 ? 'refused by the server (not allowed)' : ownerStatus ? 'didn’t save (HTTP '+ownerStatus+') — retry' : 'needs sign-in to persist'));
       }
       if(entCreated) out.push('Opened the <b>Legal</b> area (Entities lives there)');
       // the STORED keys, from the server's echoes, for every row this form stored — the account prefix is real and permanent; never the derived guess
@@ -647,7 +676,7 @@ function handleSetup(v){
       // rows this form stored (under this primary · under an earlier parent · no parent yet) — never a guessed cause — plus
       // the rule the subsidiaries box follows. A retry REPLACES the ending and never erases it.
       var n=stored.length, pid=primary ? primary.id : null, pname=esc((primary&&primary.name)||biz||'');
-      var unverifiedIds={}; ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row && L.unverified) unverifiedIds[L.row.id]=1; });
+      var unverifiedIds=Object.create(null); ORDER.forEach(function(k){ var L=LEDGER[k]; if(L.row && L.unverified) unverifiedIds[L.row.id]=1; });
       var others=stored.filter(function(r){ return !(pid && r.id===pid); });                                 // stored rows other than the primary itself
       var underCurrent=pid ? others.filter(function(r){ return r.parent_entity_id===pid; }) : [];
       var underOther=others.filter(function(r){ return !!r.parent_entity_id && r.parent_entity_id!==pid; });
@@ -691,7 +720,7 @@ function handleSetup(v){
         var errs=httpRows.length, unsent=unsentRows.length, noResp=unknownRows.length, t=[];
         if(errs) t.push('The '+errs+' that didn&rsquo;t save '+plural(errs,'isn&rsquo;t','aren&rsquo;t')+' counted.');
         if(unsent) t.push('The '+unsent+' that '+plural(unsent,'wasn&rsquo;t','weren&rsquo;t')+' sent '+plural(unsent,'isn&rsquo;t','aren&rsquo;t')+' counted.');
-        if(noResp) t.push('The '+noResp+' that may already be on the server (a send got no reply) '+plural(noResp,'isn&rsquo;t','aren&rsquo;t')+' counted — check Legal → Entities before retrying.');
+        if(noResp) t.push('The '+noResp+' that may already be on the server (a send got no reply) '+plural(noResp,'isn&rsquo;t','aren&rsquo;t')+' counted — '+(nowAuthed ? 'check' : 'sign in, then check')+' Legal → Entities before retrying.');
         return ' <span class="su-dim">'+t.join(' ')+'</span>';
       };
       var ending=null;
@@ -706,7 +735,7 @@ function handleSetup(v){
           parts.push((others.length===1 ? namesOf(underCurrent)+' is' : K+' of them '+plural(K,'is','are'))+' filed under <b>'+pname+'</b> as its subsidiar'+plural(K,'y','ies')+' — '+plural(K,'its','their')+' Parent is set. '+plural(K,'Its','Their')+' ownership % is <b>not established</b>, so '+plural(K,'it does not consolidate','none of them consolidates')+' into '+pname+'&rsquo;s rollup yet — only 100.00 does. Set '+plural(K,'its','each one&rsquo;s')+' Ownership in Legal → Entities.');
         }
         if(underOther.length){
-          var byParent={}, order=[]; underOther.forEach(function(r){ var p=knownRows().filter(function(x){ return x.id===r.parent_entity_id; })[0]; var nm=p ? (p.name||p.code) : 'another company'; if(!byParent[nm]){ byParent[nm]=[]; order.push(nm); } byParent[nm].push(r); });
+          var byParent=Object.create(null), order=[]; underOther.forEach(function(r){ var p=knownRows().filter(function(x){ return x.id===r.parent_entity_id; })[0]; var nm=p ? (p.name||p.code) : 'another company'; if(!byParent[nm]){ byParent[nm]=[]; order.push(nm); } byParent[nm].push(r); });
           order.forEach(function(nm){ var rows=byParent[nm], M=rows.length; parts.push((M<=3 ? namesOf(rows) : M+' of them')+' '+plural(M,'is','are')+' filed under <b>'+esc(nm)+'</b> from an earlier attempt.'); });
         }
         if(topLevel.length){
