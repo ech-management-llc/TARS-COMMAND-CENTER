@@ -25,6 +25,10 @@
   .ent-own-clear:hover{background:#f1f5f9}
   .ent-own-save:disabled,.ent-own-clear:disabled{opacity:.55;cursor:default}
   .ent-in:disabled{background:#f1f5f9;color:#94a3b8;cursor:not-allowed}
+  .ent-par-in{width:auto;max-width:260px;padding:4px 8px;font-size:12px}
+  .ent-par-save{background:#eef2ff;border:1.5px solid #a5b4fc;color:#3730a3;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
+  .ent-par-save:hover{background:#e0e7ff;border-color:#818cf8}
+  .ent-par-save:disabled{opacity:.55;cursor:default}
   .ent-del{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.4}
   .ent-del:hover{background:#fee2e2;border-color:#f87171}
   .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
@@ -91,7 +95,7 @@
     </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped); ownership writes <code>PATCH /api/entities/{id}</code> (<code>ownership_pct</code>, patch 049 — the wholly-owned rollup consolidates a child only at 100.00). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped); ownership and parent writes <code>PATCH /api/entities/{id}</code> (<code>ownership_pct</code> · <code>parent_entity_id</code>, null = top-level; patch 049 — the wholly-owned rollup consolidates a child only at 100.00). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
 </div>
 
 <script src="../../../shared/fl-auth.js?v=20260721a"></script>
@@ -103,6 +107,7 @@
   // entity id -> {raw: pendingValue} while its ownership PATCH is pending (Set, Clear and Enter all funnel through
   // it; the busy row renders from it), else false/undefined
   var OWN_INFLIGHT = {};
+  var PAR_INFLIGHT = {};   // entity id -> { pid: the parent picked } while its Parent PATCH is pending (TD-239)
   function scopedENTS(){ return SELE ? ENTS.filter(function(e){ return SELE.indexOf(e.id)>=0; }) : ENTS; }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   // dash(): honest UNKNOWN — a missing/blank value renders as "—" and is NEVER fabricated.
@@ -171,15 +176,16 @@
   function ownershipCell(e){
     // a re-render while this entity's PATCH is pending must not hand back live controls: render them
     // disabled with the pending state showing, exactly as setOwnership left them
-    var busy = !!OWN_INFLIGHT[e.id], dis = busy ? ' disabled' : '';
-    var shownVal = busy ? String(OWN_INFLIGHT[e.id].raw==null ? '' : OWN_INFLIGHT[e.id].raw) : (e.ownership_pct==null ? '' : e.ownership_pct);
+    var busy = !!(OWN_INFLIGHT[e.id] || PAR_INFLIGHT[e.id]), dis = busy ? ' disabled' : '';   // one write per row across both editors
+    var pend = OWN_INFLIGHT[e.id];                                 // {raw} only while THIS editor's PATCH is pending; a Parent write locks the row but carries no pending value
+    var shownVal = pend ? String(pend.raw==null ? '' : pend.raw) : (e.ownership_pct==null ? '' : e.ownership_pct);
     function editor(withSet){
       return '<span class="ent-own-edit">'+(withSet
           ? '<input class="ent-in ent-own-in" data-own-in="'+esc(e.id)+'" inputmode="decimal" autocomplete="off" placeholder="e.g. 100.00" value="'+esc(shownVal)+'"'+dis+'>'+
             '<button type="button" class="ent-own-save" data-own="'+esc(e.id)+'" title="Save ownership %"'+dis+'>Set</button>'
           : '')+
         '<button type="button" class="ent-own-clear" data-own-clear="'+esc(e.id)+'" title="Back to not established (NULL)"'+dis+'>Clear</button></span>'+
-        '<div class="ent-msg" id="ent-own-msg">'+(busy?'<span class="muted">Saving…</span>':'')+'</div>';
+        '<div class="ent-msg" id="ent-own-msg">'+(pend?'<span class="muted">Saving…</span>':'')+'</div>';   // the Parent row says Saving… for its own write
     }
     if(!e.parent_entity_id){
       // the plain top-level row still carries the message slot, so a just-cleared stale value can say so here
@@ -223,7 +229,7 @@
     var det = [
       ['Code', esc(e.code)],
       ['Type', esc(e.type)],
-      ['Parent', parentLabel(e.parent_entity_id)],
+      ['Parent', parentLabel(e.parent_entity_id)+parentEditor(e)],
       ['Ownership', ownershipCell(e)],
       ['Formed', dash(e.formed)+' '+xref('Document Navigator','document-navigator')],
       ['Registered agent', dash(e.registered_agent)],
@@ -236,6 +242,12 @@
       return '<tr><td style="white-space:nowrap;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td></tr>';
     }).join('');
 
+    renderRoster(list);
+  }
+  // the ALL ENTITIES roster alone (its PARENT column is the one other place a parent shows) — called by render(),
+  // and by a parent write that lands while another company is on screen, so the roster never contradicts the model
+  function renderRoster(list){
+    list = list || scopedENTS();
     document.getElementById('ent-rows').innerHTML = list.map(function(x){
       var a = arStatus(x.annual_report);
       return '<tr data-view-row="'+esc(x.id)+'"><td style="font-weight:700">'+esc(x.name)+'</td>'+
@@ -390,6 +402,96 @@
     });
   }
 
+  // ── PARENT (PATCH /api/entities/{id} {parent_entity_id}) — TD-239 ────
+  // The walkthrough ends by sending people here to set a relationship; this is the control that makes
+  // that sentence true for a company that already exists. Options are the caller's own list (never
+  // self); the server keeps the cycle / scope / existence guards and its refusals are shown verbatim.
+  // every id under `rootId` in the caller's list (children, grandchildren, …) — never offered as a parent
+  function descendantIds(rootId){
+    var out={}, stack=[rootId], guard=0;
+    while(stack.length && guard++<10000){ var pid=stack.pop(); for(var i=0;i<ENTS.length;i++){ var x=ENTS[i]; if(x.parent_entity_id===pid && !out[x.id]){ out[x.id]=1; stack.push(x.id); } } }
+    return out;
+  }
+  function parentEditor(e){
+    if(e._sample) return '';
+    var busy = !!(PAR_INFLIGHT[e.id] || OWN_INFLIGHT[e.id]), dis = busy ? ' disabled' : '';   // one write per row across both editors
+    var desc = descendantIds(e.id);
+    var pend = PAR_INFLIGHT[e.id];                                   // {pid} only while THIS editor's PATCH is pending: the select shows what is being saved
+    var stored = e.parent_entity_id || '';
+    var pid = pend ? (pend.pid || '') : stored;
+    var outside = !!(stored && !parentName(stored));                 // stored parent not in this caller's list
+    var cyclic = !!(stored && !outside && desc[stored]);             // stored parent sits under this company (a corrupted graph; FL refuses to create one) — never claim top-level
+    var opts = '<option value=""'+(!pid?' selected':'')+'>— top-level (no parent) —</option>' +
+      (outside ? '<option value="'+esc(stored)+'"'+(pid===stored?' selected':'')+' disabled>not in your list (outside your access, or inactive)</option>' : '') +
+      (cyclic ? '<option value="'+esc(stored)+'"'+(pid===stored?' selected':'')+' disabled>stored parent is under this company — a cycle; fix it on the server</option>' : '') +
+      ENTS.filter(function(x){ return x.id!==e.id && !desc[x.id]; }).map(function(x){
+        return '<option value="'+esc(x.id)+'"'+(x.id===pid?' selected':'')+'>'+esc(x.name)+' ('+esc(x.code)+')</option>'; }).join('');
+    return ' <span class="ent-own-edit"><select class="ent-in ent-par-in" data-par-in="'+esc(e.id)+'" title="Parent entity (optional)"'+dis+'>'+opts+'</select>'+
+      '<button type="button" class="ent-par-save" data-par="'+esc(e.id)+'" title="Set the parent entity"'+dis+'>Set</button></span>'+
+      '<div class="ent-msg" id="ent-par-msg">'+(PAR_INFLIGHT[e.id]?'<span class="muted">Saving…</span>':'')+'</div>';
+  }
+  function setParent(id, value){
+    var msg = document.getElementById('ent-par-msg') || document.getElementById('ent-msg');
+    var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
+    if(!ent || ent._sample) return;
+    if(PAR_INFLIGHT[id] || OWN_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — wait for the response.</span>'; return; }
+    var pid = value || null;
+    if(pid===(ent.parent_entity_id||null)){ msg.innerHTML='<span class="muted">No change — that is already the parent.</span>'; return; }   // first: a stored parent is never re-sent, even in a corrupted graph
+    if(pid===id){ msg.innerHTML='<span class="err">A company cannot be its own parent.</span>'; return; }
+    if(pid && descendantIds(id)[pid]){ msg.innerHTML='<span class="err">That company is already under this one — it cannot be its parent.</span>'; return; }
+    var oldPid = ent.parent_entity_id||null, oldName = parentName(oldPid);
+    msg.innerHTML='<span class="muted">Saving…</span>';
+    // lock BOTH editors at once (one write per row): the guard above already refuses, but the controls should look it
+    var ctl = document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id)+','+ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
+    PAR_INFLIGHT[id] = {pid: pid};   // carries the pending pick for a mid-flight re-render (as OWN_INFLIGHT carries {raw})
+    ctl.forEach(function(b){ b.disabled = true; });
+    // re-query on release: a re-render while pending rebuilt BOTH editors' controls disabled (cross-lock), so re-enable both
+    function release(){ PAR_INFLIGHT[id] = false; document.querySelectorAll(ownSel('data-par',id)+','+ownSel('data-par-in',id)+','+ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)).forEach(function(b){ b.disabled = false; }); }
+    function say(html){ var own=(ENTS[current]===ent) ? document.getElementById('ent-par-msg') : null; if(own){ own.innerHTML=html; return; } var m=document.getElementById('ent-msg'); if(m) m.innerHTML=(m.innerHTML ? m.innerHTML+'<br>' : '')+html; }
+    var who = '<b>'+esc(ent.name)+'</b>: ';
+    patchEntityX(id, {parent_entity_id: pid}).then(function(r){
+      if(!r.ok){
+        release();
+        var det = (r.data && typeof r.data.detail==='string') ? r.data.detail : '';
+        if(window.flApi && !flApi.authed()) say(who+'<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.');
+        else if(r.status === 409) say(who+'<span class="err">Refused.</span> '+esc(det||'that parent would make a cycle'));          // FL: self-parent / descendant
+        // FL answers 404 for the ENTITY itself ("entity … not found") before it looks at the parent ("parent_entity_id … not found")
+        else if(r.status === 404 && ENTS.indexOf(ent) < 0) say(who+'<span class="err">Not saved.</span> You have since removed this company from the list.');
+        else if(r.status === 404) say(who+(/^parent_entity_id/i.test(det) ? '<span class="err">Parent not found.</span> '+esc(det)+'. Reload the tile and pick again.' : '<span class="err">Entity not found.</span> '+(det ? esc(det)+'. ' : '')+'Reload the tile.'));
+        else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc(det||'The server refused this change (HTTP 403).'));
+        else if(r.status === 422) say(who+'<span class="err">Rejected.</span> '+esc(detail422(r.data)||'HTTP 422'));
+        else if(r.status === 400) say(who+'<span class="err">Not applied.</span> '+esc(det||'HTTP 400'));
+        else say(who+'<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status ? (esc(detail422(r.data))||'Try again.') : 'The service did not confirm the change — it may or may not have reached it. Reload the tile to see the stored value.'));
+        return;
+      }
+      if(!r.data || typeof r.data !== 'object' || !('parent_entity_id' in r.data)){
+        release();
+        say(who+'<span class="err">Unverified.</span> The server accepted the request but did not echo parent_entity_id. Reload the tile to see the stored value.');
+        return;
+      }
+      PAR_INFLIGHT[id] = false;
+      ent.parent_entity_id = r.data.parent_entity_id || null;             // trust the echo, not the select
+      if('ownership_pct' in r.data) ent.ownership_pct = pctStr(r.data.ownership_pct);   // the server keeps a stale % across a re-parent; the Ownership row says so
+      if(ENTS.indexOf(ent) < 0){ say(who+'the parent was '+(ent.parent_entity_id ? 'recorded' : 'cleared')+' on a company you have since removed from this list.'); return; }   // soft-deleted while the write was in flight
+      var ownEl = (ENTS[current]===ent) ? document.querySelector(ownSel('data-own-in',id)) : null;
+      var typedOwn = ownEl ? ownEl.value : null;                          // an uncommitted Ownership entry (an emptied input is an edit too) survives the re-render
+      if(ENTS[current]===ent) render(); else renderRoster();            // off-screen: the roster's PARENT column still has to follow the model (a full render would wipe the row on screen)
+      if(typedOwn!==null && typedOwn!==String(ent.ownership_pct==null?'':ent.ownership_pct)){ var oi=document.querySelector(ownSel('data-own-in',id)); if(oi && !oi.disabled) oi.value=typedOwn; }
+      var pn = parentName(ent.parent_entity_id);
+      say(ent.parent_entity_id
+        ? '<span class="ok">✓ Parent set.</span> '+who+'now under '+esc(pn||'its parent')+'. '+(ent.ownership_pct==null
+            ? 'Ownership % is <b>not established</b> — set it in the Ownership row; only 100.00 consolidates into the parent&rsquo;s rollup.'
+            : '<b>'+esc(ent.ownership_pct)+'%</b> was recorded against '+(oldPid ? esc(oldName||'a parent not in your list') : 'no parent')+' and now reads against '+esc(pn||'the new parent')+' — check it in the Ownership row.')
+        : '<span class="ok">✓ Now top-level.</span> '+who+'no parent.'+(ent.ownership_pct!=null ? ' A stale '+esc(ent.ownership_pct)+'% is still recorded — Clear it in the Ownership row.' : ''));
+    });
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target && ev.target.closest ? ev.target : null;
+    if(!t) return;
+    var sp = t.closest('.ent-par-save');
+    if(sp){ ev.preventDefault(); var id=sp.getAttribute('data-par'); var sel=document.querySelector(ownSel('data-par-in',id)); setParent(id, sel?sel.value:''); }
+  });
+
   // ── OWNERSHIP (PATCH /api/entities/{id}) ────────────────────────────
   // Status-carrying PATCH through the shared client (flApi.callX); falls back to flEntities.update
   // if a stale-cached fl-api.js predates callX — same safety net as create/list above.
@@ -417,18 +519,20 @@
     var msg = document.getElementById('ent-own-msg') || document.getElementById('ent-msg');
     var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
     if(!ent || ent._sample) return;
-    if(OWN_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — wait for the response.</span>'; return; }   // one PATCH per entity at a time, whatever the trigger
+    if(OWN_INFLIGHT[id] || PAR_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — wait for the response.</span>'; return; }   // one PATCH per entity at a time, whatever the trigger, across both editors
     var own = parseOwnership(raw);
     if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
     if(!ent.parent_entity_id && own.value!=null){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> A top-level entity has no owner to record (a stale value can still be cleared).'; return; }
     msg.innerHTML='<span class="muted">Saving…</span>';
-    var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id));
+    // lock BOTH editors at once (one write per row): the Parent editor's guard already refuses, but the controls should look it
+    var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)+','+ownSel('data-par',id)+','+ownSel('data-par-in',id));
     OWN_INFLIGHT[id] = {raw: own.value==null ? '' : own.value};   // set only once the selectors resolved (a throw above leaves nothing stuck); carries the pending value for a mid-flight re-render
     ctl.forEach(function(b){ b.disabled = true; });
-    // re-query on release: a re-render while pending rebuilt the row (disabled), so the captured list is stale
+    // re-query on release: a re-render while pending rebuilt the row (disabled) — BOTH editors, since the Parent
+    // editor locks while an ownership write is pending (cross-lock) — so the captured list is stale; re-enable both
     function release(){
       OWN_INFLIGHT[id] = false;
-      document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id))
+      document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)+','+ownSel('data-par',id)+','+ownSel('data-par-in',id))
         .forEach(function(b){ b.disabled = false; });
     }
     // speak in this row while the user is still on this entity (re-queried: render() may have rebuilt it);
@@ -466,9 +570,13 @@
       }
       OWN_INFLIGHT[id] = false;
       ent.ownership_pct = pctStr(r.data.ownership_pct);
+      if(ENTS.indexOf(ent) < 0){ say(who+(ent.ownership_pct==null ? 'ownership was cleared' : '<b>'+esc(ent.ownership_pct)+'%</b> was recorded')+' on a company you have since removed from this list.'); return; }   // soft-deleted while the write was in flight
       // re-render only while this entity is on screen: ownership shows nowhere else, and a render() here
       // would wipe a fresh message on whichever row the user is looking at now (its row rebuilds when picked)
+      var parEl = (ENTS[current]===ent) ? document.querySelector(ownSel('data-par-in',id)) : null;
+      var typedPar = parEl ? parEl.value : null;                          // an uncommitted Parent pick survives the re-render (mirror of the Ownership case)
       if(ENTS[current]===ent) render();                  // rebuilds this row's controls, enabled
+      if(typedPar!==null && typedPar!==(ent.parent_entity_id||'')){ var ps=document.querySelector(ownSel('data-par-in',id)); if(ps && !ps.disabled && [].some.call(ps.options, function(o){ return o.value===typedPar && !o.disabled; })) ps.value=typedPar; }
       var pn = parentName(ent.parent_entity_id);
       say(ent.ownership_pct==null
         ? (ent.parent_entity_id
