@@ -529,7 +529,7 @@ function handleSetup(v){
     var resolveL=function(k, code, name){
       var Lk=LEDGER[k], own=BYCODE[code];
       if(Lk && Lk.row) return Lk;
-      if(own && own.row && sameName(own.name, name)) return own;           // the row this form stored under the same code (another spelling)
+      if(own && (own.row || (own.settled && own.existing && own.state==='exists')) && sameName(own.name, name)) return own;   // the row this form stored under the same code (another spelling), or a no-reply send found there (round 36)
       return Lk||null;
     };
     var sameCompany=function(row, name){ return !!row && sameName(row.name, name); };   // a looked-up row is the typed company
@@ -616,8 +616,9 @@ function handleSetup(v){
         } else if(storedRows().length) refreshFailed=true;
       }
       // a send of this form that got no reply is settled by the next read of Legal → Entities: the company under the code it was
-      // sent with, with its name, that the read just before that send did not list, is the one that send created — never a company
-      // another setup form's echo claimed (round 35)
+      // sent with, with its name, that the read just before that send did not list, is FOUND — never re-sent, never "already
+      // existed". Who saved it cannot be told: the send that got no reply, or the user in Legal → Entities since (the summary
+      // sends them there, and the tile can suggest the same code) — so it is never claimed or counted as created (rounds 35-36)
       var settledNow=[];
       if(ORDER.some(function(k){ var L=LEDGER[k]; return L.maybeStored && !L.row && L.absentAtSend; })){
         var mrows=await listActive(); if(!mrows) mrows=await listAll();
@@ -625,10 +626,10 @@ function handleSetup(v){
           var h=byCode(mrows, L.code).filter(function(x){ return x && x.active!==false; });
           if(h.length!==1 || !sameCompany(h[0], L.name) || (h[0].id && ENT_BY[h[0].id] && ENT_BY[h[0].id]!==formId)) return;
           if(ORDER.some(function(k2){ return LEDGER[k2].row && LEDGER[k2].row.id===h[0].id; })) return;   // another line of this form stored it (another spelling): not this send's
-          L.row=h[0]; L.state='stored'; L.maybeStored=false; L.removed=false; L.unverified=false; L.existing=null; L.createdParent=L.sentParent||null;
-          if(h[0].id){ ENT_BY[h[0].id]=formId; freshIds[h[0].id]=1; }
-          if(!(BYCODE[L.code] && BYCODE[L.code]!==L && BYCODE[L.code].row && !BYCODE[L.code].removed)) BYCODE[L.code]=L;
-          settledNow.push(L.name); fl.fileToDocNav(L.name+' — entity formation','entity','entities'); });
+          L.state='exists'; L.existing=h[0]; L.settled=true; L.named=false; L.many=null; L.maybeStored=false;
+          if(h[0].id) freshIds[h[0].id]=1;
+          if(!(BYCODE[L.code] && BYCODE[L.code]!==L && BYCODE[L.code].row && !BYCODE[L.code].removed)) BYCODE[L.code]=L;   // a respelled line finds it by its code
+          settledNow.push(L); });
       }
       // a company the server said EXISTS may have been removed in Legal → Entities since (or already was): never a Parent target,
       // never "check its Parent" — the read that includes removed companies tells (round 18)
@@ -687,7 +688,7 @@ function handleSetup(v){
           if(nkG && nkG.kind==='many'){ R.state='exists'; R.many=nkG.rows; R.existing=null; manyNow.push({ name:name, rows:nkG.rows }); if(i===0 && biz){ primaryStatus='many'; primaryMany=nkG.rows; primaryGoneKind=''; primaryGoneRow=null; primaryFailed=!!subs; } continue; }
           goneNow.push({ name:name, code:R.conflictCode||code, row:R.goneRow||null, kind:R.goneKind||'absent' }); continue; }
         if(R && R.state==='exists' && R.many && !R.existing){ manyNow.push({ name:name, rows:R.many }); continue; }   // listed more than once under other codes
-        if(R && R.state==='exists'){ skippedExists++; continue; }           // the server said it exists: a retry cannot create it
+        if(R && R.state==='exists'){ if(settledNow.indexOf(R)<0) skippedExists++; continue; }   // the server said it exists: a retry cannot create it (one settled this click is said once, below)
         if(R && R.state==='refused'){ skippedRefused++; continue; }         // refused (403): a retry cannot change that
         if(R && R.state==='unconfirmed'){ skippedUnconfirmed++; continue; } // saved without a record in the reply: re-sending would duplicate or 409
         var payload={ code:code, name:name, legal_form:'LLC' };
@@ -709,9 +710,9 @@ function handleSetup(v){
         // that stays sticky for the row; only a send with no token at all is certainly not sent (fl-api returns before fetch)
         var sent=!!st || tokBefore;
         if(!st && tokBefore && !res && !okNoRecord){
-          // the read this click made before the send listed no company under its code: one there later, with its name, is what
-          // this send stored — the next click settles it (round 35)
-          if(!R.absentAtSend && readNow && !byCode(readNow, code).length && !byCode(storedRows(), code).length){ R.absentAtSend=true; R.sentParent=payload.parent_entity_id||null; }
+          // the read this click made before the send listed no company under its code: one there later, with its name, was saved
+          // by this send or added since — the next click settles it as found (rounds 35-36)
+          if(readNow && !byCode(readNow, code).length && !byCode(storedRows(), code).length) R.absentAtSend=true;
           R.maybeStored=true;
         }
         // sticky per CODE: a send WITH a parent that succeeded or whose outcome is unknown may have filed it under that parent
@@ -863,7 +864,7 @@ function handleSetup(v){
       }
       var ownerUnknown=!!owner && ownerMaybe.some(function(m){ return nkey(m.label)===nkey(owner); });   // the owner typed now may be filed
       var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed || ownerFound));
-      if(entCreated || settledNow.length) fl.activateArea('legal');   // Entities live in the Legal area
+      if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
       var nowAuthed=!!(window.flApi && flApi.authed && flApi.authed());
       // the STORED key of the company holding the code when this click read it (the preview and the summary show stored keys); kept
       // on the line so the preview drawn below shows it too (round 30)
@@ -887,7 +888,7 @@ function handleSetup(v){
       else { go.disabled=false; try{ previewCodes(); }catch(e){} }   // the form stays open: the preview now marks the lines that are stored
       var out=[];
       if(entCreated) out.push('✅ Created '+entCreated+' entit'+plural(entCreated,'y','ies')+' in the entities table');
-      if(settledNow.length) out.push('✅ '+settledNow.map(function(n){ return esc(n); }).join(', ')+' '+plural(settledNow.length,'is','are')+' in Legal → Entities now — '+plural(settledNow.length,'the send that got no reply saved it','the sends that got no reply saved them'));
+      if(settledNow.length) out.push(settledNow.map(function(L){ return esc(L.name); }).join(', ')+' '+plural(settledNow.length,'is','are')+' in Legal → Entities now — saved by the send that got no reply, or added there since; not sent again');
       if(skippedStored) out.push(skippedStored+' already stored by an earlier attempt — not sent again');
       if(skippedRemoved) out.push(skippedRemoved+' removed in Legal → Entities since this form created '+plural(skippedRemoved,'it','them')+' — not sent again');
       if(skippedExists) out.push(skippedExists+' already exist'+plural(skippedExists,'s','')+' — not sent again');
@@ -931,7 +932,7 @@ function handleSetup(v){
         if(unsentRows.length) out.push('⚠️ '+unsentRows.length+' entit'+plural(unsentRows.length,'y','ies')+' '+plural(unsentRows.length,'needs','need')+' sign-in to persist');
         if(owner && !ownerSaved && !ownerUnknown) out.push('⚠️ Owner '+(ownerStatus===403 ? 'refused by the server (not allowed)' : ownerStatus ? 'didn’t save (HTTP '+ownerStatus+') — retry' : 'needs sign-in to persist'));
       }
-      if(entCreated || settledNow.length) out.push('Opened the <b>Legal</b> area (Entities lives there)');
+      if(entCreated) out.push('Opened the <b>Legal</b> area (Entities lives there)');
       // the STORED keys, from the server's echoes, for every row this form stored — the account prefix is real and permanent; never the derived guess
       if(stored.length) out.push('Stored as '+stored.map(function(r){ return (r && r.code) ? '<code>'+esc(r.code)+'</code>' : '<span class="su-err">code not echoed — see Legal → Entities</span>'; }).join(' · '));
       msg.innerHTML=(out.join('. ')||'Nothing to save')+'.';
@@ -952,7 +953,10 @@ function handleSetup(v){
       var unresolved=function(k){ var r=resolveL(k, LEDGER[k].code, LEDGER[k].name); return !(r && r.row); };
       // the primary's own line is left out where its sentence names it — never ANOTHER company cut to the same 40 characters (round 29)
       var isPrimaryLine=function(k){ var L=LEDGER[k]; return k===pk || (L.code===pcode && sameName(L.name, biz)); };
-      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && seenKeys[k] && unresolved(k) && !(primaryMentioned && isPrimaryLine(k)); });
+      // a no-reply send found later under its code (settled above): never "already existed", never "the box did not change it" (round 36)
+      var isSettled=function(L){ return !!(L && L.settled && L.state==='exists' && L.existing && !L.named && !L.row); };
+      var primarySettled=!!(primaryExisting && primary && pr && isSettled(pr) && pr.existing.id===primary.id);
+      var existsAll=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='exists' && !isSettled(L) && seenKeys[k] && unresolved(k) && !(primaryMentioned && isPrimaryLine(k)); });
       var refusedAll=ORDER.filter(function(k){ return LEDGER[k].state==='refused' && seenKeys[k] && unresolved(k); }).length;
       // the primary is left out only where its own sentence names it (pReason runs in the ending that counts stored companies)
       var goneKeys=ORDER.filter(function(k){ var L=LEDGER[k]; return L.state==='gone' && seenKeys[k] && unresolved(k) && !(n>0 && primaryMentioned && isPrimaryLine(k)); });
@@ -1022,17 +1026,24 @@ function handleSetup(v){
       };
       // a send of this form that got no reply, no read has settled, and this click did not send again (its line dropped from the list):
       // never left out of an ending unsaid — it may be in Legal → Entities. This click's own no-reply sends are said by notCountedNote (round 35)
-      // a company this form stored under the same code (the line respelled) means that send stored nothing: FL keeps codes unique
-      var maybeOff=ORDER.filter(function(k){ var L=LEDGER[k]; return L.maybeStored && !L.row && L.state==='failed' && !seenKeys[k] && !byCode(stored, L.code).length; });
+      // a company this form stored under the same code (the line respelled; removed there since or not) means that send stored nothing:
+      // FL keeps codes unique
+      var heldByOwnRow=function(code){ return ORDER.some(function(k2){ var r=LEDGER[k2].row; return r && byCode([r], code).length; }); };
+      var maybeOff=ORDER.filter(function(k){ var L=LEDGER[k]; return L.maybeStored && !L.row && L.state==='failed' && !seenKeys[k] && !heldByOwnRow(L.code); });
       var maybeNote=function(){ var M=maybeOff.length; return M ? ' <span class="su-dim">'+namesOf(maybeOff.map(function(k){ return LEDGER[k]; }))+' '+plural(M,'is','are')+' not counted — '+plural(M,'its send','their sends')+' got no reply, so '+plural(M,'it','they')+' may already be on the server: check Legal → Entities.</span>' : ''; };
-      var unconfirmedAny=!!(unknownRows.length || maybeOff.length);
+      // settled no-reply sends, named once in every ending — the primary's own line where its sentence names it
+      var settledKeys=ORDER.filter(function(k){ return isSettled(LEDGER[k]); });
+      var settledNote=function(skipPrimary){ var ks=settledKeys.filter(function(k){ return !(skipPrimary && primarySettled && isPrimaryLine(k)); }), M=ks.length;
+        return M ? ' <span class="su-dim">'+namesOf(ks.map(function(k){ return LEDGER[k]; }))+' '+plural(M,'is','are')+' in Legal → Entities now — saved by '+plural(M,'the send','the sends')+' that got no reply, or added there since — and '+plural(M,'is','are')+' not counted: check '+plural(M,'its','their')+' Parent and Ownership % there.</span>' : ''; };
+      var unconfirmedAny=!!(unknownRows.length || maybeOff.length || settledKeys.length);
       var ending=null;
       var removedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].removed; }).length;   // rows this form created that Legal → Entities no longer has
       var removedNote=function(){ return removedN ? ' <span class="su-dim">'+removedN+' this form created '+plural(removedN,'was','were')+' removed in Legal → Entities since and '+plural(removedN,'is','are')+' not counted.</span>' : ''; };
       if(n){
         ending='You created '+n+' compan'+plural(n,'y','ies')+'. ';
         var parts=[];
-        if(primaryExisting) parts.push('<b>'+pname+'</b> already existed, so it was not created again.');
+        if(primaryExisting) parts.push(primarySettled ? '<b>'+pname+'</b> is in Legal → Entities now — saved by the send that got no reply, or added there since — so it was not created again.'
+                                                      : '<b>'+pname+'</b> already existed, so it was not created again.');
         if(subs && primaryFailed) parts.push('<b>'+pname+'</b> '+pReason()+'. The subsidiaries box needs it, so nothing was filed under it.'+pAdvice());
         if(pFact) parts.push(pFact);
         if(underCurrent.length){
@@ -1074,6 +1085,7 @@ function handleSetup(v){
         ending+=parts.join(' ');
         if(other.length) ending+=notCountedNote();
         ending+=maybeNote();
+        ending+=settledNote(true);
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
         // the box beside existing companies says what it did not do, as the nothing-new ending does (round 27)
@@ -1082,10 +1094,10 @@ function handleSetup(v){
         ending+=removedNote();
         if(refreshFailed) ending+=' <span class="su-dim">Parents and ownership are shown as this form last saw them — Legal → Entities could not be read just now, so a change made there since is not shown.</span>';
         if(unverifiedN) ending+=' <span class="su-dim">'+unverifiedN+' could not be verified — the server did not echo a parent; check '+plural(unverifiedN,'its','their')+' Parent in Legal → Entities.</span>';
-      } else if(existsAll.length || (pr && pr.state==='exists') || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
+      } else if(existsAll.length || settledKeys.length || (pr && pr.state==='exists') || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
         // no company stored by this form, but the names exist: still end honestly — no relationship was touched
         var pkExists=!!(pk && ((LEDGER[pk] && LEDGER[pk].state==='exists') || (pr && pr.state==='exists')));
-        var ex=existsAll.length + ((pkExists && primaryMentioned) ? 1 : 0);
+        var ex=existsAll.length + settledKeys.filter(function(k){ return !(pkExists && primaryMentioned && isPrimaryLine(k)); }).length + ((pkExists && primaryMentioned) ? 1 : 0);
         var exSubs=existsAll.filter(function(k){ return !isPrimaryLine(k); });                // existing names other than the primary
         ending='No new company was '+(unconfirmedAny ? 'confirmed' : 'created')+' — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
           ((subs && exSubs.length)
@@ -1093,6 +1105,7 @@ function handleSetup(v){
             : ' Parent and Ownership % are set in Legal → Entities.');
         if(other.length) ending+=notCountedNote();
         ending+=maybeNote();
+        ending+=settledNote(false);
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
         ending+=removedNote();
