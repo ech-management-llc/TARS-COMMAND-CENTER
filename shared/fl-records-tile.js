@@ -109,7 +109,9 @@
         var a = el.selectionStart == null ? el.value.length : el.selectionStart, b = el.selectionEnd == null ? a : el.selectionEnd;
         var would = el.value.slice(0, a) + text + el.value.slice(b), c = digitCheck(would, spec);
         if (c.nonDigits) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, 'letters', c.n), 'err'); return; }
-        if (c.over) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, kind === 'type' ? 'over' : 'paste', digitCheck(text, spec).n), 'err'); return; }
+        // one keystroke too many is "the box is full"; a longer chunk arriving at once (paste, drop, an autocorrect or
+        // automation insert) is told by its size, because none of it was kept
+        if (c.over) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, (kind === 'type' && text.length === 1) ? 'over' : 'paste', digitCheck(text, spec).n), 'err'); return; }
         if (kind !== 'type') { ev.preventDefault(); settle(would); try { el.setSelectionRange(a + text.length, a + text.length); } catch (e) {} }
       };
       el.addEventListener('beforeinput', function (ev) {
