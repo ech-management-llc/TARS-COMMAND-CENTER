@@ -476,7 +476,7 @@ function handleSetup(v){
         if(L.row && L.removed) return { code:L.row.code||codes[i], tag:'removed in Legal → Entities — see the summary' };
         if(L.row) return null;
         if(L.state==='exists' && !(L.many && !L.existing)) return { code:(L.existing && L.existing.code)||L.heldCode||codes[i], tag:'already in Legal → Entities' };
-        if(L.state==='gone' || L.state==='exists') return { code:codes[i], tag:'not created — see the summary' };
+        if(L.state==='gone' || L.state==='exists') return { code:codes[i], tag:(L.noReply ? 'not confirmed' : 'not created')+' — see the summary' };   // a send of it got no reply: it may have created it (round 38)
         if(L.state==='refused') return { code:codes[i], tag:'refused by the server — not sent again' };   // round 30
         if(L.state==='unconfirmed') return { code:codes[i], tag:'saved without a confirmation — check Legal → Entities' };
         return null; };
@@ -713,7 +713,7 @@ function handleSetup(v){
           // the read this click made before the send listed no company under its code: one there later, with its name, was saved
           // by this send or added since — the next click settles it as found (rounds 35-36)
           if(readNow && !byCode(readNow, code).length && !byCode(storedRows(), code).length) R.absentAtSend=true;
-          R.maybeStored=true;
+          R.maybeStored=true; R.noReply=true;   // noReply is sticky: a later settle, removal or 409 never makes this form's "created" certain (round 38)
         }
         // sticky per CODE: a send WITH a parent that succeeded or whose outcome is unknown may have filed it under that parent
         if(payload.parent_entity_id && (res || okNoRecord || (!st && sent))) ASKED[code]=true;
@@ -1036,7 +1036,7 @@ function handleSetup(v){
       var settledKeys=ORDER.filter(function(k){ return isSettled(LEDGER[k]); });
       var settledNote=function(skipPrimary, beside){ var ks=settledKeys.filter(function(k){ return !(skipPrimary && primarySettled && isPrimaryLine(k)); }), M=ks.length;
         return M ? ' <span class="su-dim">'+namesOf(ks.map(function(k){ return LEDGER[k]; }))+' '+plural(M,'is','are')+' in Legal → Entities now — saved by '+plural(M,'the send','the sends')+' that got no reply, or added there since'+(beside ? ' — and '+plural(M,'is','are')+' not counted' : '')+': check '+plural(M,'its','their')+' Parent and Ownership % there.</span>' : ''; };
-      var unconfirmedAny=!!(unknownRows.length || maybeOff.length || settledKeys.length);
+      var unconfirmedAny=!!(unknownRows.length || maybeOff.length || settledKeys.length || ORDER.some(function(k){ var L=LEDGER[k]; return L.noReply && !L.row && !heldByOwnRow(L.code); }));
       var ending=null;
       var removedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].removed; }).length;   // rows this form created that Legal → Entities no longer has
       var removedNote=function(){ return removedN ? ' <span class="su-dim">'+removedN+' this form created '+plural(removedN,'was','were')+' removed in Legal → Entities since and '+plural(removedN,'is','are')+' not counted.</span>' : ''; };
@@ -1102,7 +1102,8 @@ function handleSetup(v){
         var exSubs=existsAll.filter(function(k){ return !isPrimaryLine(k); });                // existing names other than the primary
         ending='No new company was '+(unconfirmedAny ? 'confirmed' : 'created')+(!ex ? '.' : ' — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
           ((subs && exSubs.length)
-            ? ' The subsidiaries box only sets a parent on a company it creates, so it changed nothing: check '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>&rsquo;s' : 'each one&rsquo;s')+' Parent in Legal → Entities.'
+            // scoped to the companies that existed: a box send that got no reply may have filed one under the primary (round 38)
+            ? ' The subsidiaries box only sets a parent on a company it creates, so it did not change '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>: check its' : 'them: check each one&rsquo;s')+' Parent in Legal → Entities.'
             : ' Parent and Ownership % are set in Legal → Entities.'));
         if(other.length) ending+=notCountedNote();
         ending+=maybeNote();
