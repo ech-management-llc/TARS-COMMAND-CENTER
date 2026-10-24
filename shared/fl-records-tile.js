@@ -18,8 +18,17 @@
      labelLabel,                       // label for the record's primary name field
      entityLink: bool,                 // show an entity dropdown -> entity_code
      retentionDefault: '7yr'|'permanent'|'3yr'|null,
-     fields: [ {key,label,type,ph,options?,suffix?} ]   // type: text|number|date|select|textarea
+     fields: [ {key,label,type,ph,options?,suffix?,digits?,why?} ]   // type: text|number|date|select|textarea
    }
+
+   digits (TD-216): a text field may declare a digits constraint — `digits: 4` (exactly four) or
+   `digits: {min, max}` — the vocabulary FL's declared field schema uses (patch 041). The renderer
+   enforces it IN THE BROWSER, before the request leaves: inputmode="numeric", maxlength, pattern,
+   and handlers for typing, paste and drop that refuse anything else with a sentence under the box
+   (`why` is the product-voice reason, e.g. "the full account number does not belong here"). A
+   short entry is hinted live ("2 of 4 digits") and blocks the save; blank is legitimate (UNKNOWN).
+   FL enforces the same rule server-side (measured 2026-10-24: 12 digits -> 422), so this is the
+   half that explains, never the only guard.
    ════════════════════════════════════════════════════════════════ */
 (function () {
   if (window.FLRecordsTile) return;
@@ -39,6 +48,8 @@
     '.rec-in{width:100%;background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a}' +
     '.rec-in:focus{outline:none;border-color:#6366f1}' +
     '.rec-hint{font-size:10.5px;color:#94a3b8;margin-top:3px}' +
+    '.rec-fieldmsg{font-size:11px;margin-top:3px;line-height:1.35}.rec-fieldmsg.err{color:#dc2626;font-weight:700}.rec-fieldmsg.mut{color:#94a3b8}' +
+    '.rec-in[aria-invalid="true"]{border-color:#dc2626}' +
     '.rec-save{margin-top:12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}' +
     '.rec-save:hover{filter:brightness(1.06)}.rec-save:disabled{opacity:.6;cursor:default}' +
     '.rec-msg{font-size:12px;margin-top:8px;min-height:16px}' +
@@ -56,8 +67,80 @@
     '.rec-del:hover{background:#fee2e2;border-color:#f87171}' +
     '.ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}';
 
+  // ── TD-216: declared digit constraints ─────────────────────────────────────────────────────
+  function digitSpec(f) {
+    if (f.digits == null) return null;
+    var d = f.digits, min = typeof d === 'number' ? d : (d.min || 0), max = typeof d === 'number' ? d : (d.max || min);
+    return { min: min, max: max, exact: min === max };
+  }
+  function digitCheck(v, spec) {
+    var s = String(v == null ? '' : v), digits = s.replace(/[^0-9]/g, '');
+    return { digits: digits, n: digits.length, nonDigits: digits.length !== s.length, over: digits.length > spec.max, short: digits.length > 0 && digits.length < spec.min };
+  }
+  // the sentence under the box: what the box is for, why the rest does not belong here, and what was (not) kept
+  function digitWhy(f, spec, kind, n) {
+    var lab = '<b>' + esc(f.label) + '</b>', why = f.why ? ' — ' + esc(f.why) : '';
+    var count = spec.exact ? 'exactly ' + spec.max + ' digit' + (spec.max === 1 ? '' : 's') : spec.min + ' to ' + spec.max + ' digits';
+    if (kind === 'over') return lab + ' takes ' + count + why + '. The box is full; the extra digit was not kept.';
+    if (kind === 'paste') return 'That has ' + n + ' digits. ' + lab + ' takes ' + count + why + '. None of it was kept — type just the ' + (spec.exact ? 'last ' + spec.max : 'digits that belong here') + '.';
+    if (kind === 'letters') return lab + ' is digits only' + why + '. What you entered was not kept.';
+    if (kind === 'short') return lab + ' needs ' + count + ' — ' + n + ' entered. Nothing was saved.';
+    return '';
+  }
+  function fieldMsg(f, html, cls) {
+    var fm = document.getElementById('rec-fm-' + f.key), el = document.querySelector('#rec-form [data-k="' + f.key + '"]');
+    if (fm) { fm.className = 'rec-fieldmsg' + (html ? ' ' + cls : ''); fm.innerHTML = html || ''; }
+    if (el) { if (cls === 'err' && html) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid'); }
+  }
+  // typing, paste, drop and autofill all end in one of three states: accepted (digits within the limit), short (hinted,
+  // the save blocks), or refused (the box keeps its last accepted value and says why). maxlength/pattern are the native
+  // backstop; these handlers are what make a refusal SAY something instead of silently dropping keystrokes.
+  function wireDigitGuards(cfg) {
+    cfg.fields.forEach(function (f) {
+      var spec = digitSpec(f); if (!spec) return;
+      var el = document.querySelector('#rec-form [data-k="' + f.key + '"]'); if (!el) return;
+      el.dataset.ok = '';
+      var settle = function (v) {                      // v is already clean digits within the limit
+        el.value = v; el.dataset.ok = v;
+        var c = digitCheck(v, spec);
+        if (c.short) fieldMsg(f, c.n + ' of ' + spec.min + ' digits', 'mut'); else fieldMsg(f, '', '');
+      };
+      var tryInsert = function (text, kind, ev) {       // what the box WOULD hold if `text` replaced the selection
+        var a = el.selectionStart == null ? el.value.length : el.selectionStart, b = el.selectionEnd == null ? a : el.selectionEnd;
+        var would = el.value.slice(0, a) + text + el.value.slice(b), c = digitCheck(would, spec);
+        if (c.nonDigits) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, 'letters', c.n), 'err'); return; }
+        if (c.over) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, kind === 'type' ? 'over' : 'paste', digitCheck(text, spec).n), 'err'); return; }
+        if (kind !== 'type') { ev.preventDefault(); settle(would); try { el.setSelectionRange(a + text.length, a + text.length); } catch (e) {} }
+      };
+      el.addEventListener('beforeinput', function (ev) {
+        var t = ev.inputType || '';
+        if (t.indexOf('insert') !== 0 || t === 'insertFromPaste' || t === 'insertFromDrop' || ev.data == null) return;   // paste/drop have their own handlers
+        tryInsert(String(ev.data), 'type', ev);
+      });
+      el.addEventListener('paste', function (ev) {
+        var cd = ev.clipboardData || window.clipboardData, text = cd ? String(cd.getData('text') || '') : '';
+        if (!cd) return;                                 // no clipboard access: the input backstop below decides
+        tryInsert(text, 'paste', ev);
+      });
+      el.addEventListener('drop', function (ev) {
+        var dt = ev.dataTransfer, text = dt ? String(dt.getData('text') || '') : '';
+        if (!dt) return;
+        tryInsert(text, 'drop', ev);
+      });
+      el.addEventListener('input', function () {        // backstop: autofill, IME, or a browser that skipped the handlers above
+        var c = digitCheck(el.value, spec);
+        if (c.nonDigits || c.over) { var n = c.n; el.value = el.dataset.ok || ''; fieldMsg(f, digitWhy(f, spec, c.nonDigits ? 'letters' : 'paste', n), 'err'); return; }
+        settle(el.value);
+      });
+    });
+  }
+
   function fieldInputHtml(f) {
     var attrs = 'class="rec-in" data-k="' + esc(f.key) + '"';
+    var spec = digitSpec(f);
+    if (spec) {                                          // TD-216: the native backstop + the right keyboard; the handlers say why
+      attrs += ' inputmode="numeric" maxlength="' + spec.max + '" pattern="[0-9]{' + (spec.exact ? spec.max : spec.min + ',' + spec.max) + '}" autocomplete="off" aria-describedby="rec-fm-' + esc(f.key) + '"';
+    }
     if (f.type === 'select') {
       return '<select ' + attrs + '><option value="">—</option>' +
         (f.options || []).map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') +
@@ -66,7 +149,7 @@
     if (f.type === 'textarea') {
       return '<textarea ' + attrs + ' rows="2" placeholder="' + esc(f.ph || '') + '"></textarea>';
     }
-    var typeAttr = f.type === 'number' ? ' inputmode="decimal"' : (f.type === 'date' ? ' type="date"' : '');
+    var typeAttr = spec ? '' : (f.type === 'number' ? ' inputmode="decimal"' : (f.type === 'date' ? ' type="date"' : ''));
     var ph = f.ph != null ? f.ph : (f.type === 'number' ? 'blank = unknown' : '');
     return '<input ' + attrs + typeAttr + ' placeholder="' + esc(ph) + '">';
   }
@@ -81,7 +164,8 @@
     }
     var fields = cfg.fields.map(function (f) {
       return '<div class="rec-field' + (f.full ? ' full' : '') + '"><span class="rec-lab">' + esc(f.label) + '</span>' +
-        fieldInputHtml(f) + (f.hint ? '<span class="rec-hint">' + esc(f.hint) + '</span>' : '') + '</div>';
+        fieldInputHtml(f) + (f.hint ? '<span class="rec-hint">' + esc(f.hint) + '</span>' : '') +
+        (digitSpec(f) ? '<span class="rec-fieldmsg" id="rec-fm-' + esc(f.key) + '" aria-live="polite"></span>' : '') + '</div>';
     }).join('');
     return '<div class="card rec-form" id="rec-form">' +
       '<div class="section-label">ADD A RECORD</div>' +
@@ -125,7 +209,7 @@
 
   function buildPayload(cfg) {
     var p = { kind: cfg.kind };
-    var invalid = [];                                         // number fields that aren't a clean number
+    var invalid = [];                                         // {label, msg}: a field that blocks the save (never save-and-drop)
     var labelEl = document.getElementById('rec-label');
     if (labelEl && labelEl.value.trim()) p.label = labelEl.value.trim();
     var details = {};
@@ -134,14 +218,22 @@
       if (!el) return;
       var v = el.value == null ? '' : ('' + el.value).trim();
       if (v === '') return;                                   // blank -> omit -> UNKNOWN
-      if (f.type === 'number') {
+      var spec = digitSpec(f);
+      if (spec) {
+        // TD-216: the declared digit rule, checked once more at the save — the handlers keep the box clean while typing,
+        // but a short entry is only wrong once the person is done, and nothing leaves the browser that FL would refuse
+        var c = digitCheck(v, spec);
+        if (c.nonDigits || c.over) { var m = digitWhy(f, spec, c.nonDigits ? 'letters' : 'paste', c.n); fieldMsg(f, m, 'err'); invalid.push({ label: f.label, msg: m }); }
+        else if (c.short) { var sm = digitWhy(f, spec, 'short', c.n); fieldMsg(f, sm, 'err'); invalid.push({ label: f.label, msg: sm }); }
+        else details[f.key] = c.digits;
+      } else if (f.type === 'number') {
         // People type money/rates with $, commas, %, spaces. Tolerate those instead of SILENTLY
         // dropping the value on parse failure — the old `if (isFinite(+v))` turned "1,250" into a
         // dropped field while still reporting "✓ Saved" (silent data loss). Clean, then require a
         // real number; anything else BLOCKS the save (below) rather than vanishing.
         var cleaned = v.replace(/[$,\s%]/g, '');
         if (/^-?\d*\.?\d+$/.test(cleaned)) details[f.key] = parseFloat(cleaned);  // a typed 0 kept
-        else invalid.push(f.label);
+        else invalid.push({ label: f.label, msg: 'Enter digits only for <b>' + esc(f.label) + '</b>. Use a plain number like 1250 or 3.75 — remove commas, $ and %.' });
       } else details[f.key] = v;
     });
     if (Object.keys(details).length) p.details = details;
@@ -215,6 +307,7 @@
       }
       var list = rx.data || [];                       // one shared array: save + delete mutate it
       document.getElementById('rec-form-host').innerHTML = formHtml(cfg, entities || []);
+      wireDigitGuards(cfg);                           // TD-216: declared digit constraints refuse in the browser, with a sentence
       renderList(cfg, list);
       var saveBtn = document.getElementById('rec-save');
       if (saveBtn) saveBtn.addEventListener('click', function () { save(cfg, list); });
@@ -235,9 +328,8 @@
     var btn = document.getElementById('rec-save'), msg = document.getElementById('rec-msg');
     var built = buildPayload(cfg);
     var payload = built.payload;
-    if (built.invalid.length) {                               // never save-and-drop a number field
-      msg.innerHTML = '<span class="err">Enter digits only for: ' + esc(built.invalid.join(', ')) +
-        '.</span> Use a plain number like 1250 or 3.75 — remove commas, $ and %. Nothing was saved.';
+    if (built.invalid.length) {                               // never save-and-drop a field: say which, and why
+      msg.innerHTML = '<span class="err">Nothing was saved.</span> ' + built.invalid.map(function (i) { return i.msg; }).join(' ');
       return;
     }
     if (!payload.label) { msg.innerHTML = '<span class="err">A name/label is required.</span>'; return; }
@@ -254,7 +346,8 @@
       renderList(cfg, current);
       // reset the add-form for the next entry
       var form = document.getElementById('rec-form');
-      if (form) form.querySelectorAll('input,select,textarea').forEach(function (el) { if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = ''; });
+      if (form) form.querySelectorAll('input,select,textarea').forEach(function (el) { if (el.tagName === 'SELECT') el.selectedIndex = 0; else { el.value = ''; if (el.dataset && 'ok' in el.dataset) el.dataset.ok = ''; } });
+      cfg.fields.forEach(function (f) { if (digitSpec(f)) fieldMsg(f, '', ''); });
     });
   }
 
