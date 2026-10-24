@@ -624,6 +624,7 @@ function handleSetup(v){
         if(mrows) ORDER.forEach(function(k){ var L=LEDGER[k]; if(!(L.maybeStored && !L.row && L.absentAtSend)) return;
           var h=byCode(mrows, L.code).filter(function(x){ return x && x.active!==false; });
           if(h.length!==1 || !sameCompany(h[0], L.name) || (h[0].id && ENT_BY[h[0].id] && ENT_BY[h[0].id]!==formId)) return;
+          if(ORDER.some(function(k2){ return LEDGER[k2].row && LEDGER[k2].row.id===h[0].id; })) return;   // another line of this form stored it (another spelling): not this send's
           L.row=h[0]; L.state='stored'; L.maybeStored=false; L.removed=false; L.unverified=false; L.existing=null; L.createdParent=L.sentParent||null;
           if(h[0].id){ ENT_BY[h[0].id]=formId; freshIds[h[0].id]=1; }
           if(!(BYCODE[L.code] && BYCODE[L.code]!==L && BYCODE[L.code].row && !BYCODE[L.code].removed)) BYCODE[L.code]=L;
@@ -1021,7 +1022,8 @@ function handleSetup(v){
       };
       // a send of this form that got no reply, no read has settled, and this click did not send again (its line dropped from the list):
       // never left out of an ending unsaid — it may be in Legal → Entities. This click's own no-reply sends are said by notCountedNote (round 35)
-      var maybeOff=ORDER.filter(function(k){ var L=LEDGER[k]; return L.maybeStored && !L.row && L.state==='failed' && !seenKeys[k]; });
+      // a company this form stored under the same code (the line respelled) means that send stored nothing: FL keeps codes unique
+      var maybeOff=ORDER.filter(function(k){ var L=LEDGER[k]; return L.maybeStored && !L.row && L.state==='failed' && !seenKeys[k] && !byCode(stored, L.code).length; });
       var maybeNote=function(){ var M=maybeOff.length; return M ? ' <span class="su-dim">'+namesOf(maybeOff.map(function(k){ return LEDGER[k]; }))+' '+plural(M,'is','are')+' not counted — '+plural(M,'its send','their sends')+' got no reply, so '+plural(M,'it','they')+' may already be on the server: check Legal → Entities.</span>' : ''; };
       var unconfirmedAny=!!(unknownRows.length || maybeOff.length);
       var ending=null;
