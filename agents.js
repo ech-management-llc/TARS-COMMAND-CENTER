@@ -257,7 +257,9 @@ function handleLayerMessage(layer, emp, text){
 /* ════════════════════════════════════════════════════════════════
    CHAT UI
    ════════════════════════════════════════════════════════════════ */
-function esc(s){ return (window.TCC?window.TCC.esc:String)(s); }
+// a real escaper, byte-identical to the shell's TCC.esc (app.js) — never a pass-through: the old `(window.TCC?window.TCC.esc:String)(s)`
+// rendered typed names raw whenever app.js had not run, and CodeQL (js/xss-through-dom, PR #23 alerts 13-15) could not see a sanitizer in it
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function escd(s){ return String(s==null?'':s).replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function memLine(){
