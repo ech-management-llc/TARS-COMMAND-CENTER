@@ -106,7 +106,11 @@
         var c = digitCheck(v, spec);
         if (c.short) fieldMsg(f, c.n + ' of ' + spec.min + ' digits', 'mut'); else fieldMsg(f, '', '');
       };
+      // a pasted or dropped chunk arrives with what the clipboard added — Excel's line end, a selected word's trailing space:
+      // the browser strips line ends from a single-line box and the save trims, so the check does the same (round 1)
+      var normChunk = function (text) { return String(text == null ? '' : text).replace(/[\r\n]/g, '').replace(/^\s+|\s+$/g, ''); };
       var tryInsert = function (text, kind, ev) {       // what the box WOULD hold if `text` replaced the selection
+        if (kind !== 'type') { text = normChunk(text); if (text === '') return; }   // an image, a file, an empty clipboard: the browser's own default inserts nothing — never replace a selection with nothing (round 1)
         var a = el.selectionStart == null ? el.value.length : el.selectionStart, b = el.selectionEnd == null ? a : el.selectionEnd;
         var would = el.value.slice(0, a) + text + el.value.slice(b), c = digitCheck(would, spec);
         if (c.nonDigits) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, 'letters', c.n), 'err'); return; }
@@ -126,19 +130,23 @@
         tryInsert(text, 'paste', ev);
       });
       el.addEventListener('drop', function (ev) {
-        var dt = ev.dataTransfer, text = dt ? String(dt.getData('text') || '') : '';
-        if (!dt) return;
-        tryInsert(text, 'drop', ev);
+        // the drop point is the browser's, not this box's old caret: refuse here only what can never fit; what fits lands where
+        // it was dropped and the input backstop settles it, or puts the box back with a sentence (round 1)
+        var dt = ev.dataTransfer; if (!dt) return;
+        var text = normChunk(dt.getData('text') || ''); if (text === '') return;
+        var t = digitCheck(text, spec);
+        if (t.nonDigits) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, 'letters', t.n), 'err'); return; }
+        if (t.n > spec.max) { ev.preventDefault(); fieldMsg(f, digitWhy(f, spec, 'paste', t.n), 'err'); return; }
       });
-      el.addEventListener('input', function () {        // backstop: autofill, IME, an uncancellable insertion, or a browser that skipped the handlers above
-        var c = digitCheck(el.value, spec);
+      el.addEventListener('input', function () {        // backstop: autofill, IME, a drop, an uncancellable insertion, or a browser that skipped the handlers above
+        var v = normChunk(el.value), c = digitCheck(v, spec);   // padding an insertion carried is not a refusal
         if (c.nonDigits || c.over) {
           var prev = el.dataset.ok || '', extra = c.n - digitCheck(prev, spec).n;   // the box goes back to its last accepted value
           el.value = prev;
           fieldMsg(f, digitWhy(f, spec, c.nonDigits ? 'letters' : (extra === 1 ? 'over' : 'paste'), c.n), 'err');
           return;
         }
-        settle(el.value);
+        settle(v);
       });
     });
   }
