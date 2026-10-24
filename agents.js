@@ -888,7 +888,7 @@ function handleSetup(v){
       else { go.disabled=false; try{ previewCodes(); }catch(e){} }   // the form stays open: the preview now marks the lines that are stored
       var out=[];
       if(entCreated) out.push('✅ Created '+entCreated+' entit'+plural(entCreated,'y','ies')+' in the entities table');
-      if(settledNow.length) out.push(settledNow.map(function(L){ return esc(L.name); }).join(', ')+' '+plural(settledNow.length,'is','are')+' in Legal → Entities now — saved by the send that got no reply, or added there since; not sent again');
+      if(settledNow.length) out.push(settledNow.map(function(L){ return esc(L.name); }).join(', ')+' '+plural(settledNow.length,'is','are')+' in Legal → Entities now — saved by '+plural(settledNow.length,'the send','the sends')+' that got no reply, or added there since; not sent again');
       if(skippedStored) out.push(skippedStored+' already stored by an earlier attempt — not sent again');
       if(skippedRemoved) out.push(skippedRemoved+' removed in Legal → Entities since this form created '+plural(skippedRemoved,'it','them')+' — not sent again');
       if(skippedExists) out.push(skippedExists+' already exist'+plural(skippedExists,'s','')+' — not sent again');
@@ -1031,10 +1031,11 @@ function handleSetup(v){
       var heldByOwnRow=function(code){ return ORDER.some(function(k2){ var r=LEDGER[k2].row; return r && byCode([r], code).length; }); };
       var maybeOff=ORDER.filter(function(k){ var L=LEDGER[k]; return L.maybeStored && !L.row && L.state==='failed' && !seenKeys[k] && !heldByOwnRow(L.code); });
       var maybeNote=function(){ var M=maybeOff.length; return M ? ' <span class="su-dim">'+namesOf(maybeOff.map(function(k){ return LEDGER[k]; }))+' '+plural(M,'is','are')+' not counted — '+plural(M,'its send','their sends')+' got no reply, so '+plural(M,'it','they')+' may already be on the server: check Legal → Entities.</span>' : ''; };
-      // settled no-reply sends, named once in every ending — the primary's own line where its sentence names it
+      // settled no-reply sends, named once in every ending — the primary's own line where its sentence names it — and never counted:
+      // "not counted" beside "You created N"; in the nothing-new ending they are left out of its count and only named (round 37)
       var settledKeys=ORDER.filter(function(k){ return isSettled(LEDGER[k]); });
-      var settledNote=function(skipPrimary){ var ks=settledKeys.filter(function(k){ return !(skipPrimary && primarySettled && isPrimaryLine(k)); }), M=ks.length;
-        return M ? ' <span class="su-dim">'+namesOf(ks.map(function(k){ return LEDGER[k]; }))+' '+plural(M,'is','are')+' in Legal → Entities now — saved by '+plural(M,'the send','the sends')+' that got no reply, or added there since — and '+plural(M,'is','are')+' not counted: check '+plural(M,'its','their')+' Parent and Ownership % there.</span>' : ''; };
+      var settledNote=function(skipPrimary, beside){ var ks=settledKeys.filter(function(k){ return !(skipPrimary && primarySettled && isPrimaryLine(k)); }), M=ks.length;
+        return M ? ' <span class="su-dim">'+namesOf(ks.map(function(k){ return LEDGER[k]; }))+' '+plural(M,'is','are')+' in Legal → Entities now — saved by '+plural(M,'the send','the sends')+' that got no reply, or added there since'+(beside ? ' — and '+plural(M,'is','are')+' not counted' : '')+': check '+plural(M,'its','their')+' Parent and Ownership % there.</span>' : ''; };
       var unconfirmedAny=!!(unknownRows.length || maybeOff.length || settledKeys.length);
       var ending=null;
       var removedN=ORDER.filter(function(k){ return LEDGER[k].row && LEDGER[k].removed; }).length;   // rows this form created that Legal → Entities no longer has
@@ -1085,7 +1086,7 @@ function handleSetup(v){
         ending+=parts.join(' ');
         if(other.length) ending+=notCountedNote();
         ending+=maybeNote();
-        ending+=settledNote(true);
+        ending+=settledNote(true, true);
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
         // the box beside existing companies says what it did not do, as the nothing-new ending does (round 27)
@@ -1097,15 +1098,15 @@ function handleSetup(v){
       } else if(existsAll.length || settledKeys.length || (pr && pr.state==='exists') || (pk && LEDGER[pk] && LEDGER[pk].state==='exists')){
         // no company stored by this form, but the names exist: still end honestly — no relationship was touched
         var pkExists=!!(pk && ((LEDGER[pk] && LEDGER[pk].state==='exists') || (pr && pr.state==='exists')));
-        var ex=existsAll.length + settledKeys.filter(function(k){ return !(pkExists && primaryMentioned && isPrimaryLine(k)); }).length + ((pkExists && primaryMentioned) ? 1 : 0);
+        var ex=existsAll.length + ((pkExists && primaryMentioned && !primarySettled) ? 1 : 0);   // a settled line is named below, never counted here
         var exSubs=existsAll.filter(function(k){ return !isPrimaryLine(k); });                // existing names other than the primary
-        ending='No new company was '+(unconfirmedAny ? 'confirmed' : 'created')+' — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
+        ending='No new company was '+(unconfirmedAny ? 'confirmed' : 'created')+(!ex ? '.' : ' — '+ex+' compan'+plural(ex,'y','ies')+' already exist'+plural(ex,'s','')+'.'+
           ((subs && exSubs.length)
             ? ' The subsidiaries box only sets a parent on a company it creates, so it changed nothing: check '+(exSubs.length===1 ? '<b>'+esc(LEDGER[exSubs[0]].name)+'</b>&rsquo;s' : 'each one&rsquo;s')+' Parent in Legal → Entities.'
-            : ' Parent and Ownership % are set in Legal → Entities.');
+            : ' Parent and Ownership % are set in Legal → Entities.'));
         if(other.length) ending+=notCountedNote();
         ending+=maybeNote();
-        ending+=settledNote(false);
+        ending+=settledNote(false, false);
         if(refusedAll) ending+=' <span class="su-dim">'+refusedAll+' '+plural(refusedAll,'was','were')+' refused by the server and '+plural(refusedAll,'is','are')+' not counted.</span>';
         ending+=goneNote();
         ending+=removedNote();
