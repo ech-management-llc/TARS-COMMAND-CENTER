@@ -23,8 +23,9 @@
 
    digits (TD-216): a text field may declare a digits constraint — `digits: 4` (exactly four) or
    `digits: {min, max}` — the vocabulary FL's declared field schema uses (patch 041). The renderer
-   enforces it IN THE BROWSER, before the request leaves: inputmode="numeric", maxlength, pattern,
-   and handlers for typing, paste and drop that refuse anything else with a sentence under the box
+   enforces it IN THE BROWSER, before the request leaves: inputmode="numeric", pattern (no maxlength:
+   it cuts an uncancellable insertion to the wrong digits silently — see fieldInputHtml), and handlers
+   for typing, paste and drop that refuse anything else with a sentence under the box
    (`why` is the product-voice reason, e.g. "the full account number does not belong here"). A
    short entry is hinted live ("2 of 4 digits") and blocks the save; blank is legitimate (UNKNOWN).
    FL enforces the same rule server-side (measured 2026-10-24: 12 digits -> 422), so this is the
@@ -93,8 +94,8 @@
     if (el) { if (cls === 'err' && html) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid'); }
   }
   // typing, paste, drop and autofill all end in one of three states: accepted (digits within the limit), short (hinted,
-  // the save blocks), or refused (the box keeps its last accepted value and says why). maxlength/pattern are the native
-  // backstop; these handlers are what make a refusal SAY something instead of silently dropping keystrokes.
+  // the save blocks), or refused (the box keeps its last accepted value and says why). The cancellable paths are refused
+  // before anything lands; whatever the browser inserts anyway is caught by the `input` backstop and put back.
   function wireDigitGuards(cfg) {
     cfg.fields.forEach(function (f) {
       var spec = digitSpec(f); if (!spec) return;
@@ -129,9 +130,14 @@
         if (!dt) return;
         tryInsert(text, 'drop', ev);
       });
-      el.addEventListener('input', function () {        // backstop: autofill, IME, or a browser that skipped the handlers above
+      el.addEventListener('input', function () {        // backstop: autofill, IME, an uncancellable insertion, or a browser that skipped the handlers above
         var c = digitCheck(el.value, spec);
-        if (c.nonDigits || c.over) { var n = c.n; el.value = el.dataset.ok || ''; fieldMsg(f, digitWhy(f, spec, c.nonDigits ? 'letters' : 'paste', n), 'err'); return; }
+        if (c.nonDigits || c.over) {
+          var prev = el.dataset.ok || '', extra = c.n - digitCheck(prev, spec).n;   // the box goes back to its last accepted value
+          el.value = prev;
+          fieldMsg(f, digitWhy(f, spec, c.nonDigits ? 'letters' : (extra === 1 ? 'over' : 'paste'), c.n), 'err');
+          return;
+        }
         settle(el.value);
       });
     });
@@ -141,7 +147,11 @@
     var attrs = 'class="rec-in" data-k="' + esc(f.key) + '"';
     var spec = digitSpec(f);
     if (spec) {                                          // TD-216: the native backstop + the right keyboard; the handlers say why
-      attrs += ' inputmode="numeric" maxlength="' + spec.max + '" pattern="[0-9]{' + (spec.exact ? spec.max : spec.min + ',' + spec.max) + '}" autocomplete="off" aria-describedby="rec-fm-' + esc(f.key) + '"';
+      // no maxlength, on purpose (measured 2026-10-24): an insertion the browser will not let a handler cancel — the
+      // editing command extensions, text expanders and some password managers use — is cut by maxlength to its FIRST
+      // four digits, silently; the wrong four of a full number would then save as the "last 4". Without it the `input`
+      // backstop sees the whole value and refuses it with a sentence.
+      attrs += ' inputmode="numeric" pattern="[0-9]{' + (spec.exact ? spec.max : spec.min + ',' + spec.max) + '}" autocomplete="off" aria-describedby="rec-fm-' + esc(f.key) + '"';
     }
     if (f.type === 'select') {
       return '<select ' + attrs + '><option value="">—</option>' +
