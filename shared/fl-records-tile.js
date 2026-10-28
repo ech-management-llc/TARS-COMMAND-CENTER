@@ -143,7 +143,8 @@
         if (c.nonDigits || c.over) {
           var prev = el.dataset.ok || '', extra = c.n - digitCheck(prev, spec).n;   // the box goes back to its last accepted value
           el.value = prev;
-          fieldMsg(f, digitWhy(f, spec, c.nonDigits ? 'letters' : (extra === 1 ? 'over' : 'paste'), c.n), 'err');
+          // the count the sentence gives is what the insertion carried (extra), not the box's would-be total (Jerry's ruling, 2026-10-28)
+          fieldMsg(f, digitWhy(f, spec, c.nonDigits ? 'letters' : (extra === 1 ? 'over' : 'paste'), c.nonDigits ? c.n : extra), 'err');
           return;
         }
         settle(v);
