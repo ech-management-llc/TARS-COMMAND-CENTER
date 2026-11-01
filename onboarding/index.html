@@ -160,7 +160,10 @@
       <input id="pi_address" placeholder="blank = unknown">
       <div class="grid2">
         <div><label>Role</label><input id="pi_role" placeholder="Owner / Manager / Member"></div>
-        <div><label>SSN/ITIN last 4 (optional)</label><input id="pi_ssn4" maxlength="4" inputmode="numeric" placeholder="last 4 only — never stored in full"></div>
+        <!-- The SSN/ITIN last-4 box was removed here 2026-10-28 3:33 PM CDT for the Management Test Run:
+             nothing enforced its "last 4 only" promise (maxlength is not a guard). TD-251 (server-side
+             validation in FL + the shared digits:4 guard) is the real fix. Do not bring the box back
+             without server-side validation. -->
       </div>
       <label>Emergency contact (name + phone)</label>
       <input id="pi_emergency" placeholder="optional">
@@ -438,12 +441,12 @@ function saveProfile(){
   if(!label){setMsg('pi_msg','err','Your full legal name is required.');return;}
   const payload={kind:'personal_info',label:label,retention:'7yr',
     details:details({role:txt('pi_role'),email:txt('pi_email'),phone:txt('pi_phone'),
-      mailing_address:txt('pi_address'),ssn_last4:txt('pi_ssn4'),emergency_contact:txt('pi_emergency')})};
+      mailing_address:txt('pi_address'),emergency_contact:txt('pi_emergency')})};
   setMsg('pi_msg','sub','Saving…');
   window.flRecords.create(payload).then(function(res){
     if(!res){setMsg('pi_msg','err',failCopy());return;}
     setMsg('pi_msg','ok','✓ Saved to your account.');
-    ['pi_label','pi_role','pi_email','pi_phone','pi_address','pi_ssn4','pi_emergency'].forEach(function(id){if($(id))$(id).value='';});
+    ['pi_label','pi_role','pi_email','pi_phone','pi_address','pi_emergency'].forEach(function(id){if($(id))$(id).value='';});
     loadProfile();
   });
 }
