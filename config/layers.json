@@ -794,7 +794,7 @@
       "id": "team-access",
       "title": "Team & Access",
       "icon": "👥",
-      "desc": "users · roles · invites",
+      "desc": "roster · access · history",
       "group": "admin",
       "tier": "L2",
       "enabled": true,

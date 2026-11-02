@@ -3,7 +3,7 @@
 // Cache-first for same-origin assets; live sources (FL API, data snapshots) fall
 // through to the network when online.
 
-const CACHE_NAME = 'tcc-tilehome-live-20260925a';   // TD-239: shell agents.js?v= bumped (setup walkthrough ends honestly) — was 20260923a (TD-244)
+const CACHE_NAME = 'tcc-tilehome-live-20261102a';   // Team & Access screen (precached drill-in replaced; TD-254/TD-255) — was 20260925a (TD-239)
 
 const ASSETS = [
   './',
