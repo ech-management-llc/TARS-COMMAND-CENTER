@@ -245,7 +245,9 @@
   }
   $('ta-roster').addEventListener('click', function(ev){
     var b = ev.target.closest('[data-manage]'); if(!b) return;
-    SELECTED = b.getAttribute('data-manage'); renderRoster(); renderManage();
+    var next = b.getAttribute('data-manage');
+    if(SELECTED === null || String(SELECTED) !== String(next)) LAST_MSG = '';   // a different person: no stale line
+    SELECTED = next; renderRoster(); renderManage();
     var m = $('ta-manage'); if(m && m.scrollIntoView) m.scrollIntoView({behavior:'smooth', block:'start'});
   });
   $('ta-refresh').addEventListener('click', function(){ loadAll(); });
@@ -302,16 +304,20 @@
       '<div class="section-label" style="margin-top:14px">CLEARANCES</div>'+capHtml+
       '<div class="section-label" style="margin-top:14px">REMOVE</div>'+
       '<div class="ta-row"><button type="button" class="btn sm ta-danger" id="ta-mg-remove"'+dis+'>Remove from this company</button><span class="small muted">disables their account and drops every grant and clearance; they can be added back later with the form below</span></div>'+
-      '<div class="ta-msg" id="ta-mg-msg" role="status"></div>';
+      '<div class="ta-msg" id="ta-mg-msg" role="status">'+LAST_MSG+'</div>';
   }
-  function say(html){ var m = $('ta-mg-msg'); if(m) m.innerHTML = html; }
+  // The Manage card is REBUILT after every write (to show the stored access), which also rebuilds the message
+  // slot — round 1 found every success line blank. The last message therefore lives in state and is re-inserted
+  // by renderManage; it clears only when the selection changes.
+  var LAST_MSG = '';
+  function say(html){ LAST_MSG = html; var m = $('ta-mg-msg'); if(m) m.innerHTML = html; }
   function setBusy(on){ BUSY = !!on; renderManage(); }
   function afterWrite(id){ return refreshPerson(id).then(function(){ loadHistory(null); }); }
 
   $('ta-manage').addEventListener('click', function(ev){
     var t = ev.target.closest('button'); if(!t || BUSY) return;
     var p = SELECTED!==null ? personById(SELECTED) : null; if(!p) return;
-    if(t.id === 'ta-mg-close'){ SELECTED = null; renderRoster(); renderManage(); return; }
+    if(t.id === 'ta-mg-close'){ SELECTED = null; LAST_MSG = ''; renderRoster(); renderManage(); return; }
     if(t.id === 'ta-mg-grant-typed'){
       var code = ($('ta-mg-code').value||'').trim(), lv = $('ta-mg-level').value;
       if(!code){ say('<span class="ta-err">Type a company code first.</span>'); return; }
