@@ -47,7 +47,9 @@ self.addEventListener('install', event => {
     // addAll is atomic; use individual puts so one missing optional asset can't
     // abort the whole precache.
     caches.open(CACHE_NAME).then(cache => Promise.all(
-      ASSETS.map(url => cache.add(url).catch(() => {}))
+      // cache: 'reload' — fetch past the browser's HTTP cache, so a bump within GitHub Pages' max-age window
+      // never precaches the PREVIOUS bytes under the new cache name
+      ASSETS.map(url => cache.add(new Request(url, { cache: 'reload' })).catch(() => {}))
     ))
   );
   self.skipWaiting();

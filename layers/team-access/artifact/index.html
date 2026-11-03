@@ -54,6 +54,7 @@
         <span>WHO IS IN THIS COMPANY</span>
         <button type="button" class="btn sm" id="ta-refresh">Refresh</button>
       </div>
+      <div class="ta-msg" id="ta-roster-note" role="status" style="padding:0 12px"></div>
       <table>
         <thead><tr><th scope="col">PERSON</th><th scope="col">ROLE</th><th scope="col">STATUS</th><th scope="col">COMPANIES THEY CAN SEE</th><th scope="col">CLEARED FOR</th><th scope="col"></th></tr></thead>
         <tbody id="ta-roster"><tr><td colspan="6" class="muted small">Loading the roster…</td></tr></tbody>
@@ -100,12 +101,15 @@
   // Every value from the API that reaches the DOM goes through it; attributes are ALWAYS double-quoted;
   // no API value is ever placed in a URL/scheme attribute or an inline handler.
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-  // FastAPI/pydantic 422 detail -> one readable line (field: message); a string passes through.
+  // FastAPI/pydantic 422 detail -> one readable line (field: message); a string passes through. Any OTHER shape
+  // (an object, a number, a body with no `detail`) is shown as its JSON, capped — never swallowed (round 2).
   function detail422(data){
     var d = data && data.detail;
     if(typeof d === 'string') return d;
     if(Array.isArray(d)) return d.map(function(x){ var locs=Array.isArray(x&&x.loc)?x.loc:[]; var loc=locs.filter(function(l){ return typeof l==='string'; }).slice(-1)[0]; return (loc?loc+': ':'')+((x&&x.msg)||''); }).join(' · ');
-    return '';
+    var src = (d != null) ? d : ((data && typeof data === 'object' && !Array.isArray(data)) ? data : null);
+    if(src == null) return '';
+    try { var s = JSON.stringify(src); return (s && s !== '{}') ? s.slice(0, 300) : ''; } catch(e){ return String(src).slice(0, 300); }
   }
   // attribute selector with the value escaped for CSS (a code or an email may contain quotes/backslashes)
   function sel(attr, v){
@@ -121,20 +125,39 @@
   // a 2xx whose body failed to parse) — never say "nothing was changed".
   function fail(r, verb){
     var st = r ? r.status : 0;
+    // a 401 the one reactive refresh could not repair, or a status 0 with the session gone, is a SESSION answer —
+    // never "HTTP 401" or "HTTP 0" (round 2)
+    if(st === 401) return 'The server did not accept your sign-in (HTTP 401) — sign in to the Command Center again.'+serverSays(r);
     if(st === 0){
       if(notSignedIn()) return expired() ? 'Your session expired — sign in to the Command Center again.' : 'Not signed in — sign in to the Command Center.';
       return verb === 'write'
-        ? 'The service did not confirm this change — it may or may not have been applied. Reloading the roster and the history to show what is stored.'
-        : 'The service did not answer — nothing was loaded. Retry.';
+        ? 'The service did not confirm this change — it may or may not have been applied. Reloading what is stored.'
+        : 'The service did not answer — nothing was loaded.';
     }
-    var lead = ({400:'Not applied.',403:'Not allowed.',404:'Not found.',405:'Not available on this server.',409:'Refused.',422:'Rejected.'})[st] || ('HTTP '+st+'.');
+    var lead = verb === 'read'
+      ? (st === 403 ? 'Not allowed.' : 'Could not load (HTTP '+st+').')
+      : (({400:'Not applied.',403:'Not allowed.',404:'Not found.',405:'Not available on this server.',409:'Refused.',422:'Rejected.'})[st] || ('HTTP '+st+'.'));
     if(st >= 500) lead = 'HTTP '+st+' — the server failed; nothing is assumed.';
     return lead + serverSays(r);
   }
+  // the session is gone (fl-api cleared the token after a failed refresh): the page shows the sign-in state, not
+  // stale rows with "HTTP 0" in them
+  function sessionGone(r){ return !!r && (r.status === 401 || r.status === 0) && notSignedIn(); }
+  function checkSession(){ if(notSignedIn()){ BUSY = false; boot(); return true; } return false; }
+  // a status for a cell: a real HTTP status, or "no answer" — never "HTTP 0" / "HTTP " (round 2)
+  function stLabel(st){ return st ? 'HTTP '+esc(st) : 'no answer'; }
 
   // ── state ──
   var ME = '', ROSTER = [], ACCESS = Object.create(null), NAMES = Object.create(null), MINE = [], SELECTED = null, BUSY = false;
-  var HIST = { status:null, detail:'', events:[], has_more:false, next_before:null, not_covered:[], covers:[] };
+  var HIST = { status:null, detail:'', events:[], has_more:false, next_before:null, not_covered:[], covers:[], older_err:'' };
+  var ROSTER_NOTE = '';                    // shown above the roster: a failed re-read, or unreadable entries
+  var MINE_ST = 200;                       // the status of the caller's own company-list read (names + picker)
+  var ACCESS_SEQ = Object.create(null);    // per person: the newest access read issued; an older answer is dropped
+  var HIST_GEN = 0;                        // bumped by every first-page history load; an older page is dropped
+  // After a write the controls stay disabled until the stored state has been re-read AND this long after: the
+  // second click of a double-click used to land on the button that had just replaced the first (round 2:
+  // double-click "Revoke" on a view row granted EDIT). 450 ms covers the OS double-click interval.
+  var QUIET_MS = 450;
   // The two clearances the server grants (its own vocabulary — FL constants, not tenant data). If the server's
   // vocabulary grows, a grant of an unknown name answers 422 with the server's list, rendered verbatim.
   var CAPS = [ {key:'financials_sensitive', label:'Financial figures (sensitive)'}, {key:'occupant_pii', label:'Occupant personal information'} ];
@@ -148,13 +171,26 @@
     return {txt:(p.status||'active'), cls:'b-green'};
   }
 
-  function showState(head, html){
+  // retry: the state card's own Retry button (round 2: the card said "Retry." while the only Refresh control sat
+  // inside the hidden live view)
+  function showState(head, html, retry){
     var box = $('ta-state'); $('ta-live').style.display='none'; box.style.display='block';
-    box.innerHTML = '<div class="section-label">'+esc(head)+'</div><div class="small">'+html+'</div>';
+    box.innerHTML = '<div class="section-label">'+esc(head)+'</div><div class="small">'+html+'</div>'+
+      (retry ? '<div class="ta-row"><button type="button" class="btn sm" id="ta-retry">Retry</button></div>' : '');
+    var rb = $('ta-retry'); if(rb) rb.addEventListener('click', function(){ rb.disabled = true; boot(); });
   }
   function showLive(){ $('ta-state').style.display='none'; $('ta-live').style.display=''; }
 
-  // ── boot ──
+  // The roster as the server sent it, minus entries that are not objects with an id — those are COUNTED and the
+  // count is shown above the table (round 2: one null entry used to abort the whole render on "Loading…").
+  function takeRoster(list){
+    var good = list.filter(function(p){ return p && typeof p === 'object' && p.id != null; });
+    var bad = list.length - good.length;
+    ROSTER = good;
+    ROSTER_NOTE = bad ? (bad+' roster entr'+(bad===1?'y':'ies')+' came back unreadable and '+(bad===1?'is':'are')+' not shown.') : '';
+  }
+
+  // ── boot (also Refresh and Retry: the roster itself is re-read every time — round 2) ──
   function boot(){
     if(notSignedIn()){
       showState(expired()?'SESSION EXPIRED':'SIGN IN REQUIRED', expired()
@@ -163,9 +199,11 @@
       return;
     }
     ME = ((window.flAuth && flAuth.email && flAuth.email()) || '').toLowerCase();
+    var rf = $('ta-refresh'); if(rf) rf.disabled = true;
     flTeam.roster().then(function(r){
-      if(r.ok && Array.isArray(r.data)){ ROSTER = r.data; return loadAll(); }
-      if(r.ok){ showState('UNEXPECTED ANSWER', 'The roster did not come back as a list — nothing is shown.'); return; }
+      if(rf) rf.disabled = BUSY;
+      if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return loadAll(); }
+      if(r.ok){ showState('UNEXPECTED ANSWER', 'The roster did not come back as a list — nothing is shown.', true); return; }
       if(r.status === 403){
         showState('TEAM ACCESS IS MANAGED BY A TENANT OWNER',
           'This screen shows nothing for your account — to see or change who has access, ask an owner.'+serverSays(r));
@@ -175,8 +213,9 @@
         showState('NO COMPANY YET', 'Create your first company in <b>Entities</b> first; then people can be given access to it.'+serverSays(r));
         return;
       }
-      if(r.status === 0 && notSignedIn()){ boot(); return; }   // the session died mid-flight: the sign-in state
-      showState('COULD NOT LOAD THE ROSTER', fail(r,'read')+' <span class="muted">This screen is for a tenant owner of one company.</span>');
+      if((r.status === 0 || r.status === 401) && notSignedIn()){ boot(); return; }   // the session died: the sign-in state
+      if(r.status === 401){ showState('SIGN-IN NOT ACCEPTED', fail(r,'read')); return; }
+      showState('COULD NOT LOAD THE ROSTER', fail(r,'read')+' <span class="muted">This screen is for a tenant owner of one company.</span>', true);
     });
   }
   function loadAll(){
@@ -184,20 +223,27 @@
     renderRoster();
     var names = (window.flEntities && flEntities.listX) ? flEntities.listX() : Promise.resolve({ok:false,status:0,data:null});
     return names.then(function(r){
-      MINE = (r.ok && Array.isArray(r.data)) ? r.data : [];
+      var ok = r.ok && Array.isArray(r.data);
+      MINE_ST = ok ? 200 : (r.status || 0);
+      MINE = ok ? r.data.filter(function(e){ return e && typeof e === 'object'; }) : [];
       NAMES = Object.create(null);
-      MINE.forEach(function(e){ if(e && e.code) NAMES[e.code] = e.name || ''; });
+      MINE.forEach(function(e){ if(e.code) NAMES[e.code] = e.name || ''; });
       return Promise.all(ROSTER.map(loadAccess));
     }).then(function(){
+      if(checkSession()) return;
       renderRoster(); renderManage(); renderAddCodes();
       loadHistory(null);
     });
   }
   function loadAccess(p){
+    // the newest read for this person wins: a Refresh read answered after a post-write read must not paint the
+    // pre-write state back over it (round 2)
+    var seq = (ACCESS_SEQ[p.id] || 0) + 1; ACCESS_SEQ[p.id] = seq;
     return Promise.all([flTeam.entities(p.id), flTeam.capabilities(p.id)]).then(function(rs){
+      if(ACCESS_SEQ[p.id] !== seq) return;
       var e = rs[0], c = rs[1];
       ACCESS[p.id] = {
-        entities: (e.ok && e.data && Array.isArray(e.data.entities)) ? e.data.entities : null,
+        entities: (e.ok && e.data && Array.isArray(e.data.entities)) ? e.data.entities.filter(function(x){ return x && typeof x === 'object'; }) : null,
         sees_all: !!(e.ok && e.data && e.data.sees_all),
         caps: (c.ok && c.data && Array.isArray(c.data.capabilities)) ? c.data.capabilities : null,
         implicit_all: !!(c.ok && c.data && c.data.implicit_all),
@@ -205,16 +251,24 @@
       };
     });
   }
-  function reloadRoster(){
+  // After a write that changes WHO is on the roster. A failed re-read is said above the table (round 2: it used to
+  // re-render the pre-write rows under a success line); the written person's access is still re-read so at least
+  // that row is current. Resolves when the screen is consistent with what could be read.
+  function reloadRoster(writtenId){
     return flTeam.roster().then(function(r){
-      if(!(r.ok && Array.isArray(r.data))) return;
-      ROSTER = r.data;
-      return Promise.all(ROSTER.map(loadAccess));
-    }).then(function(){ renderRoster(); renderManage(); renderAddCodes(); });
+      if(sessionGone(r)) return 'session';
+      if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return Promise.all(ROSTER.map(loadAccess)); }
+      ROSTER_NOTE = 'The roster could not be re-read after this change — '+(r.ok ? 'it came back in an unexpected shape' : fail(r,'read'))+' — the rows below may be stale. Use Refresh to try again.';
+      var w = writtenId ? personById(writtenId) : null;
+      return w ? loadAccess(w) : null;
+    }).then(function(x){
+      if(x === 'session' || checkSession()){ if(x === 'session'){ BUSY = false; boot(); } return; }
+      renderRoster(); renderManage(); renderAddCodes();
+    });
   }
   function refreshPerson(id){
     var p = personById(id); if(!p) return Promise.resolve();
-    return loadAccess(p).then(function(){ renderRoster(); renderManage(); renderAddCodes(); });
+    return loadAccess(p).then(function(){ if(checkSession()) return; renderRoster(); renderManage(); renderAddCodes(); });
   }
 
   // ── roster ──
@@ -222,16 +276,26 @@
   function companiesCell(a){
     if(!a) return '<span class="muted">loading…</span>';
     if(a.sees_all) return '<span class="muted">every company (genesis)</span>';
-    if(a.entities===null) return '<span class="ta-err">? (HTTP '+esc(a.est)+')</span>';
+    if(a.entities===null) return '<span class="ta-err">? ('+stLabel(a.est)+')</span>';
     if(!a.entities.length) return '<span class="muted">— none</span>';
     return a.entities.map(function(x){ return '<span class="ta-acc">'+esc(nameOf(x.code))+' '+levelPill(x.level)+'</span>'; }).join(' ');
   }
   function capsCell(a, p){
     if(!a) return '<span class="muted">loading…</span>';
     if(a.implicit_all) return '<span class="muted">all — '+esc(p.role||'owner')+' (implicit)</span>';
-    if(a.caps===null) return '<span class="ta-err">? (HTTP '+esc(a.cst)+')</span>';
+    if(a.caps===null) return '<span class="ta-err">? ('+stLabel(a.cst)+')</span>';
     if(!a.caps.length) return '<span class="muted">— none</span>';
     return a.caps.map(function(k){ return '<span class="pill pp">'+esc(capLabel(k))+'</span>'; }).join(' ');
+  }
+  // Manage is offered only when this person's current access is KNOWN and no change is in flight (round 2): a card
+  // opened while the reads were pending, or after one failed, listed every company as "no access" with Grant
+  // buttons; and a Manage switch during a write put that write's result line under the other person's card.
+  function manageState(p){
+    var a = ACCESS[p.id];
+    if(BUSY) return ' disabled title="Wait for the change in progress to finish"';
+    if(!a) return ' disabled title="Still loading this person\'s access"';
+    if(a.entities === null || a.caps === null) return ' disabled title="This person\'s access could not be loaded — use Refresh"';
+    return '';
   }
   function renderRoster(){
     var rows = ROSTER.map(function(p){
@@ -239,9 +303,10 @@
       var person = (p.full_name ? '<b>'+esc(p.full_name)+'</b><br>' : '') + '<span class="small">'+esc(p.email||'—')+'</span>' + (you ? ' <span class="tag b-green">you</span>' : '');
       return '<tr'+(SELECTED!==null && String(SELECTED)===String(p.id)?' class="ta-sel"':'')+'><td>'+person+'</td><td>'+esc(p.role||'—')+'</td>'+
         '<td><span class="tag '+s.cls+'">'+esc(s.txt)+'</span></td><td>'+companiesCell(ACCESS[p.id])+'</td><td>'+capsCell(ACCESS[p.id], p)+'</td>'+
-        '<td><button type="button" class="btn sm" data-manage="'+esc(p.id)+'">Manage</button></td></tr>';
+        '<td><button type="button" class="btn sm" data-manage="'+esc(p.id)+'"'+manageState(p)+'>Manage</button></td></tr>';
     }).join('');
     $('ta-roster').innerHTML = rows || '<tr><td colspan="6" class="muted small">Nobody is on the roster yet.</td></tr>';
+    var note = $('ta-roster-note'); if(note) note.innerHTML = ROSTER_NOTE ? '<span class="ta-warn">'+ROSTER_NOTE+'</span>' : '';
   }
   $('ta-roster').addEventListener('click', function(ev){
     var b = ev.target.closest('[data-manage]'); if(!b) return;
@@ -250,7 +315,9 @@
     SELECTED = next; renderRoster(); renderManage();
     var m = $('ta-manage'); if(m && m.scrollIntoView) m.scrollIntoView({behavior:'smooth', block:'start'});
   });
-  $('ta-refresh').addEventListener('click', function(){ loadAll(); });
+  // Refresh re-reads the ROSTER first (round 2: it re-read only each already-known person's access, so a person
+  // added, removed or re-enabled elsewhere never appeared). Disabled while a change is in flight.
+  $('ta-refresh').addEventListener('click', function(){ if(!BUSY) boot(); });
 
   // ── the picker: companies the caller can see ∪ every code seen on anyone's access ∪ a typed code ──
   function pickerCodes(){
@@ -311,8 +378,20 @@
   // by renderManage; it clears only when the selection changes.
   var LAST_MSG = '';
   function say(html){ LAST_MSG = html; var m = $('ta-mg-msg'); if(m) m.innerHTML = html; }
-  function setBusy(on){ BUSY = !!on; renderManage(); }
-  function afterWrite(id){ return refreshPerson(id).then(function(){ loadHistory(null); }); }
+  function setBusy(on){
+    BUSY = !!on;
+    var rf = $('ta-refresh'); if(rf) rf.disabled = BUSY;
+    renderRoster(); renderManage();
+  }
+  // controls come back only after the stored state has been re-read and the double-click window has passed
+  function release(){ setTimeout(function(){ if(BUSY) setBusy(false); }, QUIET_MS); }
+  function afterWrite(id){ return refreshPerson(id).then(function(){ if(!notSignedIn()) loadHistory(null); }); }
+  // every write ends here: re-read what is stored (or show the sign-in state if the session is gone), then release
+  function settle(p, r, reread){
+    if(sessionGone(r)){ BUSY = false; boot(); return; }
+    var after = reread ? reread() : Promise.resolve();
+    return after.then(release, release);
+  }
 
   $('ta-manage').addEventListener('click', function(ev){
     var t = ev.target.closest('button'); if(!t || BUSY) return;
@@ -331,96 +410,113 @@
   });
 
   function who(p){ return '<b>'+esc(p.full_name||p.email||p.id)+'</b>'; }
+  // Every write: controls disabled from the click until the stored state is re-read and QUIET_MS has passed
+  // (settle); every line names the person (round 2); a dead session goes to the sign-in state, not "HTTP 401".
   function doGrant(p, code, level){
-    setBusy(true); say('<span class="muted">Granting…</span>');
+    setBusy(true); say('<span class="muted">Granting '+esc(nameOf(code))+' to '+who(p)+'…</span>');
     flTeam.grant(p.id, [code], level).then(function(r){
-      setBusy(false);
+      if(sessionGone(r)) return settle(p, r);
       if(!r.ok){
         var extra = (r.status===409 && /disabled/.test(detail422(r.data)||'')) ? ' Add them back with the form below first (email and company are pre-filled).' : '';
         if(extra){ prefillAdd(p.email, code, level); }
-        say('<span class="ta-err">'+fail(r,'write')+'</span>'+extra);
-        if(r.status===0) afterWrite(p.id);
-        return;
+        say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'+extra);
+        return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null);
       }
       var res = (r.data && Array.isArray(r.data.granted)) ? r.data.granted : null;
-      if(!res){ say('<span class="ta-warn">Accepted, but the server did not report per-company results — reloading to show what is stored.</span>'); afterWrite(p.id); return; }
-      say(res.map(function(g){
+      if(!res){ say('<span class="ta-warn">'+who(p)+': accepted, but the server did not report per-company results — reloading to show what is stored.</span>'); return settle(p, r, function(){ return afterWrite(p.id); }); }
+      say(res.filter(function(g){ return g && typeof g === 'object'; }).map(function(g){
         var n = esc(nameOf(g.code));
-        if(g.result==='granted') return '<span class="ta-ok">✓ Granted '+n+' ('+esc(g.level)+').</span>';
-        if(g.result==='level-changed') return '<span class="ta-ok">✓ '+n+' is now '+esc(g.level)+'.</span>';
-        if(g.result==='unchanged') return '<span class="muted">'+n+' was already '+esc(g.level)+' — nothing changed.</span>';
-        return '<span class="muted">'+n+': '+esc(g.result)+'</span>';
+        if(g.result==='granted') return '<span class="ta-ok">✓ Granted '+n+' ('+esc(g.level)+') to '+who(p)+'.</span>';
+        if(g.result==='level-changed') return '<span class="ta-ok">✓ '+who(p)+' now has '+n+' at '+esc(g.level)+'.</span>';
+        if(g.result==='unchanged') return '<span class="muted">'+who(p)+' already had '+n+' at '+esc(g.level)+' — nothing changed.</span>';
+        return '<span class="muted">'+who(p)+' · '+n+': '+esc(g.result)+'</span>';
       }).join(' '));
-      afterWrite(p.id);
+      return settle(p, r, function(){ return afterWrite(p.id); });
     });
   }
   function doRevoke(p, code){
-    setBusy(true); say('<span class="muted">Revoking…</span>');
+    setBusy(true); say('<span class="muted">Revoking '+esc(nameOf(code))+' from '+who(p)+'…</span>');
     flTeam.revoke(p.id, code).then(function(r){
-      setBusy(false);
-      if(!r.ok){ say('<span class="ta-err">'+fail(r,'write')+'</span>'); if(r.status===0) afterWrite(p.id); return; }
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null); }
       var d = r.data || {};
       say(d.revoked===true ? '<span class="ta-ok">✓ Revoked '+esc(nameOf(code))+' from '+who(p)+'.</span>'
-        : (d.revoked===false ? '<span class="muted">'+esc(nameOf(code))+' was not held — nothing changed.</span>'
-        : '<span class="ta-warn">Accepted, but the server did not say whether anything was removed — reloading.</span>'));
-      afterWrite(p.id);
+        : (d.revoked===false ? '<span class="muted">'+who(p)+' did not hold '+esc(nameOf(code))+' — nothing changed.</span>'
+        : '<span class="ta-warn">'+who(p)+': accepted, but the server did not say whether anything was removed — reloading.</span>'));
+      return settle(p, r, function(){ return afterWrite(p.id); });
     });
   }
   function doCapGrant(p, cap){
-    setBusy(true); say('<span class="muted">Granting clearance…</span>');
+    setBusy(true); say('<span class="muted">Granting '+esc(capLabel(cap))+' to '+who(p)+'…</span>');
     flTeam.grantCapability(p.id, cap).then(function(r){
-      setBusy(false);
-      if(!r.ok){ say('<span class="ta-err">'+fail(r,'write')+'</span>'); if(r.status===0) afterWrite(p.id); return; }
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null); }
       var d = r.data || {};
       say(d.granted===true ? '<span class="ta-ok">✓ '+who(p)+' is cleared for '+esc(capLabel(cap))+'.</span>'
-        : (d.granted===false ? '<span class="muted">Already held — nothing changed.</span>' : '<span class="ta-warn">Accepted — reloading to show what is stored.</span>'));
-      afterWrite(p.id);
+        : (d.granted===false ? '<span class="muted">'+who(p)+' already held '+esc(capLabel(cap))+' — nothing changed.</span>' : '<span class="ta-warn">'+who(p)+': accepted — reloading to show what is stored.</span>'));
+      return settle(p, r, function(){ return afterWrite(p.id); });
     });
   }
   function doCapRevoke(p, cap){
-    setBusy(true); say('<span class="muted">Removing clearance…</span>');
+    setBusy(true); say('<span class="muted">Removing '+esc(capLabel(cap))+' from '+who(p)+'…</span>');
     flTeam.revokeCapability(p.id, cap).then(function(r){
-      setBusy(false);
-      if(!r.ok){ say('<span class="ta-err">'+fail(r,'write')+'</span>'); if(r.status===0) afterWrite(p.id); return; }
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null); }
       var d = r.data || {};
-      say(d.revoked===true ? '<span class="ta-ok">✓ Clearance removed: '+esc(capLabel(cap))+'.</span>'
-        : (d.revoked===false ? '<span class="muted">Was not held — nothing changed.</span>' : '<span class="ta-warn">Accepted — reloading to show what is stored.</span>'));
-      afterWrite(p.id);
+      say(d.revoked===true ? '<span class="ta-ok">✓ '+who(p)+' is no longer cleared for '+esc(capLabel(cap))+'.</span>'
+        : (d.revoked===false ? '<span class="muted">'+who(p)+' did not hold '+esc(capLabel(cap))+' — nothing changed.</span>' : '<span class="ta-warn">'+who(p)+': accepted — reloading to show what is stored.</span>'));
+      return settle(p, r, function(){ return afterWrite(p.id); });
     });
   }
   function doRemove(p){
     // a native confirm (the Entities tile's precedent for a destructive action): a second click can never land
     // on the same control, and the person's email is in the question
     var q = 'Remove '+(p.email||p.id)+' from this company?\n\nTheir account is disabled and every grant and clearance is dropped. You can add them back later.';
-    if(!window.confirm(q)){ say('<span class="muted">Not removed.</span>'); return; }
-    setBusy(true); say('<span class="muted">Removing…</span>');
+    if(!window.confirm(q)){ say('<span class="muted">'+who(p)+' was not removed.</span>'); return; }
+    setBusy(true); say('<span class="muted">Removing '+who(p)+'…</span>');
+    var reread = function(){ return reloadRoster(p.id).then(function(){ if(!notSignedIn()) loadHistory(null); }); };
     flTeam.remove(p.id).then(function(r){
-      setBusy(false);
-      if(!r.ok){ say('<span class="ta-err">'+fail(r,'write')+'</span>'); if(r.status===0){ reloadRoster().then(function(){ loadHistory(null); }); } return; }
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? reread : null); }
       var d = r.data || {};
       var what = (typeof d.dropped === 'number')
         ? ('✓ Removed '+who(p)+' — '+esc(d.dropped)+' grant'+(d.dropped===1?'':'s')+' dropped'+(d.disabled===true?', account disabled.':(d.disabled===false?', the account was already disabled.':'.')))
         : ('✓ Removed '+who(p)+' <span class="ta-warn">(this server build does not report how many grants were dropped — reloading to show what is stored)</span>');
       say('<span class="ta-ok">'+what+'</span>');
-      reloadRoster().then(function(){ loadHistory(null); });
+      return settle(p, r, reread);
     });
   }
 
   // ── add a person ──
+  // Which company lists could not be read — the picker and its empty state say so instead of "no companies yet"
+  // (round 2), and names fall back to bare codes with a note.
+  function listsFailed(){
+    var bad = [];
+    if(MINE_ST !== 200) bad.push('your company list ('+stLabel(MINE_ST)+') — names are shown as codes');
+    var n = 0; Object.keys(ACCESS).forEach(function(u){ if(ACCESS[u] && ACCESS[u].entities === null) n++; });
+    if(n) bad.push(n+' '+(n===1?'person\'s':'people\'s')+' access');
+    return bad.length ? ('Could not load '+bad.join(' and ')+'. Some companies may be missing here — type the code, or use Refresh.') : '';
+  }
   function renderAddCodes(){
     var codes = pickerCodes();
     var host = $('ta-add-codes');
     var keep = Object.create(null); host.querySelectorAll('input[type=checkbox]').forEach(function(c){ if(c.checked) keep[c.value]=1; });
-    host.innerHTML = codes.length
+    // a ticked company that has left the picker stays, ticked (round 2: it vanished and Add sent fewer companies
+    // than the form had shown)
+    Object.keys(keep).forEach(function(c){ if(codes.indexOf(c) < 0) codes.push(c); });
+    var failed = listsFailed();
+    host.innerHTML = (codes.length
       ? codes.map(function(code){ return '<label class="ta-chk"><input type="checkbox" value="'+esc(code)+'"'+(keep[code]?' checked':'')+'> '+esc(nameOf(code))+'</label>'; }).join('')
-      : '<span class="small muted">No companies are listed yet — type a code below, or create one in Entities.</span>';
+      : (failed ? '' : '<span class="small muted">No companies are listed yet — type a code below, or create one in Entities.</span>'))+
+      (failed ? '<div class="small ta-warn">'+failed+'</div>' : '');
   }
+  // a prefill REPLACES the form's companies (round 2: it added to whatever was ticked or typed before)
   function prefillAdd(email, code, level){
     $('ta-add-email').value = email || '';
     if(level) $('ta-add-level').value = level;
     var found = false;
-    $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ if(c.value===code){ c.checked = true; found = true; } });
-    if(!found && code) $('ta-add-code').value = code;
+    $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked = (c.value === code); if(c.value === code) found = true; });
+    $('ta-add-code').value = found ? '' : (code || '');
   }
   $('ta-add').addEventListener('click', function(){
     var btn = $('ta-add'), msg = $('ta-add-msg');
@@ -428,36 +524,62 @@
     var codes = []; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ if(c.checked) codes.push(c.value); });
     var typed = ($('ta-add-code').value||'').trim(); if(typed && codes.indexOf(typed)<0) codes.push(typed);
     if(!email){ msg.innerHTML = '<span class="ta-err">An email is required.</span>'; return; }
+    // whether this address may never have set a password: not on the roster, or still 'invited' (nothing marks an
+    // invitee active except being added again, so an 'invited' person may or may not have signed in)
+    var prior = null; ROSTER.forEach(function(p){ if(String(p.email||'').toLowerCase() === email.toLowerCase()) prior = p; });
+    var maybeNoPassword = !prior || prior.status === 'invited';
+    var pwHint = ' If they have not set a password yet, they use <b>Forgot password?</b> on the Command Center sign-in page with this address — no invitation email is sent by this system.';
     btn.disabled = true; msg.innerHTML = '<span class="muted">Adding…</span>';
     flTeam.invite(email, codes, level).then(function(r){
       btn.disabled = false;
+      if(sessionGone(r)){ msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'; BUSY = false; boot(); return; }
       if(!r.ok){
         var hint = (r.status===409 && /tenant-owner/.test(detail422(r.data)||'')) ? ' Use <b>Manage</b> on that person\'s row instead.' : '';
         msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint;
-        if(r.status===0){ reloadRoster().then(function(){ loadHistory(null); }); }
+        if(r.status===0){ reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); }); }
         return;
       }
       var d = r.data || {}, acc = d.account, e = esc(email);
+      var res = Array.isArray(d.results) ? d.results.filter(function(g){ return g && typeof g === 'object'; }) : null;
+      var changedAny = res ? res.some(function(g){ return g.result !== 'unchanged'; }) : null;
       var line;
       if(acc==='created') line = '<span class="ta-ok">✓ Account created for '+e+'.</span> No invitation email is sent by this system — tell them to open the Command Center sign-in page and use <b>Forgot password?</b> with this address to set a password.';
-      else if(acc==='reactivated') line = '<span class="ta-ok">✓ '+e+'\'s account is active again</span> — they sign in as before.';
-      else if(acc==='existing') line = '<span class="ta-ok">✓ '+e+' already had an account</span> — access updated; they sign in as before.';
-      else line = '<span class="ta-ok">✓ Added '+e+'.</span> <span class="ta-warn">(this server build does not report whether the account was created or already existed)</span>';
-      var res = Array.isArray(d.results) ? d.results : null;
+      else if(acc==='reactivated') line = '<span class="ta-ok">✓ '+e+'\'s account is active again.</span>'+(maybeNoPassword ? pwHint : ' They sign in as before.');
+      else if(acc==='existing') line = '<span class="ta-ok">✓ '+e+' already had an account</span> — '+(changedAny === false ? 'nothing changed.' : 'access updated.')+(maybeNoPassword ? pwHint : ' They sign in as before.');
+      else line = '<span class="ta-ok">✓ Added '+e+'.</span> <span class="ta-warn">(this server build does not report whether the account was created or already existed)</span>'+(maybeNoPassword ? pwHint : '');
       if(res && res.length) line += ' ' + res.map(function(g){ return esc(nameOf(g.code))+': '+esc(g.result==='unchanged' ? 'already '+g.level : g.result+' ('+g.level+')'); }).join(' · ');
-      else if(codes.length && !res) line += ' <span class="muted">Granted: '+esc(codes.join(', '))+' ('+esc(level)+').</span>';
+      else if(!res) line += codes.length ? ' <span class="muted">Companies sent: '+esc(codes.map(nameOf).join(', '))+' ('+esc(level)+').</span>' : ' <span class="muted">No company was included.</span>';
+      else if(!codes.length) line += ' <span class="muted">No company was included.</span>';
       msg.innerHTML = line;
       $('ta-add-email').value=''; $('ta-add-code').value=''; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
-      reloadRoster().then(function(){ loadHistory(null); });
+      reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); });
     });
   });
 
   // ── history ──
+  // A first-page load (before = null) starts a new generation; a page answered for an OLDER generation is dropped
+  // (round 2: an older page cut at the previous cursor was appended to a NEW first page, and the row that moved
+  // between them was shown nowhere). A failed OLDER page keeps everything already shown and says so under the
+  // table (round 2: it replaced the whole card, its footer and the banner with the error).
   function loadHistory(before){
-    if(!before){ $('ta-history').innerHTML = '<div class="small muted">Loading history…</div>'; }
+    if(!before){ HIST_GEN++; HIST.older_err = ''; $('ta-history').innerHTML = '<div class="small muted">Loading history…</div>'; }
+    var gen = HIST_GEN;
     flTeam.history({limit:100, before: before||null}).then(function(r){
-      if(r.ok && r.data && Array.isArray(r.data.events)){
-        HIST.events = before ? HIST.events.concat(r.data.events) : r.data.events;
+      if(gen !== HIST_GEN) return;
+      if(sessionGone(r)){ BUSY = false; boot(); return; }
+      var good = r.ok && r.data && Array.isArray(r.data.events);
+      if(before){
+        if(good){
+          HIST.events = HIST.events.concat(r.data.events); HIST.has_more = !!r.data.has_more;
+          HIST.next_before = r.data.next_before || null; HIST.older_err = '';
+        } else {
+          HIST.older_err = 'Older entries could not be loaded ('+(r.ok ? 'unexpected answer' : stLabel(r.status))+
+            (detail422(r.data) ? ' — '+detail422(r.data) : '')+') — the list above is complete only down to its last row. Load older tries again.';
+        }
+        renderHistory(); return;
+      }
+      if(good){
+        HIST.events = r.data.events;
         HIST.status = 200; HIST.has_more = !!r.data.has_more; HIST.next_before = r.data.next_before || null;
         HIST.not_covered = Array.isArray(r.data.not_covered) ? r.data.not_covered : []; HIST.covers = Array.isArray(r.data.covers) ? r.data.covers : [];
       } else if(r.ok){ HIST.status = -1; HIST.detail=''; }
@@ -465,27 +587,48 @@
       renderHistory(); renderBanner();
     });
   }
-  function fmtWhen(at){ var d = new Date(at); return isNaN(d.getTime()) ? esc(at) : esc(d.toLocaleString()); }
+  function fmtWhen(at){
+    if(at == null || at === '') return '<span class="muted">(no time recorded)</span>';   // never the 1970 epoch
+    var d = new Date(at); return isNaN(d.getTime()) ? esc(at) : esc(d.toLocaleString());
+  }
+  // The WHAT of one row, from its action and the keys the server recorded. A missing key is said, never filled in
+  // (round 2: an empty detail printed "0 grants dropped", "granted ()", "revoked ").
   function whatOf(ev){
-    var d = (ev && ev.detail && typeof ev.detail === 'object') ? ev.detail : {};
-    if(d.raw !== undefined) return '<span class="ta-warn">record unreadable</span> <span class="small muted">'+esc(String(d.raw)).slice(0,200)+'</span>';
-    switch(ev.action){
+    var act = ev && ev.action;
+    var d = (ev && ev.detail && typeof ev.detail === 'object' && !Array.isArray(ev.detail)) ? ev.detail : null;
+    var none = '<span class="muted">'+esc(act || '(no action recorded)')+' — details not recorded</span>';
+    if(!d) return none;
+    if(d.undecodable === true) return '<span class="ta-warn">record unreadable</span> <span class="small muted">'+esc(act || '')+' — the server could not decode this entry</span>';
+    if(d.raw !== undefined){
+      var raw = String(d.raw);   // cut the RAW text, then escape (round 2: the cut landed inside an entity)
+      return '<span class="ta-warn">record unreadable</span> <span class="small muted">'+esc(raw.slice(0,200))+(raw.length > 200 ? '…' : '')+'</span>';
+    }
+    function has(k){ return d[k] != null && d[k] !== ''; }
+    switch(act){
       case 'ENTITY_GRANT':
-        return 'granted <b>'+esc(nameOf(d.entity_code))+'</b> ('+esc(d.level)+')'+(d.result==='level-changed'?' — level changed':'')+(d.via==='invite'?' <span class="small muted">· when added</span>':'');
+        if(!has('entity_code')) return none;
+        return 'granted <b>'+esc(nameOf(d.entity_code))+'</b>'+(has('level')?' ('+esc(d.level)+')':'')+(d.result==='level-changed'?' — level changed':'')+(d.via==='invite'?' <span class="small muted">· when added</span>':'');
       case 'ENTITY_REVOKE':
-        return 'revoked <b>'+esc(nameOf(d.entity_code))+'</b>'+(d.level?' (was '+esc(d.level)+')':'');
-      case 'CAPABILITY_GRANT': return 'cleared for <b>'+esc(capLabel(d.capability))+'</b>';
-      case 'CAPABILITY_REVOKE': return 'clearance removed: <b>'+esc(capLabel(d.capability))+'</b>';
+        if(!has('entity_code')) return none;
+        return 'revoked <b>'+esc(nameOf(d.entity_code))+'</b>'+(has('level')?' (was '+esc(d.level)+')':'');
+      case 'CAPABILITY_GRANT':
+        return has('capability') ? 'cleared for <b>'+esc(capLabel(d.capability))+'</b>' : none;
+      case 'CAPABILITY_REVOKE':
+        return has('capability') ? 'clearance removed: <b>'+esc(capLabel(d.capability))+'</b>' : none;
       case 'TEAM_INVITE':
-        return 'added to the company — account '+esc(d.account||'?')+(d.previous_status?' (was '+esc(d.previous_status)+')':'')+
+        if(!has('account') && !Array.isArray(d.entity_codes)) return none;
+        return 'added to the company — account '+esc(d.account||'(not recorded)')+(d.previous_status?' (was '+esc(d.previous_status)+')':'')+
           (Array.isArray(d.entity_codes)&&d.entity_codes.length?' · '+esc(d.entity_codes.map(nameOf).join(', '))+(d.level?' ('+esc(d.level)+')':''):'');
       case 'TEAM_REVOKE_USER':
-        var dr = Array.isArray(d.dropped) ? d.dropped : [];
-        return 'removed from the company — '+dr.length+' grant'+(dr.length===1?'':'s')+' dropped'+(dr.length?': '+esc(dr.map(function(x){ return (x.scope_type==='capability'?capLabel(x.scope_key):nameOf(x.scope_key))+(x.level&&x.scope_type!=='capability'?' ('+x.level+')':''); }).join(', ')):'')+(d.account_disabled===true?' · account disabled':'');
+        if(!Array.isArray(d.dropped)) return 'removed from the company'+(d.account_disabled===true?' · account disabled':'')+' <span class="muted">— the grants dropped were not recorded</span>';
+        var dr = d.dropped.filter(function(x){ return x && typeof x === 'object'; }), bad = d.dropped.length - dr.length;
+        return 'removed from the company — '+dr.length+' grant'+(dr.length===1?'':'s')+' dropped'+(dr.length?': '+esc(dr.map(function(x){ return (x.scope_type==='capability'?capLabel(x.scope_key):nameOf(x.scope_key))+(x.level&&x.scope_type!=='capability'?' ('+x.level+')':''); }).join(', ')):'')+
+          (bad ? ' <span class="ta-warn">(+'+bad+' unreadable)</span>' : '')+(d.account_disabled===true?' · account disabled':'');
       default:
-        return '<span class="muted">'+esc(ev.action)+'</span>';   // never hidden: an unknown action is shown by name
+        return '<span class="muted">'+esc(act)+'</span>';   // never hidden: an unknown action is shown by name
     }
   }
+  function histRetry(){ return ' <button type="button" class="btn sm" id="ta-hist-retry">Retry</button>'; }
   function renderHistory(){
     var box = $('ta-history'), foot = $('ta-history-foot');
     if(HIST.status === 200){
@@ -494,11 +637,13 @@
       } else {
         box.innerHTML = '<table class="ta-hist"><thead><tr><th scope="col">WHEN</th><th scope="col">WHO</th><th scope="col">WHAT</th><th scope="col">FOR WHOM</th></tr></thead><tbody>'+
           HIST.events.map(function(ev){
+            ev = (ev && typeof ev === 'object') ? ev : {};   // one malformed entry is shown as such, never aborts the list
             var w = ev.actor_email ? esc(ev.actor_email) : '<span class="muted">(no email on record)</span>';
             if(ev.actor_channel) w += ' <span class="tag b-gray">via '+esc(ev.actor_channel)+'</span>';
             var fw = ev.target_email ? esc(ev.target_email) : '<span class="muted">—</span>';
             return '<tr><td class="ta-when">'+fmtWhen(ev.at)+'</td><td>'+w+'</td><td>'+whatOf(ev)+'</td><td>'+fw+(ev.target_role?' <span class="small muted">'+esc(ev.target_role)+'</span>':'')+'</td></tr>';
           }).join('')+'</tbody></table>'+
+          (HIST.older_err ? '<div class="small ta-err" style="margin-top:6px">'+esc(HIST.older_err)+'</div>' : '')+
           (HIST.has_more && HIST.next_before ? '<div class="ta-row"><button type="button" class="btn sm" id="ta-older">Load older</button></div>' : '');
         var ob = $('ta-older'); if(ob) ob.addEventListener('click', function(){ ob.disabled=true; loadHistory(HIST.next_before); });
       }
@@ -508,21 +653,24 @@
     }
     foot.innerHTML = '';
     if(HIST.status === 405 || HIST.status === 404){
-      box.innerHTML = '<div class="small"><span class="ta-warn">HISTORY NOT AVAILABLE ON THIS SERVER YET</span> — invitations, removals, grants and clearance changes cannot be accounted for here until the server update is deployed. Changes you make now are still applied; they will not be listed.'+(HIST.detail?' <span class="muted">(HTTP '+esc(HIST.status)+': '+esc(HIST.detail)+')</span>':'')+'</div>';
+      // the server that predates the history route DOES record grants, revokes and clearance changes (TD-254);
+      // only invitations and removals go unrecorded there (round 2: the first wording said none were)
+      box.innerHTML = '<div class="small"><span class="ta-warn">THIS SERVER CANNOT SHOW THE HISTORY YET.</span> Grants, revokes and clearance changes you make now are recorded and will appear here once the server update is deployed; people added or removed now will not be.'+(HIST.detail?' <span class="muted">(HTTP '+esc(HIST.status)+': '+esc(HIST.detail)+')</span>':'')+'</div>';
     } else if(HIST.status === 403){
       box.innerHTML = '<div class="small"><span class="ta-err">History is managed by a tenant owner.</span>'+(HIST.detail?' The server said: “'+esc(HIST.detail)+'”':'')+'</div>';
     } else if(HIST.status === -1){
-      box.innerHTML = '<div class="small ta-warn">History came back in an unexpected shape — nothing above is a complete record.</div>';
+      box.innerHTML = '<div class="small ta-warn">History came back in an unexpected shape — this is not a complete record.'+histRetry()+'</div>';
     } else if(HIST.status === 0){
-      box.innerHTML = '<div class="small ta-err">History could not be loaded (no answer) — nothing above is a complete record. Retry.</div>';
+      box.innerHTML = '<div class="small ta-err">History could not be loaded (no answer) — this is not a complete record.'+histRetry()+'</div>';
     } else if(HIST.status !== null){
-      box.innerHTML = '<div class="small ta-err">History could not be loaded (HTTP '+esc(HIST.status)+(HIST.detail?' — '+esc(HIST.detail):'')+') — nothing above is a complete record.</div>';
+      box.innerHTML = '<div class="small ta-err">History could not be loaded (HTTP '+esc(HIST.status)+(HIST.detail?' — '+esc(HIST.detail):'')+') — this is not a complete record.'+histRetry()+'</div>';
     }
+    var hr = $('ta-hist-retry'); if(hr) hr.addEventListener('click', function(){ hr.disabled = true; loadHistory(null); });
   }
   function renderBanner(){
     var el = $('ta-banner-rec'); if(!el) return;
     if(HIST.status === 200) el.innerHTML = 'Changes made here are <b>recorded in the history below</b>, with who made them.';
-    else if(HIST.status === 405 || HIST.status === 404) el.innerHTML = 'Changes made here are <b>not yet recorded on this server</b> — see the history card.';
+    else if(HIST.status === 405 || HIST.status === 404) el.innerHTML = 'This server records grants, revokes and clearance changes but <b>not yet who was added or removed</b> — see the history card.';
     else el.innerHTML = '';
   }
 
@@ -530,7 +678,7 @@
   if(window.FLSettings && FLSettings.mount) FLSettings.mount({tileId:'team-access'});
   // a verification seam (the Entities tile's start() precedent): a test page stubs fetch and re-runs boot;
   // nothing in the tile reads it
-  window.TeamAccessTile = { boot: boot, reload: loadAll };
+  window.TeamAccessTile = { boot: boot, reload: boot };
 })();
 </script>
 </body>
