@@ -175,8 +175,12 @@
   // After a write the controls stay disabled until the server has answered it AND this long after: the second
   // click of a double-click used to land on the button that had just replaced the first (round 2: double-click
   // "Revoke" on a view row granted EDIT). 450 ms covers the OS double-click interval. (Round 4: no longer also
-  // until every re-read has answered — see settle().)
+  // until every re-read has answered — see settle() — and therefore never sooner than DOUBLE_CLICK_MS after the
+  // CLICK: measured, a write answered within ~30 ms plus a re-read that had already re-rendered the card let the
+  // second click of a double-click land on the replacement "Grant edit" again.)
   var QUIET_MS = 450;
+  var DOUBLE_CLICK_MS = 500;               // the OS default double-click interval
+  var BUSY_SINCE = 0;                      // when the controls were last disabled for a write (the click)
   // The two clearances the server grants (its own vocabulary — FL constants, not tenant data). If the server's
   // vocabulary grows, a grant of an unknown name answers 422 with the server's list, rendered verbatim.
   var CAPS = [ {key:'financials_sensitive', label:'Financial figures (sensitive)'}, {key:'occupant_pii', label:'Occupant personal information'} ];
@@ -407,12 +411,15 @@
   var LAST_MSG = '';
   function say(html){ LAST_MSG = html; var m = $('ta-mg-msg'); if(m) m.innerHTML = html; }
   function setBusy(on){
-    BUSY = !!on;
+    BUSY = !!on; if(BUSY) BUSY_SINCE = Date.now();
     var rf = $('ta-refresh'); if(rf) rf.disabled = BUSY;
     renderRoster(); renderManage();
   }
-  // controls come back once the double-click window has passed
-  function release(){ setTimeout(function(){ if(BUSY) setBusy(false); }, QUIET_MS); }
+  // controls come back QUIET_MS after the write answered, and never inside the double-click window of the click
+  function release(){
+    var wait = Math.max(QUIET_MS, BUSY_SINCE + DOUBLE_CLICK_MS - Date.now());
+    setTimeout(function(){ if(BUSY) setBusy(false); }, wait);
+  }
   function afterWrite(id){ return refreshPerson(id).then(function(){ if(!notSignedIn()) loadHistory(null); }); }
   // every write ends here: remember the line the server's answer produced (WROTE), release the controls QUIET_MS
   // after the WRITE answered, and re-read what is stored — or show the sign-in state if the session is gone.
