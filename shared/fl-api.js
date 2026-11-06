@@ -342,6 +342,42 @@
     del: function (id) { return call('DELETE', '/api/entities/' + encodeURIComponent(id)); },
   };
 
+  // Team & Access (Administration tile, 2026-11-02). Every method is STATUS-CARRYING so the
+  // screen renders the server's refusal verbatim (403 manager-only · 404 not in your tenant ·
+  // 409 owner email / disabled / implicit holder · 400 self-revoke · 422 vocabulary) instead of
+  // swallowing it. ids, codes and capability names are URL-encoded; nothing here decides
+  // authorization — the server does. TD-254 routes + TD-255 history (GET /api/team/history
+  // answers 405 on a server that predates it; the screen says so on its face).
+  window.flTeam = {
+    roster: function () { return callX('GET', '/api/team'); },
+    invite: function (email, codes, level) {
+      return callX('POST', '/api/team/invite', { email: email, entity_codes: codes || [], level: level || 'view' });
+    },
+    remove: function (uid) { return callX('DELETE', '/api/team/' + encodeURIComponent(uid)); },
+    entities: function (uid) { return callX('GET', '/api/team/' + encodeURIComponent(uid) + '/entities'); },
+    grant: function (uid, codes, level) {
+      return callX('POST', '/api/team/' + encodeURIComponent(uid) + '/entities',
+                   { entity_codes: codes || [], level: level || 'view' });
+    },
+    revoke: function (uid, code) {
+      return callX('DELETE', '/api/team/' + encodeURIComponent(uid) + '/entities/' + encodeURIComponent(code));
+    },
+    capabilities: function (uid) { return callX('GET', '/api/team/' + encodeURIComponent(uid) + '/capabilities'); },
+    grantCapability: function (uid, cap) {
+      return callX('POST', '/api/team/' + encodeURIComponent(uid) + '/capabilities', { capability: cap });
+    },
+    revokeCapability: function (uid, cap) {
+      return callX('DELETE', '/api/team/' + encodeURIComponent(uid) + '/capabilities/' + encodeURIComponent(cap));
+    },
+    history: function (opts) {
+      opts = opts || {};
+      var q = [];
+      if (opts.limit) q.push('limit=' + encodeURIComponent(opts.limit));
+      if (opts.before) q.push('before=' + encodeURIComponent(opts.before));
+      return callX('GET', '/api/team/history' + (q.length ? ('?' + q.join('&')) : ''));
+    },
+  };
+
   // Source-of-truth admin records (Phase 3 / spine §2b): personal_info | bank_account | loan |
   // vendor. One resource, many kinds — structured fields + linked documents + retention, RLS-scoped.
   // No localStorage fallback (these ARE the source of truth): every method needs the signed-in JWT.
