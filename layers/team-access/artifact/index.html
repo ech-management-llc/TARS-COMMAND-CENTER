@@ -157,10 +157,21 @@
                                            // older answer is dropped (round 4: a slow Refresh read used to land
                                            // after a Remove/Add re-read and paint the old roster back)
   var HIST_GEN = 0;                        // bumped by every first-page history load; an older page is dropped
-  // The line this screen showed for the last change the SERVER ANSWERED (round 4). A session that ends after a
-  // change — while its re-read is in flight — shows the sign-in card; that card used to say "Nothing was changed"
-  // with the success line hidden behind it. It now repeats this line instead.
+  // What the sign-in card says about the last change made on this page (round 4), set by EVERY write: a session
+  // that ends after a change (while its re-read is in flight, or with the write's own answer lost) shows the
+  // sign-in card, and that card used to say "Nothing was changed" with the success line hidden behind it.
   var WROTE = '';
+  function wroteAnswered(line, r){
+    WROTE = (r && r.status === 0 ? 'Before your session ended, your last change got no clear answer: '
+                                 : 'Before your session ended, the server answered your last change: ')+line;
+  }
+  // the write's own answer was the dead session: a 401 is the server refusing it (nothing applied); no answer
+  // (status 0) may have come after the request left — or the request never left — so it is said as unknown
+  function wroteUnanswered(r, what){
+    WROTE = r && r.status === 401
+      ? 'Your last change — '+what+' — was not applied: the server did not accept your sign-in.'
+      : 'Your last change — '+what+' — got no answer before your session ended. It may or may not have been applied.';
+  }
   // After a write the controls stay disabled until the server has answered it AND this long after: the second
   // click of a double-click used to land on the button that had just replaced the first (round 2: double-click
   // "Revoke" on a view row granted EDIT). 450 ms covers the OS double-click interval. (Round 4: no longer also
@@ -201,10 +212,9 @@
   // ── boot (also Refresh and Retry: the roster itself is re-read every time — round 2) ──
   function boot(){
     if(notSignedIn()){
-      // "Nothing was changed" only while no change has been answered on this page (round 4)
+      // "Nothing was changed" only while no change has been made on this page (round 4)
       var last = WROTE
-        ? '<div class="ta-msg">Before your session ended, the server answered your last change: '+WROTE+'</div>'+
-          '<div class="small muted">Sign in again, then open this screen to see what is stored now.</div>'
+        ? '<div class="ta-msg">'+WROTE+'</div><div class="small muted">Sign in again, then open this screen to see what is stored now.</div>'
         : '';
       showState(expired()?'SESSION EXPIRED':'SIGN IN REQUIRED', expired()
         ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to see your team. '+(last || '<span class="muted">Nothing was changed — this is only a re-login.</span>')
@@ -410,8 +420,8 @@
   // every button until it answered, and a read that never answered locked them for good. A re-read that lands
   // after the release re-renders from state; the sequence guards drop any older answer.
   function settle(p, r, reread){
-    if(sessionGone(r)){ BUSY = false; boot(); return; }
-    WROTE = LAST_MSG;
+    if(sessionGone(r)){ wroteUnanswered(r, LAST_MSG); BUSY = false; boot(); return; }
+    wroteAnswered(LAST_MSG, r);
     release();
     return reread ? reread() : Promise.resolve();
   }
@@ -555,10 +565,10 @@
     btn.disabled = true; msg.innerHTML = '<span class="muted">Adding…</span>';
     flTeam.invite(email, codes, level).then(function(r){
       btn.disabled = false;
-      if(sessionGone(r)){ msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'; BUSY = false; boot(); return; }
+      if(sessionGone(r)){ msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'; wroteUnanswered(r, 'adding '+esc(email)); BUSY = false; boot(); return; }
       if(!r.ok){
         var hint = (r.status===409 && /tenant-owner/.test(detail422(r.data)||'')) ? ' Use <b>Manage</b> on that person\'s row instead.' : '';
-        msg.innerHTML = WROTE = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint;
+        msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint; wroteAnswered('adding '+esc(email)+': '+msg.innerHTML, r);
         if(r.status===0){ reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); }); }
         return;
       }
@@ -573,7 +583,7 @@
       if(res && res.length) line += ' ' + res.map(function(g){ return esc(nameOf(g.code))+': '+esc(g.result==='unchanged' ? 'already '+g.level : g.result+' ('+g.level+')'); }).join(' · ');
       else if(!res) line += codes.length ? ' <span class="muted">Companies sent: '+esc(codes.map(nameOf).join(', '))+' ('+esc(level)+').</span>' : ' <span class="muted">No company was included.</span>';
       else if(!codes.length) line += ' <span class="muted">No company was included.</span>';
-      msg.innerHTML = WROTE = line;
+      msg.innerHTML = line; wroteAnswered(line, r);
       $('ta-add-email').value=''; $('ta-add-code').value=''; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
       reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); });
     });
