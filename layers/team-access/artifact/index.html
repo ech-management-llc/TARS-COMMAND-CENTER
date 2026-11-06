@@ -153,10 +153,18 @@
   var ROSTER_NOTE = '';                    // shown above the roster: a failed re-read, or unreadable entries
   var MINE_ST = 200;                       // the status of the caller's own company-list read (names + picker)
   var ACCESS_SEQ = Object.create(null);    // per person: the newest access read issued; an older answer is dropped
+  var ROSTER_SEQ = 0;                      // the newest roster read issued (Refresh or a post-write re-read); an
+                                           // older answer is dropped (round 4: a slow Refresh read used to land
+                                           // after a Remove/Add re-read and paint the old roster back)
   var HIST_GEN = 0;                        // bumped by every first-page history load; an older page is dropped
-  // After a write the controls stay disabled until the stored state has been re-read AND this long after: the
-  // second click of a double-click used to land on the button that had just replaced the first (round 2:
-  // double-click "Revoke" on a view row granted EDIT). 450 ms covers the OS double-click interval.
+  // The line this screen showed for the last change the SERVER ANSWERED (round 4). A session that ends after a
+  // change — while its re-read is in flight — shows the sign-in card; that card used to say "Nothing was changed"
+  // with the success line hidden behind it. It now repeats this line instead.
+  var WROTE = '';
+  // After a write the controls stay disabled until the server has answered it AND this long after: the second
+  // click of a double-click used to land on the button that had just replaced the first (round 2: double-click
+  // "Revoke" on a view row granted EDIT). 450 ms covers the OS double-click interval. (Round 4: no longer also
+  // until every re-read has answered — see settle().)
   var QUIET_MS = 450;
   // The two clearances the server grants (its own vocabulary — FL constants, not tenant data). If the server's
   // vocabulary grows, a grant of an unknown name answers 422 with the server's list, rendered verbatim.
@@ -193,15 +201,22 @@
   // ── boot (also Refresh and Retry: the roster itself is re-read every time — round 2) ──
   function boot(){
     if(notSignedIn()){
+      // "Nothing was changed" only while no change has been answered on this page (round 4)
+      var last = WROTE
+        ? '<div class="ta-msg">Before your session ended, the server answered your last change: '+WROTE+'</div>'+
+          '<div class="small muted">Sign in again, then open this screen to see what is stored now.</div>'
+        : '';
       showState(expired()?'SESSION EXPIRED':'SIGN IN REQUIRED', expired()
-        ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to see your team. <span class="muted">Nothing was changed — this is only a re-login.</span>'
-        : 'Your team is held on your account (not this browser). <b>Sign in to the Command Center</b> to see who has access.');
+        ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to see your team. '+(last || '<span class="muted">Nothing was changed — this is only a re-login.</span>')
+        : 'Your team is held on your account (not this browser). <b>Sign in to the Command Center</b> to see who has access.'+last);
       return;
     }
     ME = ((window.flAuth && flAuth.email && flAuth.email()) || '').toLowerCase();
     var rf = $('ta-refresh'); if(rf) rf.disabled = true;
+    var seq = ++ROSTER_SEQ;
     flTeam.roster().then(function(r){
       if(rf) rf.disabled = BUSY;
+      if(seq !== ROSTER_SEQ) return;   // a newer roster read (a post-write re-read) was issued after this one
       if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return loadAll(); }
       if(r.ok){ showState('UNEXPECTED ANSWER', 'The roster did not come back as a list — nothing is shown.', true); return; }
       if(r.status === 403){
@@ -214,7 +229,7 @@
         return;
       }
       if((r.status === 0 || r.status === 401) && notSignedIn()){ boot(); return; }   // the session died: the sign-in state
-      if(r.status === 401){ showState('SIGN-IN NOT ACCEPTED', fail(r,'read')); return; }
+      if(r.status === 401){ showState('SIGN-IN NOT ACCEPTED', fail(r,'read'), true); return; }   // token kept: Retry (round 4)
       showState('COULD NOT LOAD THE ROSTER', fail(r,'read')+' <span class="muted">This screen is for a tenant owner of one company.</span>', true);
     });
   }
@@ -255,13 +270,16 @@
   // re-render the pre-write rows under a success line); the written person's access is still re-read so at least
   // that row is current. Resolves when the screen is consistent with what could be read.
   function reloadRoster(writtenId){
+    var seq = ++ROSTER_SEQ;
     return flTeam.roster().then(function(r){
+      if(seq !== ROSTER_SEQ) return 'stale';   // a newer roster read (Refresh) was issued: it renders, not this
       if(sessionGone(r)) return 'session';
       if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return Promise.all(ROSTER.map(loadAccess)); }
       ROSTER_NOTE = 'The roster could not be re-read after this change — '+(r.ok ? 'it came back in an unexpected shape' : fail(r,'read'))+' — the rows below may be stale. Use Refresh to try again.';
       var w = writtenId ? personById(writtenId) : null;
       return w ? loadAccess(w) : null;
     }).then(function(x){
+      if(x === 'stale') return;
       if(x === 'session' || checkSession()){ if(x === 'session'){ BUSY = false; boot(); } return; }
       renderRoster(); renderManage(); renderAddCodes();
     });
@@ -383,14 +401,19 @@
     var rf = $('ta-refresh'); if(rf) rf.disabled = BUSY;
     renderRoster(); renderManage();
   }
-  // controls come back only after the stored state has been re-read and the double-click window has passed
+  // controls come back once the double-click window has passed
   function release(){ setTimeout(function(){ if(BUSY) setBusy(false); }, QUIET_MS); }
   function afterWrite(id){ return refreshPerson(id).then(function(){ if(!notSignedIn()) loadHistory(null); }); }
-  // every write ends here: re-read what is stored (or show the sign-in state if the session is gone), then release
+  // every write ends here: remember the line the server's answer produced (WROTE), release the controls QUIET_MS
+  // after the WRITE answered, and re-read what is stored — or show the sign-in state if the session is gone.
+  // Round 4: the controls used to wait for the re-read as well, so ONE slow read (anyone's, after a Remove) locked
+  // every button until it answered, and a read that never answered locked them for good. A re-read that lands
+  // after the release re-renders from state; the sequence guards drop any older answer.
   function settle(p, r, reread){
     if(sessionGone(r)){ BUSY = false; boot(); return; }
-    var after = reread ? reread() : Promise.resolve();
-    return after.then(release, release);
+    WROTE = LAST_MSG;
+    release();
+    return reread ? reread() : Promise.resolve();
   }
 
   $('ta-manage').addEventListener('click', function(ev){
@@ -535,7 +558,7 @@
       if(sessionGone(r)){ msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'; BUSY = false; boot(); return; }
       if(!r.ok){
         var hint = (r.status===409 && /tenant-owner/.test(detail422(r.data)||'')) ? ' Use <b>Manage</b> on that person\'s row instead.' : '';
-        msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint;
+        msg.innerHTML = WROTE = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint;
         if(r.status===0){ reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); }); }
         return;
       }
@@ -550,7 +573,7 @@
       if(res && res.length) line += ' ' + res.map(function(g){ return esc(nameOf(g.code))+': '+esc(g.result==='unchanged' ? 'already '+g.level : g.result+' ('+g.level+')'); }).join(' · ');
       else if(!res) line += codes.length ? ' <span class="muted">Companies sent: '+esc(codes.map(nameOf).join(', '))+' ('+esc(level)+').</span>' : ' <span class="muted">No company was included.</span>';
       else if(!codes.length) line += ' <span class="muted">No company was included.</span>';
-      msg.innerHTML = line;
+      msg.innerHTML = WROTE = line;
       $('ta-add-email').value=''; $('ta-add-code').value=''; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
       reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); });
     });
