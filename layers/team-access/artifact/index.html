@@ -157,30 +157,41 @@
                                            // older answer is dropped (round 4: a slow Refresh read used to land
                                            // after a Remove/Add re-read and paint the old roster back)
   var HIST_GEN = 0;                        // bumped by every first-page history load; an older page is dropped
-  // What the sign-in card says about the last change made on this page (round 4), set by EVERY write: a session
-  // that ends after a change (while its re-read is in flight, or with the write's own answer lost) shows the
-  // sign-in card, and that card used to say "Nothing was changed" with the success line hidden behind it.
-  var WROTE = '';
+  // What the sign-in card says about the changes made on this page. A session that ends around a change shows the
+  // sign-in card, and that card used to say "Nothing was changed" with the success line hidden behind it (round 4).
+  // A change is recorded when it STARTS, not when it is answered (last round: until the answer arrived the card
+  // still said "Nothing was changed", or named an earlier change, while the server had already applied this one).
+  // Three messages: the server ANSWERED (changed, or refused, in the words the live screen showed) · NOT APPLIED
+  // (the server refused the sign-in on the change itself) · NO ANSWER, MAY OR MAY NOT HAVE BEEN APPLIED (still
+  // waiting when the session ended, or the answer never came). Two changes can be waiting at once — one from the
+  // Manage card (BUSY allows one at a time; its words are LAST_MSG, the "Granting … to …" line) and one from the
+  // Add form — so each has its own flag, and an answer to one never hides the other still waiting.
+  var WROTE = '';                          // the change answered last, in the card's words; '' once a newer one starts
+  var SENT_MANAGE = false;                 // a Manage-card change has started and has not been answered
+  var SENT_ADD = '';                       // the Add form's change that has started and has not been answered
+  function notKnown(what){ return 'Your change — '+what+' — got no answer before your session ended. It may or may not have been applied.'; }
   function wroteAnswered(line, r){
-    WROTE = (r && r.status === 0 ? 'Before your session ended, your last change got no clear answer: '
-                                 : 'Before your session ended, the server answered your last change: ')+line;
+    WROTE = (r && r.status === 0 ? 'Before your session ended, your change got no clear answer: '
+                                 : 'Before your session ended, the server answered your change: ')+line;
   }
   // the write's own answer was the dead session: a 401 is the server refusing it (nothing applied); no answer
   // (status 0) may have come after the request left — or the request never left — so it is said as unknown
   function wroteUnanswered(r, what){
     WROTE = r && r.status === 401
-      ? 'Your last change — '+what+' — was not applied: the server did not accept your sign-in.'
-      : 'Your last change — '+what+' — got no answer before your session ended. It may or may not have been applied.';
+      ? 'Your change — '+what+' — was not applied: the server did not accept your sign-in.'
+      : notKnown(what);
   }
-  // After a write the controls stay disabled until the server has answered it AND this long after: the second
-  // click of a double-click used to land on the button that had just replaced the first (round 2: double-click
-  // "Revoke" on a view row granted EDIT). 450 ms covers the OS double-click interval. (Round 4: no longer also
-  // until every re-read has answered — see settle() — and therefore never sooner than DOUBLE_CLICK_MS after the
-  // CLICK: measured, a write answered within ~30 ms plus a re-read that had already re-rendered the card let the
-  // second click of a double-click land on the replacement "Grant edit" again.)
+  // After a write the controls stay disabled until the stored state has been re-read AND this long after: the
+  // second click of a double-click used to land on the button that had just replaced the first (round 2:
+  // double-click "Revoke" on a view row granted EDIT). A button is never enabled within QUIET_MS of being rendered
+  // into its position. (Round 4 released as soon as the WRITE answered; a re-read landing later then re-rendered
+  // the card under enabled buttons, and a repeat click half a second or more after the first landed on the
+  // opposite action. Last round: round 2's order again — see settle() — with the wait for the re-read capped.)
   var QUIET_MS = 450;
-  var DOUBLE_CLICK_MS = 500;               // the OS default double-click interval
-  var BUSY_SINCE = 0;                      // when the controls were last disabled for a write (the click)
+  var DOUBLE_CLICK_MS = 500;               // the OS default double-click interval: never released sooner after the click
+  var REREAD_CAP_MS = 5000;                // the longest the controls wait for a post-write re-read to answer
+  var BUSY_SINCE = 0;                      // when the controls were last disabled for a write (the click), on the
+                                           // page's monotonic clock (performance.now) — never the wall clock
   // The two clearances the server grants (its own vocabulary — FL constants, not tenant data). If the server's
   // vocabulary grows, a grant of an unknown name answers 422 with the server's list, rendered verbatim.
   var CAPS = [ {key:'financials_sensitive', label:'Financial figures (sensitive)'}, {key:'occupant_pii', label:'Occupant personal information'} ];
@@ -216,9 +227,14 @@
   // ── boot (also Refresh and Retry: the roster itself is re-read every time — round 2) ──
   function boot(){
     if(notSignedIn()){
-      // "Nothing was changed" only while no change has been made on this page (round 4)
-      var last = WROTE
-        ? '<div class="ta-msg">'+WROTE+'</div><div class="small muted">Sign in again, then open this screen to see what is stored now.</div>'
+      // "Nothing was changed" only while no change has been made on this page (round 4); a change still waiting
+      // for its answer is said first, as unknown (last round), then the change answered last
+      var said = [];
+      if(SENT_MANAGE) said.push(notKnown(LAST_MSG));
+      if(SENT_ADD) said.push(notKnown(SENT_ADD));
+      if(WROTE) said.push(WROTE);
+      var last = said.length
+        ? said.map(function(t){ return '<div class="ta-msg">'+t+'</div>'; }).join('')+'<div class="small muted">Sign in again, then open this screen to see what is stored now.</div>'
         : '';
       showState(expired()?'SESSION EXPIRED':'SIGN IN REQUIRED', expired()
         ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to see your team. '+(last || '<span class="muted">Nothing was changed — this is only a re-login.</span>')
@@ -411,26 +427,33 @@
   var LAST_MSG = '';
   function say(html){ LAST_MSG = html; var m = $('ta-mg-msg'); if(m) m.innerHTML = html; }
   function setBusy(on){
-    BUSY = !!on; if(BUSY) BUSY_SINCE = Date.now();
+    BUSY = !!on;
+    // setBusy(true) IS the start of a Manage-card write (the five do* functions, nothing else): the click time for
+    // release(), and the moment the sign-in card stops saying "Nothing was changed" (see WROTE)
+    if(BUSY){ BUSY_SINCE = performance.now(); SENT_MANAGE = true; WROTE = ''; }
     var rf = $('ta-refresh'); if(rf) rf.disabled = BUSY;
     renderRoster(); renderManage();
   }
-  // controls come back QUIET_MS after the write answered, and never inside the double-click window of the click
+  // controls come back QUIET_MS from now, and never inside the double-click window of the click. Timed on the
+  // page's monotonic clock: on the wall clock, a clock set back during a change kept every control disabled for as
+  // long as it had gone back (round 4 review).
   function release(){
-    var wait = Math.max(QUIET_MS, BUSY_SINCE + DOUBLE_CLICK_MS - Date.now());
+    var wait = Math.max(QUIET_MS, BUSY_SINCE + DOUBLE_CLICK_MS - performance.now());
     setTimeout(function(){ if(BUSY) setBusy(false); }, wait);
   }
   function afterWrite(id){ return refreshPerson(id).then(function(){ if(!notSignedIn()) loadHistory(null); }); }
-  // every write ends here: remember the line the server's answer produced (WROTE), release the controls QUIET_MS
-  // after the WRITE answered, and re-read what is stored — or show the sign-in state if the session is gone.
-  // Round 4: the controls used to wait for the re-read as well, so ONE slow read (anyone's, after a Remove) locked
-  // every button until it answered, and a read that never answered locked them for good. A re-read that lands
-  // after the release re-renders from state; the sequence guards drop any older answer.
+  // every write ends here: remember what the server's answer said (WROTE), re-read what is stored — or show the
+  // sign-in state if the session is gone — and only THEN give the controls back (release): round 2's order, so the
+  // re-read's render always lands on disabled buttons. The wait for the re-read is capped at REREAD_CAP_MS, so one
+  // read that never answers cannot lock every control for good (round 3). A re-read that answers after the cap
+  // still re-renders from state (the sequence guards drop any older answer).
   function settle(p, r, reread){
+    SENT_MANAGE = false;
     if(sessionGone(r)){ wroteUnanswered(r, LAST_MSG); BUSY = false; boot(); return; }
     wroteAnswered(LAST_MSG, r);
-    release();
-    return reread ? reread() : Promise.resolve();
+    var freed = false, free = function(){ if(!freed){ freed = true; release(); } };
+    setTimeout(free, REREAD_CAP_MS);
+    return (reread ? reread() : Promise.resolve()).then(free, free);
   }
 
   $('ta-manage').addEventListener('click', function(ev){
@@ -570,8 +593,9 @@
     var maybeNoPassword = !prior || prior.status === 'invited';
     var pwHint = ' If they have not set a password yet, they use <b>Forgot password?</b> on the Command Center sign-in page with this address — no invitation email is sent by this system.';
     btn.disabled = true; msg.innerHTML = '<span class="muted">Adding…</span>';
+    SENT_ADD = 'adding '+esc(email); WROTE = '';   // the Add form's write starts here (see WROTE)
     flTeam.invite(email, codes, level).then(function(r){
-      btn.disabled = false;
+      btn.disabled = false; SENT_ADD = '';
       if(sessionGone(r)){ msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'; wroteUnanswered(r, 'adding '+esc(email)); BUSY = false; boot(); return; }
       if(!r.ok){
         var hint = (r.status===409 && /tenant-owner/.test(detail422(r.data)||'')) ? ' Use <b>Manage</b> on that person\'s row instead.' : '';
