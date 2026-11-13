@@ -3,7 +3,7 @@
 // Cache-first for same-origin assets; live sources (FL API, data snapshots) fall
 // through to the network when online.
 
-const CACHE_NAME = 'tcc-tilehome-live-20260925a';   // TD-239: shell agents.js?v= bumped (setup walkthrough ends honestly) — was 20260923a (TD-244)
+const CACHE_NAME = 'tcc-tilehome-live-20261102a';   // Team & Access screen (precached drill-in replaced; TD-254/TD-255) — was 20260925a (TD-239)
 
 const ASSETS = [
   './',
@@ -47,7 +47,9 @@ self.addEventListener('install', event => {
     // addAll is atomic; use individual puts so one missing optional asset can't
     // abort the whole precache.
     caches.open(CACHE_NAME).then(cache => Promise.all(
-      ASSETS.map(url => cache.add(url).catch(() => {}))
+      // cache: 'reload' — fetch past the browser's HTTP cache, so a bump within GitHub Pages' max-age window
+      // never precaches the PREVIOUS bytes under the new cache name
+      ASSETS.map(url => cache.add(new Request(url, { cache: 'reload' })).catch(() => {}))
     ))
   );
   self.skipWaiting();

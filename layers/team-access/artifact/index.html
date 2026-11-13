@@ -6,195 +6,744 @@
 <title>Team &amp; Access — Foundation Layer Command Center</title>
 <link rel="stylesheet" href="../../../artifact.css">
 <style>
-  .ta-sec{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px}
-  .ta-sec-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-  .ta-sec-h .nm{font-weight:700;font-size:13px}
-  .ta-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:4px 11px;margin:3px 4px 0 0;font-size:12px;cursor:pointer;background:var(--surf2);color:var(--mut);user-select:none}
-  .ta-chip[data-on="1"]{background:var(--greenbg,#0d1f16);border-color:var(--green,#33d29a);color:var(--green,#33d29a);font-weight:700}
-  .ta-chip[data-locked="1"]{cursor:default;border-style:dashed;opacity:.85}
-  .ta-lasso{font-size:11px;font-weight:700;border:1px solid var(--purpleln,#5b4b8a);background:var(--purplebg,#1c1830);color:var(--purple,#b9a7ff);border-radius:999px;padding:3px 10px;cursor:pointer}
-  .ta-req{color:var(--red,#ff6b6b)}
-  .ta-prev{background:var(--surf);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;margin-top:8px;font-size:12px;line-height:1.7}
+  /* Team & Access (Administration) — 2026-11-02. Live reads/writes against /api/team (TD-254 routes +
+     TD-255 history). Visual parity with the Entities tile's form controls. */
+  .ta-err{color:var(--red);font-weight:700}
+  .ta-ok{color:var(--green);font-weight:700}
+  .ta-warn{color:var(--yellow);font-weight:700}
+  .btn.ta-danger{background:var(--redbg);border-color:var(--redln);color:var(--red)}
+  .btn.sm{padding:5px 10px;font-size:11.5px}
+  .btn:disabled{opacity:.55;cursor:default}
+  tr.ta-sel td{background:var(--surf2)}
+  .ta-acc{display:inline-block;margin:2px 8px 2px 0;white-space:nowrap}
+  .ta-form{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-top:8px}
+  .ta-field{display:flex;flex-direction:column}
+  .ta-field.full{grid-column:1/-1}
+  .ta-lab{font-size:11.5px;font-weight:600;color:var(--dim);margin-bottom:4px}
+  .ta-in{width:100%;background:#fff;border:1.5px solid #cbd5e0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a;box-sizing:border-box}
+  .ta-in:focus{outline:none;border-color:#6366f1}
+  .ta-in.short{width:auto;min-width:160px}
+  .ta-chk{display:inline-flex;align-items:center;gap:6px;margin:3px 12px 3px 0;font-size:12.5px;cursor:pointer}
+  .ta-msg{font-size:12px;margin-top:8px;min-height:16px;line-height:1.5}
+  .ta-actions .btn{margin:2px 4px 2px 0}
+  .ta-hist td{vertical-align:top}
+  .ta-when{white-space:nowrap;color:var(--mut);font-size:12px}
+  .ta-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .ta-sub{font-size:12px;color:var(--mut);margin-top:6px;line-height:1.5}
+  .ta-mg-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .ta-foot li{margin:2px 0}
 </style>
 </head>
 <body>
 <div class="art-wrap">
   <div class="art-head">👥 Team &amp; Access</div>
 
-  <div class="preview-banner" style="border-color:var(--yellowln,#caa53a)">
-    <b>⚠ FRONT-END SCOPING ONLY — this does NOT secure the app.</b> Granting here hides un-granted tiles in the UI; a determined user can unhide them. <b>Real access control is server-side</b> (Supabase row-level security + API authorization in Foundation Layer), and lands at the <b>auth phase</b>. Until then, do not treat anything here as locked. Grants here are scoping records — no real accounts, emails, or texts are sent.
+  <div class="preview-banner" id="ta-banner">
+    <b>Who is in this company, what each person can see, what they are cleared for, and what changed.</b>
+    Everything here is a <b>live read</b> of the Foundation Layer backend; every button talks to the server and the
+    server decides. Company access is <b>per person</b>, owners included — an owner is not automatically shown every
+    company. <span id="ta-banner-rec"></span>
   </div>
 
-  <div class="preview-banner" style="border-color:var(--greenln,#1c4d3e)">
-    <b>💾 Roster record:</b> <span id="ta-persist">checking where this roster is saved…</span>
-    <b>Access enforcement (invites / sign-ins for these people) lands with the team-access build — an entry here is a record only and does not grant anyone access.</b>
-  </div>
+  <!-- one honest state when the roster cannot be shown (sign-in · member · no tenant · outage) -->
+  <div class="card" id="ta-state" style="display:none"></div>
 
-  <!-- ADD / CONFIGURE MEMBER ------------------------------------------------ -->
-  <div class="card">
-    <div class="section-label">ADD TEAM MEMBER</div>
-    <div class="fgrid">
-      <div><label>Name <span class="ta-req">*</span></label><input id="m-name" placeholder="e.g. Marcus (site lead)"></div>
-      <div><label>Role</label><select id="m-role"><option value="member" selected>Member (scoped)</option><option value="admin">Admin / Staff</option><option value="viewer">Read-only / Viewer</option></select></div>
-      <div><label>Cell phone <span class="ta-req">*</span></label><input id="m-phone" placeholder="(903) 555-0000 · SMS magic-link + dispatch"></div>
-      <div><label>Email <span class="ta-req">*</span></label><input id="m-email" placeholder="name@company.com · email magic-link + reports"></div>
+  <div id="ta-live" style="display:none">
+    <div class="card flush" data-view-section="roster">
+      <div class="section-label" style="padding:10px 12px 0;display:flex;justify-content:space-between;align-items:center">
+        <span>WHO IS IN THIS COMPANY</span>
+        <button type="button" class="btn sm" id="ta-refresh">Refresh</button>
+      </div>
+      <div class="ta-msg" id="ta-roster-note" role="status" style="padding:0 12px"></div>
+      <table>
+        <thead><tr><th scope="col">PERSON</th><th scope="col">ROLE</th><th scope="col">STATUS</th><th scope="col">COMPANIES THEY CAN SEE</th><th scope="col">CLEARED FOR</th><th scope="col"></th></tr></thead>
+        <tbody id="ta-roster"><tr><td colspan="6" class="muted small">Loading the roster…</td></tr></tbody>
+      </table>
+      <div class="small dim" style="padding:8px 12px">Role and status are the server's words. <b>view</b> = can see the company's records · <b>edit</b> = can change them. Owners hold every clearance implicitly; a <b>user</b> holds only what is granted here. A disabled person stays on the roster so they can be added back.</div>
     </div>
-    <label style="display:inline-flex;align-items:center;gap:7px;margin-top:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="m-tars"> Can command TARS by text (Rule 27 allow-list — needs a phone)</label>
 
-    <div class="section-label" style="margin-top:14px">GRANT ACCESS <span class="small muted" style="font-weight:400">— deny-by-default · click a section lasso to grant all its tiles, or toggle individual tiles · Inbox + Calendar are always on</span></div>
-    <div id="ta-board"><div class="small muted">Loading the Foundation Layer board…</div></div>
+    <div class="card" id="ta-manage" style="display:none" data-view-section="manage"></div>
 
-    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn primary" id="m-add">Add team member</button>
-      <button class="btn sm" id="m-clear">Clear grants</button>
-      <span class="small muted" id="m-note"></span>
+    <div class="card" data-view-section="add">
+      <div class="section-label">ADD A PERSON</div>
+      <div class="ta-form">
+        <div class="ta-field"><label class="ta-lab" for="ta-add-email">Email</label>
+          <input class="ta-in" id="ta-add-email" type="email" autocomplete="off" placeholder="name@company.com — required"></div>
+        <div class="ta-field"><label class="ta-lab" for="ta-add-level">Access level for the companies below</label>
+          <select class="ta-in" id="ta-add-level"><option value="view">view — can see</option><option value="edit">edit — can change</option></select></div>
+        <div class="ta-field full"><span class="ta-lab">Companies</span><div id="ta-add-codes" class="small muted">Loading…</div></div>
+        <div class="ta-field full"><label class="ta-lab" for="ta-add-code">A company not listed above — type its code</label>
+          <input class="ta-in short" id="ta-add-code" autocomplete="off" placeholder="e.g. a code you were given"></div>
+      </div>
+      <div class="ta-sub">No invitation email is sent by this system. A new person signs in at the Command Center sign-in page with <b>Forgot password?</b> and this address. An existing person keeps signing in as before. A tenant owner cannot be added here — use <b>Manage</b> on their row instead.</div>
+      <div class="ta-row"><button type="button" class="btn primary" id="ta-add">Add person</button></div>
+      <div class="ta-msg" id="ta-add-msg" role="status"></div>
     </div>
-    <div class="ta-prev" id="m-preview"></div>
+
+    <div class="card" data-view-section="history">
+      <div class="section-label">WHAT CHANGED, AND WHO CHANGED IT</div>
+      <div id="ta-history"><div class="small muted">Loading history…</div></div>
+      <div class="small dim" id="ta-history-foot" style="margin-top:8px"></div>
+    </div>
   </div>
 
-  <!-- TEAM LIST -------------------------------------------------------------- -->
-  <div class="card flush">
-    <div class="section-label" style="padding:10px 12px 0">TEAM</div>
-    <table>
-      <thead><tr><th>NAME</th><th>ROLE</th><th>CONTACTS</th><th>ACCESS</th><th>TARS</th><th></th></tr></thead>
-      <tbody id="ta-team"></tbody>
-    </table>
-    <div class="small dim" style="padding:8px 12px">Existing rows come from the shared connections record; new members save to your <b>account's roster record</b> (server tile-state; this browser keeps an offline copy). Phone + email drive SMS dispatch (Rule 27), report email, and magic-link sign-in.</div>
-  </div>
-
-  <div class="wire-note" style="text-align:center;margin-top:14px">Roles + grants decide what the UI renders; <b>server-side authorization decides what's actually allowed</b> (auth phase). Per-tenant isolation + read-only-per-grant land with it.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/team</code> (roster) · <code>/api/team/{id}/entities</code> and <code>/capabilities</code> (access, grant, revoke) · <code>/api/team/invite</code> · <code>/api/team/{id}</code> (remove) · <code>/api/team/history</code> (the trail). Authorization is decided by the server on every call; this page only shows its answers.</div>
 </div>
 
 <script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
+<script src="../../../shared/fl-api.js?v=20261102a"></script>
 <script src="../../../shared/fl-state.js?v=20260721a"></script>
 <script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
 <script>
+(function(){
+  'use strict';
+  // a REAL escaper, byte-identical to the shell's TCC.esc (app.js) — never a pass-through (TD-239).
+  // Every value from the API that reaches the DOM goes through it; attributes are ALWAYS double-quoted;
+  // no API value is ever placed in a URL/scheme attribute or an inline handler.
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-  function telD(p){ var d=String(p==null?'':p).replace(/[^0-9]/g,''); if(!d) return ''; if(d.length===10) d='1'+d; return '+'+d; }
-  // Consolidation section leads (matches consolidate.py). Layers carry section_lead; baseline is always granted.
-  var SECTIONS=[['tars','Overview & Brief · TARS'],['portfolio','Portfolio · Reed'],['financials','Financials · Margo'],['market-deals','Market & Deals · Scout'],['operations','Build, Renovate & Maintenance · Jordan'],['legal','Legal · Dean'],['it','Website, IT & Marketing · Iris'],['admin','Admin · Quinn']];
-  var BASELINE=['inbox','calendar'];
-  var LAYERS=[], BYSEC={}, OVERLAY=load(), CUR={sections:{}, tiles:{}}, DIRTY=false;
+  // FastAPI/pydantic 422 detail -> one readable line (field: message); a string passes through. Any OTHER shape
+  // (an object, a number, a body with no `detail`) is shown as its JSON, capped — never swallowed (round 2).
+  function detail422(data){
+    var d = data && data.detail;
+    if(typeof d === 'string') return d;
+    if(Array.isArray(d)) return d.map(function(x){ var locs=Array.isArray(x&&x.loc)?x.loc:[]; var loc=locs.filter(function(l){ return typeof l==='string'; }).slice(-1)[0]; return (loc?loc+': ':'')+((x&&x.msg)||''); }).join(' · ');
+    var src = (d != null) ? d : ((data && typeof data === 'object' && !Array.isArray(data)) ? data : null);
+    if(src == null) return '';
+    try { var s = JSON.stringify(src); return (s && s !== '{}') ? s.slice(0, 300) : ''; } catch(e){ return String(src).slice(0, 300); }
+  }
+  // attribute selector with the value escaped for CSS (a code or an email may contain quotes/backslashes)
+  function sel(attr, v){
+    var x = (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/[\\"\n\r\f]/g, function(c){ return '\\'+c.charCodeAt(0).toString(16)+' '; });
+    return '['+attr+'="'+x+'"]';
+  }
+  function $(id){ return document.getElementById(id); }
+  function serverSays(r){ var d = detail422(r && r.data); return d ? ' The server said: “'+esc(d)+'”' : ''; }
+  function notSignedIn(){ return !(window.flApi && flApi.authed && flApi.authed()); }
+  function expired(){ return !!(window.flApi && flApi.authExpired && flApi.authExpired()); }
+  // ONE classifier for a failed call, each cause its own sentence (TD-244 lesson). verb: 'read' | 'write'.
+  // A status-0 WRITE may have landed (fl-api returns 0 for a network failure after the request left, and for
+  // a 2xx whose body failed to parse) — never say "nothing was changed".
+  function fail(r, verb){
+    var st = r ? r.status : 0;
+    // a 401 the one reactive refresh could not repair, or a status 0 with the session gone, is a SESSION answer —
+    // never "HTTP 401" or "HTTP 0" (round 2)
+    if(st === 401) return 'The server did not accept your sign-in (HTTP 401) — sign in to the Command Center again.'+serverSays(r);
+    if(st === 0){
+      if(notSignedIn()) return expired() ? 'Your session expired — sign in to the Command Center again.' : 'Not signed in — sign in to the Command Center.';
+      return verb === 'write'
+        ? 'The service did not confirm this change — it may or may not have been applied. Reloading what is stored.'
+        : 'The service did not answer — nothing was loaded.';
+    }
+    var lead = verb === 'read'
+      ? (st === 403 ? 'Not allowed.' : 'Could not load (HTTP '+st+').')
+      : (({400:'Not applied.',403:'Not allowed.',404:'Not found.',405:'Not available on this server.',409:'Refused.',422:'Rejected.'})[st] || ('HTTP '+st+'.'));
+    if(st >= 500) lead = 'HTTP '+st+' — the server failed; nothing is assumed.';
+    return lead + serverSays(r);
+  }
+  // the session is gone (fl-api cleared the token after a failed refresh): the page shows the sign-in state, not
+  // stale rows with "HTTP 0" in them
+  function sessionGone(r){ return !!r && (r.status === 401 || r.status === 0) && notSignedIn(); }
+  function checkSession(){ if(notSignedIn()){ BUSY = false; boot(); return true; } return false; }
+  // a status for a cell: a real HTTP status, or "no answer" — never "HTTP 0" / "HTTP " (round 2)
+  function stLabel(st){ return st ? 'HTTP '+esc(st) : 'no answer'; }
 
-  function load(){ try{ return JSON.parse(localStorage.getItem('fl_team_overlay_v1')||'null')||{members:[]}; }catch(e){ return {members:[]}; } }
-  // Real-Data Foundation Part B: the roster is a RECORD — server tile-state 'team_roster' is the
-  // home (survives browsers + cache clears), localStorage stays as the offline cache. Scoping is
-  // still front-end-only (the banner above stays true); persistence is what changed here.
-  function save(){
-    DIRTY = true;   // a local edit exists -> boot hydration must not clobber it (race guard)
-    try{ localStorage.setItem('fl_team_overlay_v1', JSON.stringify(OVERLAY)); }catch(e){}
-    if(window.FLState) FLState.save('team_roster', 'fl_team_overlay_v1', OVERLAY);
-    persistBadge();
+  // ── state ──
+  var ME = '', ROSTER = [], ACCESS = Object.create(null), NAMES = Object.create(null), MINE = [], SELECTED = null, BUSY = false;
+  var HIST = { status:null, detail:'', events:[], has_more:false, next_before:null, not_covered:[], covers:[], older_err:'' };
+  var ROSTER_NOTE = '';                    // shown above the roster: a failed re-read, or unreadable entries
+  var MINE_ST = 200;                       // the status of the caller's own company-list read (names + picker)
+  var ACCESS_SEQ = Object.create(null);    // per person: the newest access read issued; an older answer is dropped
+  var ROSTER_SEQ = 0;                      // the newest roster read issued (Refresh or a post-write re-read); an
+                                           // older answer is dropped (round 4: a slow Refresh read used to land
+                                           // after a Remove/Add re-read and paint the old roster back)
+  var HIST_GEN = 0;                        // bumped by every first-page history load; an older page is dropped
+  // What the sign-in card says about the changes made on this page. A session that ends around a change shows the
+  // sign-in card, and that card used to say "Nothing was changed" with the success line hidden behind it (round 4).
+  // A change is recorded when it STARTS, not when it is answered (last round: until the answer arrived the card
+  // still said "Nothing was changed", or named an earlier change, while the server had already applied this one).
+  // Three messages: the server ANSWERED (changed, or refused, in the words the live screen showed) · NOT APPLIED
+  // (the server refused the sign-in on the change itself) · NO ANSWER, MAY OR MAY NOT HAVE BEEN APPLIED (still
+  // waiting when the session ended, or the answer never came). Two changes can be waiting at once — one from the
+  // Manage card (BUSY allows one at a time; its words are LAST_MSG, the "Granting … to …" line) and one from the
+  // Add form — so each has its own flag, and an answer to one never hides the other still waiting.
+  var WROTE = '';                          // the change answered last, in the card's words; '' once a newer one starts
+  var SENT_MANAGE = false;                 // a Manage-card change has started and has not been answered
+  var SENT_ADD = '';                       // the Add form's change that has started and has not been answered
+  function notKnown(what){ return 'Your change — '+what+' — got no answer before your session ended. It may or may not have been applied.'; }
+  function wroteAnswered(line, r){
+    WROTE = (r && r.status === 0 ? 'Before your session ended, your change got no clear answer: '
+                                 : 'Before your session ended, the server answered your change: ')+line;
   }
-  function persistBadge(){
-    var el = document.getElementById('ta-persist'); if(!el) return;
-    var authed = !!(window.flApi && flApi.authed && flApi.authed());
-    el.innerHTML = authed
-      ? 'saved to your account (server roster record) — it follows you across browsers and cache clears.'
-      : 'saved on this device only — <b>sign in</b> and it will be stored to your account.';
+  // the write's own answer was the dead session: a 401 is the server refusing it (nothing applied); no answer
+  // (status 0) may have come after the request left — or the request never left — so it is said as unknown
+  function wroteUnanswered(r, what){
+    WROTE = r && r.status === 401
+      ? 'Your change — '+what+' — was not applied: the server did not accept your sign-in.'
+      : notKnown(what);
   }
-  // Boot hydration: prefer the server roster (migrates a legacy browser-only roster up once).
-  if (window.FLState){
-    FLState.load('team_roster', 'fl_team_overlay_v1').then(function(r){
-      if (!DIRTY && r.value && r.value.members){              // don't clobber an in-progress edit
-        OVERLAY = r.value;
-        if (LAYERS.length){ renderTeam(); renderPreview(); }   // layers already in -> repaint now
+  // After a write the controls stay disabled until the stored state has been re-read AND this long after: the
+  // second click of a double-click used to land on the button that had just replaced the first (round 2:
+  // double-click "Revoke" on a view row granted EDIT). A button is never enabled within QUIET_MS of being rendered
+  // into its position. (Round 4 released as soon as the WRITE answered; a re-read landing later then re-rendered
+  // the card under enabled buttons, and a repeat click half a second or more after the first landed on the
+  // opposite action. Last round: round 2's order again — see settle() — with the wait for the re-read capped.)
+  var QUIET_MS = 450;
+  var DOUBLE_CLICK_MS = 500;               // the OS default double-click interval: never released sooner after the click
+  var REREAD_CAP_MS = 5000;                // the longest the controls wait for a post-write re-read to answer
+  var BUSY_SINCE = 0;                      // when the controls were last disabled for a write (the click), on the
+                                           // page's monotonic clock (performance.now) — never the wall clock
+  // The two clearances the server grants (its own vocabulary — FL constants, not tenant data). If the server's
+  // vocabulary grows, a grant of an unknown name answers 422 with the server's list, rendered verbatim.
+  var CAPS = [ {key:'financials_sensitive', label:'Financial figures (sensitive)'}, {key:'occupant_pii', label:'Occupant personal information'} ];
+  function capLabel(k){ for(var i=0;i<CAPS.length;i++){ if(CAPS[i].key===k) return CAPS[i].label; } return k; }
+  function nameOf(code){ return NAMES[code] ? (NAMES[code]+' ('+code+')') : code; }
+  function personById(id){ for(var i=0;i<ROSTER.length;i++){ if(String(ROSTER[i].id)===String(id)) return ROSTER[i]; } return null; }
+  function isDisabled(p){ return p.status==='disabled' || p.active===false; }
+  function statusOf(p){
+    if(isDisabled(p)) return {txt:'disabled', cls:'b-gray'};
+    if(p.status==='invited') return {txt:'invited', cls:'b-yellow'};
+    return {txt:(p.status||'active'), cls:'b-green'};
+  }
+
+  // retry: the state card's own Retry button (round 2: the card said "Retry." while the only Refresh control sat
+  // inside the hidden live view)
+  function showState(head, html, retry){
+    var box = $('ta-state'); $('ta-live').style.display='none'; box.style.display='block';
+    box.innerHTML = '<div class="section-label">'+esc(head)+'</div><div class="small">'+html+'</div>'+
+      (retry ? '<div class="ta-row"><button type="button" class="btn sm" id="ta-retry">Retry</button></div>' : '');
+    var rb = $('ta-retry'); if(rb) rb.addEventListener('click', function(){ rb.disabled = true; boot(); });
+  }
+  function showLive(){ $('ta-state').style.display='none'; $('ta-live').style.display=''; }
+
+  // The roster as the server sent it, minus entries that are not objects with an id — those are COUNTED and the
+  // count is shown above the table (round 2: one null entry used to abort the whole render on "Loading…").
+  function takeRoster(list){
+    var good = list.filter(function(p){ return p && typeof p === 'object' && p.id != null; });
+    var bad = list.length - good.length;
+    ROSTER = good;
+    ROSTER_NOTE = bad ? (bad+' roster entr'+(bad===1?'y':'ies')+' came back unreadable and '+(bad===1?'is':'are')+' not shown.') : '';
+  }
+
+  // ── boot (also Refresh and Retry: the roster itself is re-read every time — round 2) ──
+  function boot(){
+    if(notSignedIn()){
+      // "Nothing was changed" only while no change has been made on this page (round 4); a change still waiting
+      // for its answer is said first, as unknown (last round), then the change answered last
+      var said = [];
+      if(SENT_MANAGE) said.push(notKnown(LAST_MSG));
+      if(SENT_ADD) said.push(notKnown(SENT_ADD));
+      if(WROTE) said.push(WROTE);
+      var last = said.length
+        ? said.map(function(t){ return '<div class="ta-msg">'+t+'</div>'; }).join('')+'<div class="small muted">Sign in again, then open this screen to see what is stored now.</div>'
+        : '';
+      showState(expired()?'SESSION EXPIRED':'SIGN IN REQUIRED', expired()
+        ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to see your team. '+(last || '<span class="muted">Nothing was changed — this is only a re-login.</span>')
+        : 'Your team is held on your account (not this browser). <b>Sign in to the Command Center</b> to see who has access.'+last);
+      return;
+    }
+    ME = ((window.flAuth && flAuth.email && flAuth.email()) || '').toLowerCase();
+    var rf = $('ta-refresh'); if(rf) rf.disabled = true;
+    var seq = ++ROSTER_SEQ;
+    flTeam.roster().then(function(r){
+      if(rf) rf.disabled = BUSY;
+      if(seq !== ROSTER_SEQ) return;   // a newer roster read (a post-write re-read) was issued after this one
+      if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return loadAll(); }
+      if(r.ok){ showState('UNEXPECTED ANSWER', 'The roster did not come back as a list — nothing is shown.', true); return; }
+      if(r.status === 403){
+        showState('TEAM ACCESS IS MANAGED BY A TENANT OWNER',
+          'This screen shows nothing for your account — to see or change who has access, ask an owner.'+serverSays(r));
+        return;
       }
-      persistBadge();
+      if(r.status === 409){
+        showState('NO COMPANY YET', 'Create your first company in <b>Entities</b> first; then people can be given access to it.'+serverSays(r));
+        return;
+      }
+      if((r.status === 0 || r.status === 401) && notSignedIn()){ boot(); return; }   // the session died: the sign-in state
+      if(r.status === 401){ showState('SIGN-IN NOT ACCEPTED', fail(r,'read'), true); return; }   // token kept: Retry (round 4)
+      showState('COULD NOT LOAD THE ROSTER', fail(r,'read')+' <span class="muted">This screen is for a tenant owner of one company.</span>', true);
     });
-  } else { persistBadge(); }
-
-  fetch('../../../config/layers.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
-    LAYERS=(d&&d.layers)||[];
-    BYSEC={};
-    LAYERS.forEach(function(l){ if(l.enabled===false) return; var s=l.section_lead||'tars'; (BYSEC[s]=BYSEC[s]||[]).push(l); });
-    renderBoard(); renderTeam(); renderPreview();
-  }).catch(function(){ document.getElementById('ta-board').innerHTML='<div class="muted small">Board unavailable — config/layers.json not reachable.</div>'; });
-
-  function tileGranted(l){
-    if(BASELINE.indexOf(l.id)>=0) return true;
-    if(CUR.sections[l.section_lead||'tars']) return true;
-    return !!CUR.tiles[l.id];
   }
-  function renderBoard(){
-    var host=document.getElementById('ta-board'); var html='';
-    SECTIONS.forEach(function(sec){
-      var sid=sec[0], list=BYSEC[sid]||[]; if(!list.length) return;
-      var on=!!CUR.sections[sid];
-      html+='<div class="ta-sec"><div class="ta-sec-h"><button type="button" class="ta-lasso" data-lasso="'+esc(sid)+'">'+(on?'✓ granted':'grant section')+'</button><span class="nm">'+esc(sec[1])+'</span></div>';
-      html+=list.map(function(l){
-        var base=BASELINE.indexOf(l.id)>=0;
-        var granted=tileGranted(l);
-        return '<span class="ta-chip" data-tile="'+esc(l.id)+'" data-on="'+(granted?1:0)+'"'+(base?' data-locked="1" title="baseline — always on"':'')+'>'+esc((l.icon?l.icon+' ':'')+(l.title||l.id))+(base?' 🔒':'')+'</span>';
-      }).join('');
-      html+='</div>';
+  function loadAll(){
+    showLive();
+    renderRoster();
+    var names = (window.flEntities && flEntities.listX) ? flEntities.listX() : Promise.resolve({ok:false,status:0,data:null});
+    return names.then(function(r){
+      var ok = r.ok && Array.isArray(r.data);
+      MINE_ST = ok ? 200 : (r.status || 0);
+      MINE = ok ? r.data.filter(function(e){ return e && typeof e === 'object'; }) : [];
+      NAMES = Object.create(null);
+      MINE.forEach(function(e){ if(e.code) NAMES[e.code] = e.name || ''; });
+      return Promise.all(ROSTER.map(loadAccess));
+    }).then(function(){
+      if(checkSession()) return;
+      renderRoster(); renderManage(); renderAddCodes();
+      loadHistory(null);
     });
-    host.innerHTML=html;
-    host.querySelectorAll('[data-lasso]').forEach(function(b){ b.addEventListener('click', function(){ var s=b.getAttribute('data-lasso'); if(CUR.sections[s]){ delete CUR.sections[s]; (BYSEC[s]||[]).forEach(function(l){ delete CUR.tiles[l.id]; }); } else { CUR.sections[s]=true; } renderBoard(); renderPreview(); }); });
-    host.querySelectorAll('[data-tile]').forEach(function(c){ if(c.getAttribute('data-locked')==='1') return; c.addEventListener('click', function(){ var id=c.getAttribute('data-tile'); if(CUR.tiles[id]) delete CUR.tiles[id]; else CUR.tiles[id]=true; renderBoard(); renderPreview(); }); });
+  }
+  function loadAccess(p){
+    // the newest read for this person wins: a Refresh read answered after a post-write read must not paint the
+    // pre-write state back over it (round 2)
+    var seq = (ACCESS_SEQ[p.id] || 0) + 1; ACCESS_SEQ[p.id] = seq;
+    return Promise.all([flTeam.entities(p.id), flTeam.capabilities(p.id)]).then(function(rs){
+      if(ACCESS_SEQ[p.id] !== seq) return;
+      var e = rs[0], c = rs[1];
+      ACCESS[p.id] = {
+        entities: (e.ok && e.data && Array.isArray(e.data.entities)) ? e.data.entities.filter(function(x){ return x && typeof x === 'object'; }) : null,
+        sees_all: !!(e.ok && e.data && e.data.sees_all),
+        caps: (c.ok && c.data && Array.isArray(c.data.capabilities)) ? c.data.capabilities : null,
+        implicit_all: !!(c.ok && c.data && c.data.implicit_all),
+        est: e.status, cst: c.status
+      };
+    });
+  }
+  // After a write that changes WHO is on the roster. A failed re-read is said above the table (round 2: it used to
+  // re-render the pre-write rows under a success line); the written person's access is still re-read so at least
+  // that row is current. Resolves when the screen is consistent with what could be read.
+  function reloadRoster(writtenId){
+    var seq = ++ROSTER_SEQ;
+    return flTeam.roster().then(function(r){
+      if(seq !== ROSTER_SEQ) return 'stale';   // a newer roster read (Refresh) was issued: it renders, not this
+      if(sessionGone(r)) return 'session';
+      if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return Promise.all(ROSTER.map(loadAccess)); }
+      ROSTER_NOTE = 'The roster could not be re-read after this change — '+(r.ok ? 'it came back in an unexpected shape' : fail(r,'read'))+' — the rows below may be stale. Use Refresh to try again.';
+      var w = writtenId ? personById(writtenId) : null;
+      return w ? loadAccess(w) : null;
+    }).then(function(x){
+      if(x === 'stale') return;
+      if(x === 'session' || checkSession()){ if(x === 'session'){ BUSY = false; boot(); } return; }
+      renderRoster(); renderManage(); renderAddCodes();
+    });
+  }
+  function refreshPerson(id){
+    var p = personById(id); if(!p) return Promise.resolve();
+    return loadAccess(p).then(function(){ if(checkSession()) return; renderRoster(); renderManage(); renderAddCodes(); });
   }
 
-  function grantedTiles(access){
-    var ids={}; BASELINE.forEach(function(b){ ids[b]=1; });
-    LAYERS.forEach(function(l){ if(l.enabled===false) return; if((access.sections||[]).indexOf(l.section_lead||'tars')>=0) ids[l.id]=1; });
-    (access.tiles||[]).forEach(function(t){ ids[t]=1; });
-    return Object.keys(ids);
+  // ── roster ──
+  function levelPill(lv){ return '<span class="pill '+(lv==='edit'?'rg':'')+'">'+esc(lv)+'</span>'; }
+  function companiesCell(a){
+    if(!a) return '<span class="muted">loading…</span>';
+    if(a.sees_all) return '<span class="muted">every company (genesis)</span>';
+    if(a.entities===null) return '<span class="ta-err">? ('+stLabel(a.est)+')</span>';
+    if(!a.entities.length) return '<span class="muted">— none</span>';
+    return a.entities.map(function(x){ return '<span class="ta-acc">'+esc(nameOf(x.code))+' '+levelPill(x.level)+'</span>'; }).join(' ');
   }
-  function curAccess(){ return { sections:Object.keys(CUR.sections), tiles:Object.keys(CUR.tiles) }; }
-  function titleOf(id){ var l=LAYERS.filter(function(x){return x.id===id;})[0]; return l?(l.title||id):id; }
-
-  function renderPreview(){
-    var a=curAccess(); var ids=grantedTiles(a);
-    document.getElementById('m-preview').innerHTML='<b>Preview — this member would see '+ids.length+' tile'+(ids.length===1?'':'s')+'</b> (UI scoping only): '+
-      ids.map(function(id){ return '<span class="tag '+(BASELINE.indexOf(id)>=0?'b-gray':'b-green')+'">'+esc(titleOf(id))+(BASELINE.indexOf(id)>=0?' · baseline':'')+'</span>'; }).join(' ')+
-      '<div class="small muted" style="margin-top:6px">TARS, its answers, and the daily brief scope to these sections + baseline. Everything else is hidden in the UI (not blocked server-side yet).</div>';
+  function capsCell(a, p){
+    if(!a) return '<span class="muted">loading…</span>';
+    if(a.implicit_all) return '<span class="muted">all — '+esc(p.role||'owner')+' (implicit)</span>';
+    if(a.caps===null) return '<span class="ta-err">? ('+stLabel(a.cst)+')</span>';
+    if(!a.caps.length) return '<span class="muted">— none</span>';
+    return a.caps.map(function(k){ return '<span class="pill pp">'+esc(capLabel(k))+'</span>'; }).join(' ');
   }
-
-  function members(){
-    var ex=[]; // existing shared connections (read-only context)
-    var seed=window.__TEAM_SEED||[];
-    return seed.concat(OVERLAY.members||[]);
+  // Manage is offered only when this person's current access is KNOWN and no change is in flight (round 2): a card
+  // opened while the reads were pending, or after one failed, listed every company as "no access" with Grant
+  // buttons; and a Manage switch during a write put that write's result line under the other person's card.
+  function manageState(p){
+    var a = ACCESS[p.id];
+    if(BUSY) return ' disabled title="Wait for the change in progress to finish"';
+    if(!a) return ' disabled title="Still loading this person\'s access"';
+    if(a.entities === null || a.caps === null) return ' disabled title="This person\'s access could not be loaded — use Refresh"';
+    return '';
   }
-  function renderTeam(){
-    fetch('../../../data/STUB_CONNECTIONS.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
-      window.__TEAM_SEED=((d&&d.team)||[]).map(function(t){ return {id:t.id, name:t.name, role:t.role, phone:t.phone, email:t.email||null, can_command_tars:!!t.can_command_tars, access:null, status:'active', seed:true}; });
-      paintTeam();
-    }).catch(paintTeam);
-  }
-  function paintTeam(){
-    var rows=members().map(function(m){
-      var acc = m.access ? (((m.access.sections||[]).length)+' sec · '+((m.access.tiles||[]).length)+' tile') : (m.seed?'(shared record)':'—');
-      var td=telD(m.phone);
-      var phoneCell=m.phone?('<a href="tel:'+td+'" style="color:var(--fg);text-decoration:none">'+esc(m.phone)+'</a> <a href="sms:'+td+'" title="text" style="text-decoration:none">💬</a>'):'<span class="ta-req">no phone</span>';
-      var emailCell=m.email?('<a href="mailto:'+esc(m.email)+'" class="small muted" style="text-decoration:none">'+esc(m.email)+'</a>'):'<span class="small muted"><span class="ta-req">no email</span></span>';
-      var contacts=phoneCell+'<br>'+emailCell;
-      // Seed rows come from the shared SAMPLE connections record — mark them clearly and DON'T show a
-      // live-looking green "text ✓", so a viewer can't mistake a placeholder for a real, TARS-commanding
-      // team member during a gate-off pre-flight. Real (saved) members render normally.
-      var sampleTag = m.seed ? ' <span class="tag b-gray" title="Sample row from the shared connections record — not a saved team member">SAMPLE</span>' : '';
-      var tarsCell = m.seed ? '<span class="tag b-gray">sample</span>'
-        : (m.can_command_tars?'<span class="tag b-green">text ✓</span>':'<span class="tag b-gray">no</span>');
-      return '<tr><td>'+esc(m.name)+sampleTag+(m.status==='invited'?' <span class="tag b-yellow">invited</span>':'')+'</td><td>'+esc(m.role||'—')+'</td><td>'+contacts+'</td><td>'+esc(acc)+'</td><td>'+tarsCell+'</td>'+
-        '<td>'+(m.access?'<button class="btn sm" data-prev="'+esc(m.id)+'">preview</button>':'')+'</td></tr>';
+  function renderRoster(){
+    var rows = ROSTER.map(function(p){
+      var s = statusOf(p), you = !!(ME && String(p.email||'').toLowerCase()===ME);
+      var person = (p.full_name ? '<b>'+esc(p.full_name)+'</b><br>' : '') + '<span class="small">'+esc(p.email||'—')+'</span>' + (you ? ' <span class="tag b-green">you</span>' : '');
+      return '<tr'+(SELECTED!==null && String(SELECTED)===String(p.id)?' class="ta-sel"':'')+'><td>'+person+'</td><td>'+esc(p.role||'—')+'</td>'+
+        '<td><span class="tag '+s.cls+'">'+esc(s.txt)+'</span></td><td>'+companiesCell(ACCESS[p.id])+'</td><td>'+capsCell(ACCESS[p.id], p)+'</td>'+
+        '<td><button type="button" class="btn sm" data-manage="'+esc(p.id)+'"'+manageState(p)+'>Manage</button></td></tr>';
     }).join('');
-    document.getElementById('ta-team').innerHTML=rows||'<tr><td colspan="6" class="muted small">No members yet.</td></tr>';
-    document.querySelectorAll('#ta-team [data-prev]').forEach(function(b){ b.addEventListener('click', function(){ var m=(OVERLAY.members||[]).filter(function(x){return x.id===b.getAttribute('data-prev');})[0]; if(m&&m.access){ CUR={sections:{},tiles:{}}; (m.access.sections||[]).forEach(function(s){CUR.sections[s]=true;}); (m.access.tiles||[]).forEach(function(t){CUR.tiles[t]=true;}); renderBoard(); renderPreview(); document.getElementById('m-name').value=m.name; document.getElementById('m-phone').value=m.phone||''; document.getElementById('m-email').value=m.email||''; } }); });
+    $('ta-roster').innerHTML = rows || '<tr><td colspan="6" class="muted small">Nobody is on the roster yet.</td></tr>';
+    var note = $('ta-roster-note'); if(note) note.innerHTML = ROSTER_NOTE ? '<span class="ta-warn">'+ROSTER_NOTE+'</span>' : '';
+  }
+  $('ta-roster').addEventListener('click', function(ev){
+    var b = ev.target.closest('[data-manage]'); if(!b) return;
+    var next = b.getAttribute('data-manage');
+    if(SELECTED === null || String(SELECTED) !== String(next)) LAST_MSG = '';   // a different person: no stale line
+    SELECTED = next; renderRoster(); renderManage();
+    var m = $('ta-manage'); if(m && m.scrollIntoView) m.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+  // Refresh re-reads the ROSTER first (round 2: it re-read only each already-known person's access, so a person
+  // added, removed or re-enabled elsewhere never appeared). Disabled while a change is in flight.
+  $('ta-refresh').addEventListener('click', function(){ if(!BUSY) boot(); });
+
+  // ── the picker: companies the caller can see ∪ every code seen on anyone's access ∪ a typed code ──
+  function pickerCodes(){
+    var set = Object.create(null);
+    MINE.forEach(function(e){ if(e && e.code) set[e.code]=1; });
+    Object.keys(ACCESS).forEach(function(uid){ var a = ACCESS[uid]; ((a && a.entities) || []).forEach(function(x){ if(x && x.code) set[x.code]=1; }); });
+    return Object.keys(set).sort();
   }
 
-  document.getElementById('m-clear').addEventListener('click', function(){ CUR={sections:{},tiles:{}}; renderBoard(); renderPreview(); });
-  document.getElementById('m-add').addEventListener('click', function(){
-    var name=document.getElementById('m-name').value.trim(), phone=document.getElementById('m-phone').value.trim(), email=document.getElementById('m-email').value.trim();
-    var note=document.getElementById('m-note');
-    if(!name||!phone||!email){ note.innerHTML='<span class="ta-req">Name, phone, and email are all required.</span>'; return; }
-    var m={ id:'tm-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+(OVERLAY.members.length+1), name:name, role:document.getElementById('m-role').value, phone:phone, email:email, can_command_tars:document.getElementById('m-tars').checked, access:curAccess(), status:'invited' };
-    OVERLAY.members.push(m); save();
-    note.innerHTML='<b style="color:var(--green)">Added '+esc(name)+' (draft).</b> Saved to the team overlay. Live build: sends a magic-link / SMS code; server-side authz enforces these grants.';
-    document.getElementById('m-name').value=''; document.getElementById('m-phone').value=''; document.getElementById('m-email').value=''; document.getElementById('m-tars').checked=false;
-    CUR={sections:{},tiles:{}}; renderBoard(); renderPreview(); paintTeam();
+  // ── manage one person ──
+  function renderManage(){
+    var host = $('ta-manage');
+    var p = SELECTED!==null ? personById(SELECTED) : null;
+    if(!p){ host.style.display='none'; host.innerHTML=''; return; }
+    var a = ACCESS[p.id] || {entities:null, caps:null, implicit_all:false, sees_all:false};
+    var held = Object.create(null); (a.entities||[]).forEach(function(x){ held[x.code]=x.level; });
+    var codes = pickerCodes();
+    var dis = BUSY ? ' disabled' : '';
+    var rows = codes.map(function(code){
+      var lv = held[code];
+      return '<tr><td>'+esc(nameOf(code))+'</td><td>'+(lv ? levelPill(lv) : '<span class="muted">no access</span>')+'</td><td class="ta-actions">'+
+        (lv==='view' ? '' : '<button type="button" class="btn sm" data-grant="'+esc(code)+'" data-level="view"'+dis+'>Grant view</button>')+
+        (lv==='edit' ? '' : '<button type="button" class="btn sm" data-grant="'+esc(code)+'" data-level="edit"'+dis+'>Grant edit</button>')+
+        (lv ? '<button type="button" class="btn sm ta-danger" data-revoke="'+esc(code)+'"'+dis+'>Revoke</button>' : '')+'</td></tr>';
+    }).join('');
+    var compHtml = a.sees_all
+      ? '<div class="small muted">This account sees every company (genesis) — nothing to grant.</div>'
+      : (a.entities===null ? '<div class="small ta-err">Access could not be loaded (HTTP '+esc(a.est)+'). Reload.</div>' : '') +
+        '<table><thead><tr><th scope="col">COMPANY</th><th scope="col">ACCESS</th><th scope="col"></th></tr></thead><tbody>'+
+        (rows || '<tr><td colspan="3" class="muted small">No companies are listed yet — type a code below.</td></tr>')+'</tbody></table>'+
+        '<div class="ta-sub">Companies you cannot see yourself are not listed — type the code.'+(p.role==='owner' ? ' For an owner, <b>view</b> still allows creating records in that company; <b>edit</b> is needed to change the company itself.' : '')+'</div>'+
+        '<div class="ta-row"><input class="ta-in short" id="ta-mg-code" autocomplete="off" placeholder="company code"'+dis+'> <select class="ta-in short" id="ta-mg-level"'+dis+'><option value="view">view</option><option value="edit">edit</option></select> <button type="button" class="btn sm" id="ta-mg-grant-typed"'+dis+'>Grant by code</button></div>';
+    var capHtml;
+    if(a.implicit_all) capHtml = '<div class="small muted">Holds every clearance implicitly ('+esc(p.role||'owner')+') — nothing to grant.</div>';
+    else if(a.caps===null) capHtml = '<div class="small ta-err">Clearances could not be loaded (HTTP '+esc(a.cst)+'). Reload.</div>';
+    else {
+      var known = Object.create(null); CAPS.forEach(function(c){ known[c.key]=1; });
+      var extra = (a.caps||[]).filter(function(k){ return !known[k]; });
+      capHtml = '<table><thead><tr><th scope="col">CLEARANCE</th><th scope="col">HELD</th><th scope="col"></th></tr></thead><tbody>'+
+        CAPS.map(function(c){ var has = (a.caps||[]).indexOf(c.key)>=0;
+          return '<tr><td>'+esc(c.label)+' <span class="small muted">'+esc(c.key)+'</span></td><td>'+(has?'<span class="pill pp">yes</span>':'<span class="muted">no</span>')+'</td><td class="ta-actions">'+
+            (has ? '<button type="button" class="btn sm ta-danger" data-cap-revoke="'+esc(c.key)+'"'+dis+'>Remove</button>' : '<button type="button" class="btn sm" data-cap-grant="'+esc(c.key)+'"'+dis+'>Grant</button>')+'</td></tr>'; }).join('')+
+        extra.map(function(k){ return '<tr><td>'+esc(k)+' <span class="small muted">(not named on this page)</span></td><td><span class="pill pp">yes</span></td><td class="ta-actions"><button type="button" class="btn sm ta-danger" data-cap-revoke="'+esc(k)+'"'+dis+'>Remove</button></td></tr>'; }).join('')+
+        '</tbody></table>';
+    }
+    host.style.display='';
+    host.innerHTML =
+      '<div class="ta-mg-head"><div class="section-label" style="margin:0">MANAGE — '+esc(p.full_name||p.email||p.id)+(p.full_name?' <span class="small muted">'+esc(p.email||'')+'</span>':'')+' <span class="tag '+statusOf(p).cls+'">'+esc(statusOf(p).txt)+'</span> <span class="small muted">'+esc(p.role||'')+'</span></div>'+
+      '<button type="button" class="btn sm" id="ta-mg-close">Close</button></div>'+
+      '<div class="section-label" style="margin-top:12px">COMPANIES</div>'+compHtml+
+      '<div class="section-label" style="margin-top:14px">CLEARANCES</div>'+capHtml+
+      '<div class="section-label" style="margin-top:14px">REMOVE</div>'+
+      '<div class="ta-row"><button type="button" class="btn sm ta-danger" id="ta-mg-remove"'+dis+'>Remove from this company</button><span class="small muted">disables their account and drops every grant and clearance; they can be added back later with the form below</span></div>'+
+      '<div class="ta-msg" id="ta-mg-msg" role="status">'+LAST_MSG+'</div>';
+  }
+  // The Manage card is REBUILT after every write (to show the stored access), which also rebuilds the message
+  // slot — round 1 found every success line blank. The last message therefore lives in state and is re-inserted
+  // by renderManage; it clears only when the selection changes.
+  var LAST_MSG = '';
+  function say(html){ LAST_MSG = html; var m = $('ta-mg-msg'); if(m) m.innerHTML = html; }
+  function setBusy(on){
+    BUSY = !!on;
+    // setBusy(true) IS the start of a Manage-card write (the five do* functions, nothing else): the click time for
+    // release(), and the moment the sign-in card stops saying "Nothing was changed" (see WROTE)
+    if(BUSY){ BUSY_SINCE = performance.now(); SENT_MANAGE = true; WROTE = ''; }
+    var rf = $('ta-refresh'); if(rf) rf.disabled = BUSY;
+    renderRoster(); renderManage();
+  }
+  // controls come back QUIET_MS from now, and never inside the double-click window of the click. Timed on the
+  // page's monotonic clock: on the wall clock, a clock set back during a change kept every control disabled for as
+  // long as it had gone back (round 4 review).
+  function release(){
+    var wait = Math.max(QUIET_MS, BUSY_SINCE + DOUBLE_CLICK_MS - performance.now());
+    setTimeout(function(){ if(BUSY) setBusy(false); }, wait);
+  }
+  function afterWrite(id){ return refreshPerson(id).then(function(){ if(!notSignedIn()) loadHistory(null); }); }
+  // every write ends here: remember what the server's answer said (WROTE), re-read what is stored — or show the
+  // sign-in state if the session is gone — and only THEN give the controls back (release): round 2's order, so the
+  // re-read's render always lands on disabled buttons. The wait for the re-read is capped at REREAD_CAP_MS, so one
+  // read that never answers cannot lock every control for good (round 3). A re-read that answers after the cap
+  // still re-renders from state (the sequence guards drop any older answer).
+  function settle(p, r, reread){
+    SENT_MANAGE = false;
+    if(sessionGone(r)){ wroteUnanswered(r, LAST_MSG); BUSY = false; boot(); return; }
+    wroteAnswered(LAST_MSG, r);
+    var freed = false, free = function(){ if(!freed){ freed = true; release(); } };
+    setTimeout(free, REREAD_CAP_MS);
+    return (reread ? reread() : Promise.resolve()).then(free, free);
+  }
+
+  $('ta-manage').addEventListener('click', function(ev){
+    var t = ev.target.closest('button'); if(!t || BUSY) return;
+    var p = SELECTED!==null ? personById(SELECTED) : null; if(!p) return;
+    if(t.id === 'ta-mg-close'){ SELECTED = null; LAST_MSG = ''; renderRoster(); renderManage(); return; }
+    if(t.id === 'ta-mg-grant-typed'){
+      var code = ($('ta-mg-code').value||'').trim(), lv = $('ta-mg-level').value;
+      if(!code){ say('<span class="ta-err">Type a company code first.</span>'); return; }
+      return doGrant(p, code, lv);
+    }
+    if(t.id === 'ta-mg-remove') return doRemove(p);
+    if(t.hasAttribute('data-grant')) return doGrant(p, t.getAttribute('data-grant'), t.getAttribute('data-level'));
+    if(t.hasAttribute('data-revoke')) return doRevoke(p, t.getAttribute('data-revoke'));
+    if(t.hasAttribute('data-cap-grant')) return doCapGrant(p, t.getAttribute('data-cap-grant'));
+    if(t.hasAttribute('data-cap-revoke')) return doCapRevoke(p, t.getAttribute('data-cap-revoke'));
   });
 
-  FLSettings.mount({tileId:'team-access'});
+  function who(p){ return '<b>'+esc(p.full_name||p.email||p.id)+'</b>'; }
+  // Every write: controls disabled from the click until the stored state is re-read and QUIET_MS has passed
+  // (settle); every line names the person (round 2); a dead session goes to the sign-in state, not "HTTP 401".
+  function doGrant(p, code, level){
+    setBusy(true); say('<span class="muted">Granting '+esc(nameOf(code))+' to '+who(p)+'…</span>');
+    flTeam.grant(p.id, [code], level).then(function(r){
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){
+        var extra = (r.status===409 && /disabled/.test(detail422(r.data)||'')) ? ' Add them back with the form below first (email and company are pre-filled).' : '';
+        if(extra){ prefillAdd(p.email, code, level); }
+        say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'+extra);
+        return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null);
+      }
+      var res = (r.data && Array.isArray(r.data.granted)) ? r.data.granted : null;
+      if(!res){ say('<span class="ta-warn">'+who(p)+': accepted, but the server did not report per-company results — reloading to show what is stored.</span>'); return settle(p, r, function(){ return afterWrite(p.id); }); }
+      say(res.filter(function(g){ return g && typeof g === 'object'; }).map(function(g){
+        var n = esc(nameOf(g.code));
+        if(g.result==='granted') return '<span class="ta-ok">✓ Granted '+n+' ('+esc(g.level)+') to '+who(p)+'.</span>';
+        if(g.result==='level-changed') return '<span class="ta-ok">✓ '+who(p)+' now has '+n+' at '+esc(g.level)+'.</span>';
+        if(g.result==='unchanged') return '<span class="muted">'+who(p)+' already had '+n+' at '+esc(g.level)+' — nothing changed.</span>';
+        return '<span class="muted">'+who(p)+' · '+n+': '+esc(g.result)+'</span>';
+      }).join(' '));
+      return settle(p, r, function(){ return afterWrite(p.id); });
+    });
+  }
+  function doRevoke(p, code){
+    setBusy(true); say('<span class="muted">Revoking '+esc(nameOf(code))+' from '+who(p)+'…</span>');
+    flTeam.revoke(p.id, code).then(function(r){
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null); }
+      var d = r.data || {};
+      say(d.revoked===true ? '<span class="ta-ok">✓ Revoked '+esc(nameOf(code))+' from '+who(p)+'.</span>'
+        : (d.revoked===false ? '<span class="muted">'+who(p)+' did not hold '+esc(nameOf(code))+' — nothing changed.</span>'
+        : '<span class="ta-warn">'+who(p)+': accepted, but the server did not say whether anything was removed — reloading.</span>'));
+      return settle(p, r, function(){ return afterWrite(p.id); });
+    });
+  }
+  function doCapGrant(p, cap){
+    setBusy(true); say('<span class="muted">Granting '+esc(capLabel(cap))+' to '+who(p)+'…</span>');
+    flTeam.grantCapability(p.id, cap).then(function(r){
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null); }
+      var d = r.data || {};
+      say(d.granted===true ? '<span class="ta-ok">✓ '+who(p)+' is cleared for '+esc(capLabel(cap))+'.</span>'
+        : (d.granted===false ? '<span class="muted">'+who(p)+' already held '+esc(capLabel(cap))+' — nothing changed.</span>' : '<span class="ta-warn">'+who(p)+': accepted — reloading to show what is stored.</span>'));
+      return settle(p, r, function(){ return afterWrite(p.id); });
+    });
+  }
+  function doCapRevoke(p, cap){
+    setBusy(true); say('<span class="muted">Removing '+esc(capLabel(cap))+' from '+who(p)+'…</span>');
+    flTeam.revokeCapability(p.id, cap).then(function(r){
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? function(){ return afterWrite(p.id); } : null); }
+      var d = r.data || {};
+      say(d.revoked===true ? '<span class="ta-ok">✓ '+who(p)+' is no longer cleared for '+esc(capLabel(cap))+'.</span>'
+        : (d.revoked===false ? '<span class="muted">'+who(p)+' did not hold '+esc(capLabel(cap))+' — nothing changed.</span>' : '<span class="ta-warn">'+who(p)+': accepted — reloading to show what is stored.</span>'));
+      return settle(p, r, function(){ return afterWrite(p.id); });
+    });
+  }
+  function doRemove(p){
+    // a native confirm (the Entities tile's precedent for a destructive action): a second click can never land
+    // on the same control, and the person's email is in the question
+    var q = 'Remove '+(p.email||p.id)+' from this company?\n\nTheir account is disabled and every grant and clearance is dropped. You can add them back later.';
+    if(!window.confirm(q)){ say('<span class="muted">'+who(p)+' was not removed.</span>'); return; }
+    setBusy(true); say('<span class="muted">Removing '+who(p)+'…</span>');
+    var reread = function(){ return reloadRoster(p.id).then(function(){ if(!notSignedIn()) loadHistory(null); }); };
+    flTeam.remove(p.id).then(function(r){
+      if(sessionGone(r)) return settle(p, r);
+      if(!r.ok){ say('<span class="ta-err">'+who(p)+': '+fail(r,'write')+'</span>'); return settle(p, r, r.status===0 ? reread : null); }
+      var d = r.data || {};
+      var what = (typeof d.dropped === 'number')
+        ? ('✓ Removed '+who(p)+' — '+esc(d.dropped)+' grant'+(d.dropped===1?'':'s')+' dropped'+(d.disabled===true?', account disabled.':(d.disabled===false?', the account was already disabled.':'.')))
+        : ('✓ Removed '+who(p)+' <span class="ta-warn">(this server build does not report how many grants were dropped — reloading to show what is stored)</span>');
+      say('<span class="ta-ok">'+what+'</span>');
+      return settle(p, r, reread);
+    });
+  }
+
+  // ── add a person ──
+  // Which company lists could not be read — the picker and its empty state say so instead of "no companies yet"
+  // (round 2), and names fall back to bare codes with a note.
+  function listsFailed(){
+    var bad = [];
+    if(MINE_ST !== 200) bad.push('your company list ('+stLabel(MINE_ST)+') — names are shown as codes');
+    var n = 0; Object.keys(ACCESS).forEach(function(u){ if(ACCESS[u] && ACCESS[u].entities === null) n++; });
+    if(n) bad.push(n+' '+(n===1?'person\'s':'people\'s')+' access');
+    return bad.length ? ('Could not load '+bad.join(' and ')+'. Some companies may be missing here — type the code, or use Refresh.') : '';
+  }
+  function renderAddCodes(){
+    var codes = pickerCodes();
+    var host = $('ta-add-codes');
+    var keep = Object.create(null); host.querySelectorAll('input[type=checkbox]').forEach(function(c){ if(c.checked) keep[c.value]=1; });
+    // a ticked company that has left the picker stays, ticked (round 2: it vanished and Add sent fewer companies
+    // than the form had shown)
+    Object.keys(keep).forEach(function(c){ if(codes.indexOf(c) < 0) codes.push(c); });
+    var failed = listsFailed();
+    host.innerHTML = (codes.length
+      ? codes.map(function(code){ return '<label class="ta-chk"><input type="checkbox" value="'+esc(code)+'"'+(keep[code]?' checked':'')+'> '+esc(nameOf(code))+'</label>'; }).join('')
+      : (failed ? '' : '<span class="small muted">No companies are listed yet — type a code below, or create one in Entities.</span>'))+
+      (failed ? '<div class="small ta-warn">'+failed+'</div>' : '');
+  }
+  // a prefill REPLACES the form's companies (round 2: it added to whatever was ticked or typed before)
+  function prefillAdd(email, code, level){
+    $('ta-add-email').value = email || '';
+    if(level) $('ta-add-level').value = level;
+    var found = false;
+    $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked = (c.value === code); if(c.value === code) found = true; });
+    $('ta-add-code').value = found ? '' : (code || '');
+  }
+  $('ta-add').addEventListener('click', function(){
+    var btn = $('ta-add'), msg = $('ta-add-msg');
+    var email = ($('ta-add-email').value||'').trim(), level = $('ta-add-level').value;
+    var codes = []; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ if(c.checked) codes.push(c.value); });
+    var typed = ($('ta-add-code').value||'').trim(); if(typed && codes.indexOf(typed)<0) codes.push(typed);
+    if(!email){ msg.innerHTML = '<span class="ta-err">An email is required.</span>'; return; }
+    // whether this address may never have set a password: not on the roster, or still 'invited' (nothing marks an
+    // invitee active except being added again, so an 'invited' person may or may not have signed in)
+    var prior = null; ROSTER.forEach(function(p){ if(String(p.email||'').toLowerCase() === email.toLowerCase()) prior = p; });
+    var maybeNoPassword = !prior || prior.status === 'invited';
+    var pwHint = ' If they have not set a password yet, they use <b>Forgot password?</b> on the Command Center sign-in page with this address — no invitation email is sent by this system.';
+    btn.disabled = true; msg.innerHTML = '<span class="muted">Adding…</span>';
+    SENT_ADD = 'adding '+esc(email); WROTE = '';   // the Add form's write starts here (see WROTE)
+    flTeam.invite(email, codes, level).then(function(r){
+      btn.disabled = false; SENT_ADD = '';
+      if(sessionGone(r)){ msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'; wroteUnanswered(r, 'adding '+esc(email)); BUSY = false; boot(); return; }
+      if(!r.ok){
+        var hint = (r.status===409 && /tenant-owner/.test(detail422(r.data)||'')) ? ' Use <b>Manage</b> on that person\'s row instead.' : '';
+        msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint; wroteAnswered('adding '+esc(email)+': '+msg.innerHTML, r);
+        if(r.status===0){ reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); }); }
+        return;
+      }
+      var d = r.data || {}, acc = d.account, e = esc(email);
+      var res = Array.isArray(d.results) ? d.results.filter(function(g){ return g && typeof g === 'object'; }) : null;
+      var changedAny = res ? res.some(function(g){ return g.result !== 'unchanged'; }) : null;
+      var line;
+      if(acc==='created') line = '<span class="ta-ok">✓ Account created for '+e+'.</span> No invitation email is sent by this system — tell them to open the Command Center sign-in page and use <b>Forgot password?</b> with this address to set a password.';
+      else if(acc==='reactivated') line = '<span class="ta-ok">✓ '+e+'\'s account is active again.</span>'+(maybeNoPassword ? pwHint : ' They sign in as before.');
+      else if(acc==='existing') line = '<span class="ta-ok">✓ '+e+' already had an account</span> — '+(changedAny === false ? 'nothing changed.' : 'access updated.')+(maybeNoPassword ? pwHint : ' They sign in as before.');
+      else line = '<span class="ta-ok">✓ Added '+e+'.</span> <span class="ta-warn">(this server build does not report whether the account was created or already existed)</span>'+(maybeNoPassword ? pwHint : '');
+      if(res && res.length) line += ' ' + res.map(function(g){ return esc(nameOf(g.code))+': '+esc(g.result==='unchanged' ? 'already '+g.level : g.result+' ('+g.level+')'); }).join(' · ');
+      else if(!res) line += codes.length ? ' <span class="muted">Companies sent: '+esc(codes.map(nameOf).join(', '))+' ('+esc(level)+').</span>' : ' <span class="muted">No company was included.</span>';
+      else if(!codes.length) line += ' <span class="muted">No company was included.</span>';
+      msg.innerHTML = line; wroteAnswered(line, r);
+      $('ta-add-email').value=''; $('ta-add-code').value=''; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
+      reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); });
+    });
+  });
+
+  // ── history ──
+  // A first-page load (before = null) starts a new generation; a page answered for an OLDER generation is dropped
+  // (round 2: an older page cut at the previous cursor was appended to a NEW first page, and the row that moved
+  // between them was shown nowhere). A failed OLDER page keeps everything already shown and says so under the
+  // table (round 2: it replaced the whole card, its footer and the banner with the error).
+  function loadHistory(before){
+    if(!before){ HIST_GEN++; HIST.older_err = ''; $('ta-history').innerHTML = '<div class="small muted">Loading history…</div>'; }
+    var gen = HIST_GEN;
+    flTeam.history({limit:100, before: before||null}).then(function(r){
+      if(gen !== HIST_GEN) return;
+      if(sessionGone(r)){ BUSY = false; boot(); return; }
+      var good = r.ok && r.data && Array.isArray(r.data.events);
+      if(before){
+        if(good){
+          HIST.events = HIST.events.concat(r.data.events); HIST.has_more = !!r.data.has_more;
+          HIST.next_before = r.data.next_before || null; HIST.older_err = '';
+        } else {
+          HIST.older_err = 'Older entries could not be loaded ('+(r.ok ? 'unexpected answer' : stLabel(r.status))+
+            (detail422(r.data) ? ' — '+detail422(r.data) : '')+') — the list above is complete only down to its last row. Load older tries again.';
+        }
+        renderHistory(); return;
+      }
+      if(good){
+        HIST.events = r.data.events;
+        HIST.status = 200; HIST.has_more = !!r.data.has_more; HIST.next_before = r.data.next_before || null;
+        HIST.not_covered = Array.isArray(r.data.not_covered) ? r.data.not_covered : []; HIST.covers = Array.isArray(r.data.covers) ? r.data.covers : [];
+      } else if(r.ok){ HIST.status = -1; HIST.detail=''; }
+      else { HIST.status = r.status; HIST.detail = detail422(r.data); }
+      renderHistory(); renderBanner();
+    });
+  }
+  function fmtWhen(at){
+    if(at == null || at === '') return '<span class="muted">(no time recorded)</span>';   // never the 1970 epoch
+    var d = new Date(at); return isNaN(d.getTime()) ? esc(at) : esc(d.toLocaleString());
+  }
+  // The WHAT of one row, from its action and the keys the server recorded. A missing key is said, never filled in
+  // (round 2: an empty detail printed "0 grants dropped", "granted ()", "revoked ").
+  function whatOf(ev){
+    var act = ev && ev.action;
+    var d = (ev && ev.detail && typeof ev.detail === 'object' && !Array.isArray(ev.detail)) ? ev.detail : null;
+    var none = '<span class="muted">'+esc(act || '(no action recorded)')+' — details not recorded</span>';
+    if(!d) return none;
+    if(d.undecodable === true) return '<span class="ta-warn">record unreadable</span> <span class="small muted">'+esc(act || '')+' — the server could not decode this entry</span>';
+    if(d.raw !== undefined){
+      var raw = String(d.raw);   // cut the RAW text, then escape (round 2: the cut landed inside an entity)
+      return '<span class="ta-warn">record unreadable</span> <span class="small muted">'+esc(raw.slice(0,200))+(raw.length > 200 ? '…' : '')+'</span>';
+    }
+    function has(k){ return d[k] != null && d[k] !== ''; }
+    switch(act){
+      case 'ENTITY_GRANT':
+        if(!has('entity_code')) return none;
+        return 'granted <b>'+esc(nameOf(d.entity_code))+'</b>'+(has('level')?' ('+esc(d.level)+')':'')+(d.result==='level-changed'?' — level changed':'')+(d.via==='invite'?' <span class="small muted">· when added</span>':'');
+      case 'ENTITY_REVOKE':
+        if(!has('entity_code')) return none;
+        return 'revoked <b>'+esc(nameOf(d.entity_code))+'</b>'+(has('level')?' (was '+esc(d.level)+')':'');
+      case 'CAPABILITY_GRANT':
+        return has('capability') ? 'cleared for <b>'+esc(capLabel(d.capability))+'</b>' : none;
+      case 'CAPABILITY_REVOKE':
+        return has('capability') ? 'clearance removed: <b>'+esc(capLabel(d.capability))+'</b>' : none;
+      case 'TEAM_INVITE':
+        if(!has('account') && !Array.isArray(d.entity_codes)) return none;
+        return 'added to the company — account '+esc(d.account||'(not recorded)')+(d.previous_status?' (was '+esc(d.previous_status)+')':'')+
+          (Array.isArray(d.entity_codes)&&d.entity_codes.length?' · '+esc(d.entity_codes.map(nameOf).join(', '))+(d.level?' ('+esc(d.level)+')':''):'');
+      case 'TEAM_REVOKE_USER':
+        if(!Array.isArray(d.dropped)) return 'removed from the company'+(d.account_disabled===true?' · account disabled':'')+' <span class="muted">— the grants dropped were not recorded</span>';
+        var dr = d.dropped.filter(function(x){ return x && typeof x === 'object'; }), bad = d.dropped.length - dr.length;
+        return 'removed from the company — '+dr.length+' grant'+(dr.length===1?'':'s')+' dropped'+(dr.length?': '+esc(dr.map(function(x){ return (x.scope_type==='capability'?capLabel(x.scope_key):nameOf(x.scope_key))+(x.level&&x.scope_type!=='capability'?' ('+x.level+')':''); }).join(', ')):'')+
+          (bad ? ' <span class="ta-warn">(+'+bad+' unreadable)</span>' : '')+(d.account_disabled===true?' · account disabled':'');
+      default:
+        return '<span class="muted">'+esc(act)+'</span>';   // never hidden: an unknown action is shown by name
+    }
+  }
+  function histRetry(){ return ' <button type="button" class="btn sm" id="ta-hist-retry">Retry</button>'; }
+  function renderHistory(){
+    var box = $('ta-history'), foot = $('ta-history-foot');
+    if(HIST.status === 200){
+      if(!HIST.events.length){
+        box.innerHTML = '<div class="small muted">No team changes recorded yet for this company'+(HIST.covers.length?' <span class="dim">(history covers: '+esc(HIST.covers.join(', '))+')</span>':'')+'.</div>';
+      } else {
+        box.innerHTML = '<table class="ta-hist"><thead><tr><th scope="col">WHEN</th><th scope="col">WHO</th><th scope="col">WHAT</th><th scope="col">FOR WHOM</th></tr></thead><tbody>'+
+          HIST.events.map(function(ev){
+            ev = (ev && typeof ev === 'object') ? ev : {};   // one malformed entry is shown as such, never aborts the list
+            var w = ev.actor_email ? esc(ev.actor_email) : '<span class="muted">(no email on record)</span>';
+            if(ev.actor_channel) w += ' <span class="tag b-gray">via '+esc(ev.actor_channel)+'</span>';
+            var fw = ev.target_email ? esc(ev.target_email) : '<span class="muted">—</span>';
+            return '<tr><td class="ta-when">'+fmtWhen(ev.at)+'</td><td>'+w+'</td><td>'+whatOf(ev)+'</td><td>'+fw+(ev.target_role?' <span class="small muted">'+esc(ev.target_role)+'</span>':'')+'</td></tr>';
+          }).join('')+'</tbody></table>'+
+          (HIST.older_err ? '<div class="small ta-err" style="margin-top:6px">'+esc(HIST.older_err)+'</div>' : '')+
+          (HIST.has_more && HIST.next_before ? '<div class="ta-row"><button type="button" class="btn sm" id="ta-older">Load older</button></div>' : '');
+        var ob = $('ta-older'); if(ob) ob.addEventListener('click', function(){ ob.disabled=true; loadHistory(HIST.next_before); });
+      }
+      foot.innerHTML = '<b>What this history cannot show:</b><ul class="ta-foot">'+
+        (HIST.not_covered.length ? HIST.not_covered.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join('') : '<li>Invitations and removals made before this history was switched on were not recorded.</li>')+'</ul>';
+      return;
+    }
+    foot.innerHTML = '';
+    if(HIST.status === 405 || HIST.status === 404){
+      // the server that predates the history route DOES record grants, revokes and clearance changes (TD-254);
+      // only invitations and removals go unrecorded there (round 2: the first wording said none were)
+      box.innerHTML = '<div class="small"><span class="ta-warn">THIS SERVER CANNOT SHOW THE HISTORY YET.</span> Grants, revokes and clearance changes you make now are recorded and will appear here once the server update is deployed; people added or removed now will not be.'+(HIST.detail?' <span class="muted">(HTTP '+esc(HIST.status)+': '+esc(HIST.detail)+')</span>':'')+'</div>';
+    } else if(HIST.status === 403){
+      box.innerHTML = '<div class="small"><span class="ta-err">History is managed by a tenant owner.</span>'+(HIST.detail?' The server said: “'+esc(HIST.detail)+'”':'')+'</div>';
+    } else if(HIST.status === -1){
+      box.innerHTML = '<div class="small ta-warn">History came back in an unexpected shape — this is not a complete record.'+histRetry()+'</div>';
+    } else if(HIST.status === 0){
+      box.innerHTML = '<div class="small ta-err">History could not be loaded (no answer) — this is not a complete record.'+histRetry()+'</div>';
+    } else if(HIST.status !== null){
+      box.innerHTML = '<div class="small ta-err">History could not be loaded (HTTP '+esc(HIST.status)+(HIST.detail?' — '+esc(HIST.detail):'')+') — this is not a complete record.'+histRetry()+'</div>';
+    }
+    var hr = $('ta-hist-retry'); if(hr) hr.addEventListener('click', function(){ hr.disabled = true; loadHistory(null); });
+  }
+  function renderBanner(){
+    var el = $('ta-banner-rec'); if(!el) return;
+    if(HIST.status === 200) el.innerHTML = 'Changes made here are <b>recorded in the history below</b>, with who made them.';
+    else if(HIST.status === 405 || HIST.status === 404) el.innerHTML = 'This server records grants, revokes and clearance changes but <b>not yet who was added or removed</b> — see the history card.';
+    else el.innerHTML = '';
+  }
+
+  boot();
+  if(window.FLSettings && FLSettings.mount) FLSettings.mount({tileId:'team-access'});
+  // a verification seam (the Entities tile's start() precedent): a test page stubs fetch and re-runs boot;
+  // nothing in the tile reads it
+  window.TeamAccessTile = { boot: boot, reload: boot };
+})();
 </script>
 </body>
 </html>
