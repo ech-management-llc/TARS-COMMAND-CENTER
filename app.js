@@ -343,20 +343,24 @@ function openAreaSetup(groupId){
     } else if (emp && emp.always){
       empBlock = '<div class="setup-sec"><div class="small muted"><b>'+esc(emp.name)+'</b> runs this area company-wide — always on, nothing to hire.</div></div>';
     }
+    // The panel is titled "Set up <area>", and a person told to "set up Legal" looked for a control saying that.
+    // The title is not one. So the control that does it carries the title's words, comes FIRST (before the
+    // optional employee, which is not what setting up means), and the panel's last control is its way out.
     var actBlock = '<div class="setup-sec">'+
       (active
         ? '<div class="ok" style="font-weight:800">✓ This area is live on your board.</div><div class="small muted">Fill in its data anytime — nothing is required up front.</div>'
         : '<div class="small muted">Turning it on adds this area to your board now. <b>Data is optional</b> — add it later from the tiles or with TARS.</div>')+
       '<div class="setup-btns">'+
         (active ? '<button type="button" class="btn" data-act="off">Turn back off</button>'
-                : '<button type="button" class="btn primary" data-act="on">⚡ Turn on '+esc(grp.label||groupId)+'</button>')+
-        '<button type="button" class="btn" data-act="close">Done</button>'+
+                : '<button type="button" class="btn primary" data-act="on">⚡ Set up '+esc(grp.label||groupId)+' — turn it on</button>')+
       '</div></div>';
+    var footBlock = '<div class="setup-sec"><div class="setup-btns">'+
+      '<button type="button" class="btn'+(active?' primary':'')+'" data-act="close">Done</button></div></div>';
     showSetupModal(
       '<div class="setup-modal-top"><span class="setup-modal-title">Set up '+esc(grp.label||groupId)+'</span>'+
         '<button type="button" class="setup-x" data-act="close" aria-label="Close">✕</button></div>'+
       '<div class="small muted" style="margin:2px 0 6px">What’s inside this area:</div>'+
-      '<div class="setup-tiles">'+tiles+'</div>'+ empBlock + actBlock);
+      '<div class="setup-tiles">'+tiles+'</div>'+ actBlock + empBlock + footBlock);
     var card = $('setup-modal-card');
     card.querySelectorAll('[data-act]').forEach(function(b){
       b.onclick = function(){
@@ -447,6 +451,49 @@ function sampleDataBanner(){
       'for walkthrough purposes, <b>not real ECH financials</b>.</div>';
   }catch(e){ return ''; }
 }
+// ── who is signed in, where people look for it ──
+// The top-right corner: of the ribbon, and of an open tile (the drill-in overlay covers the ribbon, so that
+// corner used to read "Ask <employee>" and nothing else). A local demo session says it is not signed in, and
+// offers the way to sign in; a real one names the account and offers the way out.
+function isDemoSession(){ return !!(STATE.user && STATE.user.demo === true); }
+function identityHtml(){
+  const u = STATE.user || {};
+  if (isDemoSession())
+    return '<b>Demo</b> — not signed in <button type="button" class="vb-signout" data-id-act="signin">sign in</button>';
+  const em = (window.flAuth && flAuth.email && flAuth.email()) || u.contact || u.email || '';
+  return em ? 'Signed in as <b>'+esc(em)+'</b>' : 'Signed in';
+}
+function signOutEverywhere(){ Auth.signOut(); if(window.flAuth) flAuth.signOut(); location.reload(); }
+function mountDrillIdentity(){
+  const panel = $('panel'); if (!panel) return;
+  let bar = $('drill-id');
+  if (!bar){ bar = document.createElement('div'); bar.id = 'drill-id'; bar.className = 'idbar'; panel.insertBefore(bar, panel.firstChild); }
+  bar.innerHTML = '<span>'+identityHtml()+'</span>'+
+    '<button type="button" class="vb-signout" data-id-act="signout">sign out</button>';
+}
+// A tile's sign-in card (or the demo's "sign in") asks for the sign-in form. A tile is an <iframe> and cannot
+// show it itself. If a session is in fact live, the tile is simply stale: reload it.
+function requestSignIn(){
+  if ($('login-gate')) return;
+  if (window.flApi && flApi.authed && flApi.authed()){
+    const fr = $('drill-iframe'); if (fr) { try { fr.contentWindow.location.reload(); } catch(e){} }
+    return;
+  }
+  if (typeof endDeadSession === 'function' && typeof resumeAfterSignIn === 'function'){
+    endDeadSession();                    // a real session without its token ends here, and says so
+    closeSetupModal();
+    renderLoginGate({ onSignedIn: resumeAfterSignIn });
+  } else {
+    Auth.signOut(); location.reload();   // without those helpers: the plain route to the sign-in form
+  }
+}
+document.addEventListener('click', e => {
+  const b = e.target && e.target.closest ? e.target.closest('[data-id-act]') : null;
+  if (!b) return;
+  if (b.getAttribute('data-id-act') === 'signout') signOutEverywhere();
+  else if (b.getAttribute('data-id-act') === 'signin') requestSignIn();
+});
+
 function renderChrome(){
   const b = (STATE.tenant.branding)||{};
   const u = STATE.user || {};
@@ -463,9 +510,16 @@ function renderChrome(){
     '<div class="vb-status">'+
       '<span class="live" id="live-wrap"><span class="pulse"></span> <span id="live-label">Live</span></span>'+
       '<button class="aibtn" id="refresh-btn" type="button">↻ REFRESH</button>'+
-      '<button type="button" id="signout-btn" class="vb-signout">sign out</button>'+
     '</div>';
-  $('signout-btn').onclick = () => { Auth.signOut(); if(window.flAuth) flAuth.signOut(); location.reload(); };
+  // who is signed in + the way out: one right-aligned line above the ribbon — the page's top-right corner at any
+  // width (inside the ribbon it wrapped to a second row). "sign out" moved here from the ribbon with its id.
+  let top = $('top-id');
+  if (!top){ top = document.createElement('div'); top.id = 'top-id'; top.className = 'idbar'; $('verbar').parentNode.insertBefore(top, $('verbar')); }
+  top.innerHTML = '<span id="vb-id">'+identityHtml()+'</span>'+
+    '<button type="button" id="signout-btn" class="vb-signout">sign out</button>';
+  $('signout-btn').onclick = signOutEverywhere;
+  $('refresh-btn').onclick = forceRefresh;   // this ribbon is redrawn on every board refresh; a redrawn button had no handler
+  if ($('ov') && $('ov').classList.contains('on')) mountDrillIdentity();   // an open tile's corner follows too
 
   // global TARS button — pinned at top; hidden for the scoped Field role
   const g = STATE.tenant.global_agent || {};
@@ -1554,7 +1608,7 @@ function openAddLayer(){
   showOverlay('ov');
 }
 
-function showOverlay(id){ $(id).classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; }
+function showOverlay(id){ $(id).classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; if (id==='ov') mountDrillIdentity(); }
 function hideOverlay(id){ $(id).classList.remove('on'); document.body.style.overflow=''; }
 function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLayer=null; }
 
@@ -1577,6 +1631,8 @@ function wireGlobalControls(){
       if (STATE.newOperator){ STATE.newOperator = false; renderHome(); }
       fetchAll();
     }
+    // a tile's sign-in card asks for the sign-in form (same origin only — a tile of this site)
+    if (d && d.type === 'tcc:signin:request' && e.origin === location.origin) requestSignIn();
     // cross-tile nav: a drill-in iframe asks the shell to open another tile
     // (front-end cross-reference only — artifacts post {type:'tcc:open-layer', layer:'<id>'})
     if (d && d.type === 'tcc:open-layer' && typeof d.layer === 'string') openLayer(d.layer);

@@ -320,14 +320,79 @@
     } catch (e) {}
   }
 
+  // ── the control that performs "sign in", on every sign-in card ──
+  // A tile that finds no session draws a card headed SIGN IN REQUIRED or SESSION EXPIRED that tells the person
+  // to "sign in to the Command Center" — and, until now, gave them nothing to press. Every tile draws that card
+  // the same way (a .section-label carrying one of those two headings, inside the card), so the button is added
+  // HERE, once, for all of them. A tile is an <iframe>: it cannot show the board's sign-in form itself, so the
+  // button asks the board for it; opened on its own, it goes to the board. Once a session is back (signed in on
+  // the board, or in another tab) the same button reads "Continue" and reloads the tile — nothing reloads by
+  // itself, so whatever the card says about a change in flight stays on screen until the person moves on.
+  var _ROOT = (function () {
+    try { return new URL('../', document.currentScript.src).href; } catch (e) { return '/'; }
+  })();
+  function _signInPressed() {
+    if (token()) { location.reload(); return; }
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'tcc:signin:request' }, location.origin);
+        return;
+      }
+    } catch (e) {}
+    location.href = _ROOT;
+  }
+  function _dressSignInCards() {
+    try {
+      var back = !!token();
+      var want = back ? 'Continue' : 'Sign in';
+      var wantNote = back ? 'You are signed in again.' : '';
+      var labels = document.querySelectorAll('.section-label');
+      for (var i = 0; i < labels.length; i++) {
+        var t = (labels[i].textContent || '').replace(/\s+/g, ' ').trim();
+        if (t !== 'SIGN IN REQUIRED' && t !== 'SESSION EXPIRED') continue;
+        var box = labels[i].parentNode;
+        if (!box || !box.querySelector) continue;
+        var btn = box.querySelector('[data-fl-signin]');
+        if (!btn) {
+          var row = document.createElement('div');
+          row.className = 'fl-signin-row';
+          row.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+          btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn primary';
+          btn.setAttribute('data-fl-signin', '');
+          btn.addEventListener('click', _signInPressed);
+          var note = document.createElement('span');
+          note.className = 'small';
+          note.setAttribute('data-fl-signin-note', '');
+          row.appendChild(btn);
+          row.appendChild(note);
+          box.appendChild(row);
+        }
+        if (btn.textContent !== want) btn.textContent = want;
+        var n = box.querySelector('[data-fl-signin-note]');
+        if (n && n.textContent !== wantNote) n.textContent = wantNote;
+      }
+    } catch (e) {}
+  }
+  function _watchSignInCards() {
+    try {
+      if (!document.querySelector('.art-wrap')) return;        // tiles only (same test as the demo banner); never the board
+      _dressSignInCards();
+      if (typeof MutationObserver === 'undefined' || !document.body) return;
+      // re-dressing changes nothing once a card has its button, so this settles after one extra pass
+      new MutationObserver(_dressSignInCards).observe(document.body, { childList: true, subtree: true, characterData: true });
+    } catch (e) {}
+  }
+
   if (typeof document !== 'undefined') {
-    var _mountAll = function () { _mountDemoBanner(); _mountReportButton(); };
+    var _mountAll = function () { _mountDemoBanner(); _mountReportButton(); _watchSignInCards(); };
     if (document.readyState !== 'loading') _mountAll();
     else document.addEventListener('DOMContentLoaded', _mountAll);
     // The report button needs a session; if the tester signs in without a full reload, retry.
     window.addEventListener('focus', _mountReportButton);
     window.addEventListener('storage', function (e) {
-      if (!e || e.key === 'fl_auth_token' || e.key === null) _mountReportButton();
+      if (!e || e.key === 'fl_auth_token' || e.key === null) { _mountReportButton(); _dressSignInCards(); }
     });
   }
 })();
