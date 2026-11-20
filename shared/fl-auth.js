@@ -339,9 +339,15 @@
   function _signInPressed() {
     if (token()) { location.reload(); return; }
     try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'tcc:signin:request' }, location.origin);
-        return;
+      var p = window.parent;
+      if (p && p !== window) {
+        // A board that was already open before this button existed has nothing listening for the request, and
+        // the button would do nothing. Ask only a board that can answer; otherwise load the current board over
+        // the old one, which then shows the form itself.
+        var able = false;
+        try { able = typeof p.requestSignIn === 'function'; } catch (e) {}
+        if (able) { p.postMessage({ type: 'tcc:signin:request' }, location.origin); return; }
+        try { window.top.location.href = _ROOT; return; } catch (e) {}
       }
     } catch (e) {}
     location.href = _ROOT;
@@ -356,7 +362,13 @@
         var t = (labels[i].textContent || '').replace(/\s+/g, ' ').trim();
         if (t !== 'SIGN IN REQUIRED' && t !== 'SESSION EXPIRED') continue;
         var box = labels[i].parentNode;
-        if (!box || !box.querySelector) continue;
+        if (!box || !box.querySelector || !box.setAttribute) continue;
+        // Some tiles draw this card for a person who IS signed in and has simply been refused that kind of
+        // record. There, nothing this button could do is true: "Sign in" has nothing to do, and "Continue — you
+        // are signed in again" would be false and would reload into the same card for ever. So the card gets
+        // the button only if it has been seen with nobody signed in; otherwise it is left exactly as it was.
+        if (!back) box.setAttribute('data-fl-signed-out-seen', '1');
+        else if (!box.hasAttribute('data-fl-signed-out-seen')) continue;
         var btn = box.querySelector('[data-fl-signin]');
         if (!btn) {
           var row = document.createElement('div');

@@ -477,13 +477,28 @@ function sampleDataBanner(){
 // corner used to read "Ask <employee>" and nothing else). A local demo session says it is not signed in, and
 // offers the way to sign in; a real one names the account and offers the way out.
 function isDemoSession(){ return !!(STATE.user && STATE.user.demo === true); }
+// The line states the sign-in FACT — is there a live token, and whose — not what the board's own record says.
+// With a token it names the token's account, whatever the record is; with none it says "not signed in" and
+// offers the way to sign in. (If the script that holds the token never loaded, only the record is left to go by.)
 function identityHtml(){
   const u = STATE.user || {};
-  if (isDemoSession())
-    return '<b>Demo</b> — not signed in <button type="button" class="vb-signout" data-id-act="signin">sign in</button>';
+  const can = !!(window.flApi && flApi.authed);
+  const live = can ? !!flApi.authed() : !isDemoSession();
+  if (!live)
+    return (isDemoSession() ? '<b>Demo</b> — not signed in' : '<b>Not signed in</b>')+
+      ' <button type="button" class="vb-signout" data-id-act="signin">sign in</button>';
   const em = (window.flAuth && flAuth.email && flAuth.email()) || u.contact || u.email || '';
   return em ? 'Signed in as <b>'+esc(em)+'</b>' : 'Signed in';
 }
+// ...and it follows the fact when the fact changes under an open page: another tab or a tile signs in, signs out
+// or loses the session (storage event), this window's own session ends (announced by fl-auth.js), or a data
+// read has just come back (updLiveBar).
+function refreshIdentity(){
+  const id = $('vb-id'); if (id) id.innerHTML = identityHtml();
+  if ($('drill-id')) mountDrillIdentity();
+}
+window.addEventListener('storage', e => { if (!e || e.key === null || e.key === 'fl_auth_token' || e.key === 'fl_auth_email') refreshIdentity(); });
+window.addEventListener('fl:auth-ended', refreshIdentity);
 function signOutEverywhere(){ Auth.signOut(); if(window.flAuth) flAuth.signOut(); location.reload(); }
 function mountDrillIdentity(){
   const panel = $('panel'); if (!panel) return;
@@ -500,9 +515,10 @@ function requestSignIn(){
     const fr = $('drill-iframe'); if (fr) { try { fr.contentWindow.location.reload(); } catch(e){} }
     return;
   }
-  if (typeof endDeadSession === 'function' && typeof resumeAfterSignIn === 'function'){
-    endDeadSession();                    // a real session without its token ends here, and says so
-    closeSetupModal();
+  if (typeof syncSignIn === 'function' && typeof resumeAfterSignIn === 'function'){
+    syncSignIn();                        // a real session without its token: the "session ended" form, returning here
+    if ($('login-gate')) return;
+    closeSetupModal();                   // a local demo, or nobody: the plain form; signing in then loads a fresh page
     renderLoginGate({ onSignedIn: resumeAfterSignIn });
   } else {
     Auth.signOut(); location.reload();   // without those helpers: the plain route to the sign-in form
@@ -1544,6 +1560,7 @@ function updLiveBar(){
     if (live) live.classList.remove('down');
     if (lbl) lbl.textContent = 'Live · updated '+ (STATE.data.fl ? fmtTs(STATE.data.fl.generated_at) : fmtTs(new Date().toISOString()));
   }
+  refreshIdentity();   // a read has just come back: the corner line states the sign-in fact as it is now
 }
 
 /* ════════════════════════════════════════════════════════════════
