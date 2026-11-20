@@ -55,6 +55,7 @@ const STATE = {
 /* ════════════════════════════════════════════════════════════════
    BOOT
    ════════════════════════════════════════════════════════════════ */
+const BOOT_REFRESH_CAP_MS = 4000;   // the longest the board waits at startup for the sign-in service
 async function boot(){
   try {
     const [tenant, registry] = await Promise.all([
@@ -70,6 +71,16 @@ async function boot(){
   applyBranding();
   noticeGoogleReturn();
   // Login gates the app (productized). If no session, show the light sign-in.
+  // A real account's session with no live API token is not a session (see Auth below): end it and say so.
+  // A stored token past its hour is settled HERE, before the board is drawn, so a session the sign-in service
+  // has ended never shows the board first. A network failure settles nothing and the board opens as before;
+  // a sign-in service that does not answer is not waited on past BOOT_REFRESH_CAP_MS — if its refusal arrives
+  // later, fl-auth.js announces it and syncSignIn() brings the gate up then.
+  try {
+    if (Auth.isReal(Auth.session()) && Auth.canTell() && flAuth.needsRefresh && flAuth.needsRefresh())
+      await Promise.race([flAuth.refresh(), new Promise(r => setTimeout(r, BOOT_REFRESH_CAP_MS))]);
+  } catch(e){}
+  endDeadSession();
   if (!Auth.session()) { renderLoginGate(); return; }
   startApp();
 }
@@ -150,8 +161,59 @@ const AUTH_KEY = 'tcc_session';
 const Auth = {
   session(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY)||'null'); } catch(e){ return null; } },
   signIn(sess){ try { localStorage.setItem(AUTH_KEY, JSON.stringify(sess)); } catch(e){} },
-  signOut(){ try { localStorage.removeItem(AUTH_KEY); } catch(e){} }
+  signOut(){ try { localStorage.removeItem(AUTH_KEY); } catch(e){} },
+  // ONE sign-in fact. There used to be two — this per-browser record, which let a person onto the board and
+  // never ended, and the API token (flApi.authed()), which every data screen needs and which a refused refresh
+  // deletes. They could disagree for weeks: the board said "Owner" while the tiles said "sign in required".
+  // The API token is the authority; for a real account this record FOLLOWS it. A local demo session
+  // ({demo:true} — "Continue without an account") never had a token and never claimed one, so it stands.
+  isReal(s){ return !!s && s.demo !== true; },
+  // false when the scripts that hold the token did not load: then nothing can be concluded, and nothing is.
+  canTell(){ return !!(window.flApi && flApi.authed && window.flAuth && flAuth.markEnded); },
+  // true when `s` claims a real sign-in that the API token no longer backs
+  dead(s){ return this.isReal(s) && this.canTell() && !flApi.authed(); }
 };
+
+// A real session whose token is gone. `STATE.user` is the session this window is presenting (once the app runs);
+// the stored record is what the next page load would present. If either is real and tokenless, the board must
+// stop saying "signed in". When the stored record outlived its token the session ENDED, and the note every
+// window reads is left behind (fl-auth.js ENDED_KEY) so the gate and the tiles say so; when the record is gone
+// too, the person signed out in another tab, and the plain gate is the truth. Returns true when it ended one.
+function endDeadSession(){
+  const stored = Auth.session();
+  if (!Auth.dead(STATE.user || stored)) return false;
+  if (stored && !flAuth.ended()) flAuth.markEnded(stored.contact || stored.email || '');
+  Auth.signOut();
+  return true;
+}
+
+// The token can die while the board is up: a refresh the sign-in service refuses — here, inside a tile, or in
+// another tab. The board must not go on presenting the person as signed in, so the gate comes up over whatever
+// is open (nothing underneath is reloaded or cleared) and signing in again returns to it.
+let _syncingSignIn = false;                     // ending a session announces itself; do not answer our own announcement
+function syncSignIn(){
+  if (_syncingSignIn || $('login-gate')) return;   // already deciding, or already asking
+  _syncingSignIn = true;
+  try {
+    if (!endDeadSession()) return;
+    closeSetupModal();
+    renderLoginGate({ onSignedIn: resumeAfterSignIn });
+  } finally { _syncingSignIn = false; }
+}
+// Signed in again mid-visit: the app is already running, so repaint it for whoever signed in — never a second
+// startApp(), which would wire every global listener twice.
+function resumeAfterSignIn(){
+  const s = Auth.session(); if (!s) return;
+  STATE.user = s;
+  STATE.role = s.role || 'owner';
+  STATE.scope = s.scope || null;
+  if (STATE.tenant) STATE.tenant.current_role = STATE.role;
+  refreshBoard();
+  const rb = $('refresh-btn'); if (rb) rb.onclick = forceRefresh;   // renderChrome() drew a new one
+  fetchAll();
+  checkNewOperator();
+  if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();
+}
 
 // First-run gates (Phase 2 + polish). Two DISTINCT states so "explore" is never a one-way door:
 //  - explored: the user chose to roam ("explore on my own") — unlocks the board, but setup is NOT done.
@@ -490,9 +552,14 @@ function deriveName(contact, role){
   if (contact && contact.indexOf('@')>0) return contact.split('@')[0];
   return ({admin:'Staff', viewer:'Viewer', field:'Field user', tenant:'Tenant'})[role] || 'User';
 }
-function renderLoginGate(){
+// opts.onSignedIn — what to do once signed in (default: start the app; mid-visit: resumeAfterSignIn).
+function renderLoginGate(opts){
+  opts = opts || {};
   const b = (STATE.tenant.branding)||{};
   const real = !!(window.flAuth && flAuth.configured());
+  // A person whose session ended is told so — they did sign in; it is not their first time here.
+  const was = (window.flAuth && flAuth.ended) ? flAuth.ended() : null;
+  const done = () => { el.remove(); (opts.onSignedIn || startApp)(); };
   const scopeOpts = (STATE.registry.layers||[]).filter(l => l.drilldown)
     .map(l => '<option value="'+esc(l.id)+'">'+esc(l.title)+'</option>').join('');
   const el = document.createElement('div');
@@ -502,6 +569,10 @@ function renderLoginGate(){
       '<div class="gate-logo">'+flMark(58)+'</div>'+
       '<h2>'+esc(b.title||STATE.tenant.name||'Foundation Layer')+(b.title_accent?' <span>'+esc(b.title_accent)+'</span>':'')+'</h2>'+
       '<p class="gate-sub">Your real-estate investing co-pilot.</p>'+
+      (was ? '<div class="gate-note" id="gate-ended" role="status" style="margin:0 0 6px;color:var(--txt);font-size:12.5px;'+
+        'background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;text-align:left">'+
+        '<b>Your session has ended.</b> You were signed in on this browser, and that sign-in is no longer valid. '+
+        'Sign in again to carry on — nothing you saved is lost.</div>' : '')+
       '<label>Email</label>'+
       '<input id="gate-email" type="email" placeholder="you@company.com" autocomplete="username">'+
       '<label>Password</label>'+
@@ -531,6 +602,7 @@ function renderLoginGate(){
         : 'Auth not configured — demo session only (local, this browser).')+'</div>'+
     '</div>';
   document.body.appendChild(el);
+  if (was && was.email) el.querySelector('#gate-email').value = was.email;   // set as a value, never as markup
 
   const role = el.querySelector('#gate-role');
   el.querySelector('#gate-adv-toggle').onclick = () => { const a=el.querySelector('#gate-adv'); a.style.display = a.style.display==='none'?'block':'none'; };
@@ -558,7 +630,7 @@ function renderLoginGate(){
       scope: r==='field' ? (el.querySelector('#gate-scope').value || null) : null,
       demo: true, at: new Date().toISOString()
     });
-    el.remove(); startApp();
+    done();
   };
 
   // Real path — Supabase email+password -> JWT (stored by flAuth for the API) + a session.
@@ -574,7 +646,7 @@ function renderLoginGate(){
     if(res && res.error){ err.style.display='block'; err.textContent=res.error; return; }
     Auth.signIn({ name: email.split('@')[0], role:'owner', tenant: STATE.tenant.tenant_id||'ech',
       contact: email, supabase: true, at: new Date().toISOString() });
-    el.remove(); startApp();
+    done();
   }
   const signinBtn = el.querySelector('#gate-signin');
   signinBtn.onclick = real ? realSignIn : () => {
@@ -631,7 +703,7 @@ function renderLoginGate(){
       if(s && s.error){ err.style.display='block'; err.textContent='Account created — sign-in failed: '+s.error+'. Try Sign in.'; return; }
       Auth.signIn({ name: email.split('@')[0], role:'owner', tenant: STATE.tenant.tenant_id||'ech',
         contact: email, supabase:true, at:new Date().toISOString() });
-      el.remove(); startApp();   // lands in their own empty workspace — create your first entity next
+      done();   // lands in their own empty workspace — create your first entity next
       return;
     }
     btn.disabled=false; btn.textContent='Create account & sign in';
@@ -1348,7 +1420,8 @@ function fetchAll(){
     // H5: the Capital-Rules feed is the AUTHED, per-principal /api/dashboard/scoped (was the unauth
     // global /latest, now admin-only). flApi.call carries the JWT; null = no session/error -> down.
     flApi.call('GET', '/api/dashboard/scoped')
-      .then(d=>{ if(!d){ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
+      .then(d=>{ if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
+          STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
         STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
       .catch(()=>{ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
   }
@@ -1492,6 +1565,9 @@ function wireGlobalControls(){
   // close overlays on backdrop click / Esc
   ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov') $('panel').innerHTML=''; } }));
   document.addEventListener('keydown', e => { if (e.key==='Escape'){ hideOverlay('ov'); hideOverlay('gov'); } });
+  // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event)
+  window.addEventListener('fl:auth-ended', syncSignIn);
+  window.addEventListener('storage', e => { if (!e || e.key === null || e.key === 'fl_auth_token') syncSignIn(); });
   // a Plans & Billing purchase flips entitlement → re-render the home so the new tile appears
   window.addEventListener('message', e => {
     const d = e.data || {};

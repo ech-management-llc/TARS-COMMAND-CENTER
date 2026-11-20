@@ -3,7 +3,7 @@
 // Cache-first for same-origin assets; live sources (FL API, data snapshots) fall
 // through to the network when online.
 
-const CACHE_NAME = 'tcc-tilehome-live-20261102a';   // Team & Access screen (precached drill-in replaced; TD-254/TD-255) — was 20260925a (TD-239)
+const CACHE_NAME = 'tcc-tilehome-live-20261120a';   // sign-in blocker: the shell and precached drill-ins changed (one sign-in fact; controls on dead ends) — was 20261102a (Team & Access)
 
 const ASSETS = [
   './',

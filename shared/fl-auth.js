@@ -24,6 +24,31 @@
   };
   var _expired = false;   // true once a refresh CONFIRMS the session is dead (vs merely signed-out)
 
+  // The same fact, where every window can read it. `_expired` alone lives in ONE window for ONE page load, and
+  // the board and each tile (an <iframe>) run their own copy of this file — so a session that ended in one of
+  // them had "never signed in" as far as the others could tell, and as far as anyone could tell after a reload.
+  // ENDED_KEY is written beside the cleared token and removed by the next sign-in or a deliberate sign-out.
+  var ENDED_KEY = 'fl_auth_ended';
+  function markEnded(emailAddr) {
+    _expired = true;
+    try { localStorage.setItem(ENDED_KEY, JSON.stringify({ at: Date.now(), email: emailAddr || '' })); } catch (e) {}
+    // a "storage" event never reaches the window that wrote, so say it here too (the board listens)
+    try { window.dispatchEvent(new CustomEvent('fl:auth-ended')); } catch (e) {}
+  }
+  function clearEnded() {
+    _expired = false;
+    try { localStorage.removeItem(ENDED_KEY); } catch (e) {}
+  }
+  // { at, email } when a session ended and nobody has signed in since; null otherwise. A live token wins.
+  function ended() {
+    try {
+      if (localStorage.getItem('fl_auth_token')) return null;
+      var v = JSON.parse(localStorage.getItem(ENDED_KEY) || 'null');
+      if (!v || typeof v !== 'object') return null;
+      return { at: Number(v.at) || 0, email: typeof v.email === 'string' ? v.email : '' };
+    } catch (e) { return null; }
+  }
+
   function configured() { return !!(CFG.url && CFG.anon); }
 
   async function signIn(email, password) {
@@ -44,7 +69,7 @@
         localStorage.setItem('fl_auth_exp', String(Date.now() + ((data.expires_in || 3600) * 1000)));
         localStorage.setItem('fl_auth_email', (data.user && data.user.email) || email);
       } catch (e) {}
-      _expired = false;   // fresh session
+      clearEnded();       // fresh session
       return { user: data.user, access_token: data.access_token };
     } catch (e) {
       return { error: 'Could not reach Supabase. Check your connection.' };
@@ -73,11 +98,13 @@
     }
   }
 
+  // A deliberate sign-out is not an ended session: it leaves no "ended" note behind.
   function signOut() {
     try {
       ['fl_auth_token', 'fl_auth_refresh', 'fl_auth_exp', 'fl_auth_email']
         .forEach(function (k) { localStorage.removeItem(k); });
     } catch (e) {}
+    clearEnded();
   }
 
   function token() { try { return localStorage.getItem('fl_auth_token'); } catch (e) { return null; } }
@@ -95,15 +122,18 @@
 
   // expired() = a refresh CONFIRMED the session is dead (refresh token rejected). Distinct from a
   // plain signed-out state — lets the UI say "your session expired" instead of a misleading empty.
-  function expired() { return _expired; }
+  // Read from storage as well as from this window, so the board, every tile and the next page load agree.
+  function expired() { return !token() && (_expired || !!ended()); }
 
   // Exchange the stored refresh token for a new access token. Returns true on success.
-  // On an AUTH rejection (refresh token bad/expired) it clears the session and marks expired.
-  // On a transient NETWORK error it returns false WITHOUT clearing (the existing token may still work).
+  // On an AUTH rejection (refresh token bad/expired) it clears the session and marks it ended.
+  // On anything that is NOT the sign-in service saying "this session is over" — a network error, a rate
+  // limit, a server error, an unreadable answer — it returns false WITHOUT clearing: the session may be alive.
   async function refresh() {
     if (!configured()) return false;
     var rt = null; try { rt = localStorage.getItem('fl_auth_refresh'); } catch (e) {}
-    if (!rt) { signOut(); _expired = true; return false; }
+    var who = email();
+    if (!rt) { signOut(); markEnded(who); return false; }
     try {
       var res = await fetch(CFG.url + '/auth/v1/token?grant_type=refresh_token', {
         method: 'POST',
@@ -111,13 +141,14 @@
         body: JSON.stringify({ refresh_token: rt }),
       });
       var data = await res.json().catch(function () { return {}; });
-      if (!res.ok || !data.access_token) { signOut(); _expired = true; return false; }
+      if (res.status === 400 || res.status === 401 || res.status === 403) { signOut(); markEnded(who); return false; }
+      if (!res.ok || !data.access_token) return false;   // 429 / 5xx / no token in the answer — not a verdict
       try {
         localStorage.setItem('fl_auth_token', data.access_token);
         if (data.refresh_token) localStorage.setItem('fl_auth_refresh', data.refresh_token);
         localStorage.setItem('fl_auth_exp', String(Date.now() + ((data.expires_in || 3600) * 1000)));
       } catch (e) {}
-      _expired = false;
+      clearEnded();
       return true;
     } catch (e) {
       return false;   // network error — don't clear; could be transient
@@ -128,6 +159,7 @@
     configured: configured, signIn: signIn, signOut: signOut, token: token, email: email,
     requestPasswordReset: requestPasswordReset,
     refresh: refresh, needsRefresh: needsRefresh, expired: expired,
+    ended: ended, markEnded: markEnded,
     mountReportButton: function () { _mountReportButton(); },   // callable after in-window login
   };
 
