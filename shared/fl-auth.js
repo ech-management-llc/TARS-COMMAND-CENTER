@@ -141,6 +141,11 @@
         body: JSON.stringify({ refresh_token: rt }),
       });
       var data = await res.json().catch(function () { return {}; });
+      // The answer is about the session this request was SENT for. If storage holds a different one by now —
+      // another window refreshed it, or the person signed out, or someone signed in — the answer says nothing
+      // about what is here: it must not end it, and must not write an old session back over it.
+      var cur = null; try { cur = localStorage.getItem('fl_auth_refresh'); } catch (e) {}
+      if (cur !== rt) return !!token();
       if (res.status === 400 || res.status === 401 || res.status === 403) { signOut(); markEnded(who); return false; }
       if (!res.ok || !data.access_token) return false;   // 429 / 5xx / no token in the answer — not a verdict
       try {

@@ -81,8 +81,9 @@ async function boot(){
       await Promise.race([flAuth.refresh(), new Promise(r => setTimeout(r, BOOT_REFRESH_CAP_MS))]);
   } catch(e){}
   endDeadSession();
-  if (!Auth.session()) { renderLoginGate(); return; }
-  startApp();
+  const begin = () => { followToken(); startApp(); };
+  if (!Auth.session()) { renderLoginGate({ onSignedIn: begin }); return; }
+  begin();
 }
 
 /* ── post-callback landing (?google=connected|error&reason=…) from the Google connect flow.
@@ -171,8 +172,28 @@ const Auth = {
   // false when the scripts that hold the token did not load: then nothing can be concluded, and nothing is.
   canTell(){ return !!(window.flApi && flApi.authed && window.flAuth && flAuth.markEnded); },
   // true when `s` claims a real sign-in that the API token no longer backs
-  dead(s){ return this.isReal(s) && this.canTell() && !flApi.authed(); }
+  dead(s){ return this.isReal(s) && this.canTell() && !flApi.authed(); },
+  // WHOSE sign-in: the address a record names, and the address the live token was issued to ('' = not known)
+  addr(s){ return String((s && (s.contact || s.email)) || '').trim().toLowerCase(); },
+  tokenAddr(){ return (this.canTell() && flApi.authed() && flAuth.email) ? String(flAuth.email() || '').trim().toLowerCase() : ''; }
 };
+
+// The token decides WHO as well as WHETHER. Two accounts taking turns in one browser used to leave a tab naming
+// the first person while everything pressed in it was sent as the second. At startup the board's record is
+// rewritten to name the account the live token belongs to (a local demo record with a live token is, in fact,
+// signed in); while running, the page is reloaded when that account changes under it (accountMoved, below).
+function followToken(){
+  const s = Auth.session(), who = Auth.tokenAddr();
+  if (!s || !who || (Auth.isReal(s) && Auth.addr(s) === who)) return;
+  const next = Object.assign({}, s, { name: who.split('@')[0], contact: who, supabase: true, at: new Date().toISOString() });
+  delete next.demo;
+  Auth.signIn(next);
+}
+// true when a live token names an account other than the one this window is presenting
+function accountMoved(){
+  const who = Auth.tokenAddr();
+  return !!who && !!STATE.user && (!Auth.isReal(STATE.user) || Auth.addr(STATE.user) !== who);
+}
 
 // A real session whose token is gone. `STATE.user` is the session this window is presenting (once the app runs);
 // the stored record is what the next page load would present. If either is real and tokenless, the board must
@@ -195,21 +216,21 @@ function syncSignIn(){
   if (_syncingSignIn || $('login-gate')) return;   // already deciding, or already asking
   _syncingSignIn = true;
   try {
+    const was = Auth.addr(STATE.user);          // whose screen this is
     if (!endDeadSession()) return;
     closeSetupModal();
-    renderLoginGate({ onSignedIn: resumeAfterSignIn });
+    renderLoginGate({ onSignedIn: () => resumeAfterSignIn(was) });
   } finally { _syncingSignIn = false; }
 }
-// Signed in again mid-visit: the app is already running, so repaint it for whoever signed in — never a second
-// startApp(), which would wire every global listener twice.
-function resumeAfterSignIn(){
+// Signed in again mid-visit. The SAME person returns to the page exactly as they left it — nothing is redrawn,
+// so nothing they typed is lost — and the app is never started a second time (that would wire every global
+// listener twice). ANYONE ELSE — another address, a new account, the local demo — gets a fresh page: the open
+// tile, the chat, the cached brief and the figures on screen belong to the person whose session ended, and none
+// of it may stay under a new name. Returns 'reloading' when it reloads, so the form stays up until the page goes.
+function resumeAfterSignIn(wasAddr){
   const s = Auth.session(); if (!s) return;
+  if (!wasAddr || !Auth.isReal(s) || Auth.addr(s) !== wasAddr){ location.reload(); return 'reloading'; }
   STATE.user = s;
-  STATE.role = s.role || 'owner';
-  STATE.scope = s.scope || null;
-  if (STATE.tenant) STATE.tenant.current_role = STATE.role;
-  refreshBoard();
-  const rb = $('refresh-btn'); if (rb) rb.onclick = forceRefresh;   // renderChrome() drew a new one
   fetchAll();
   checkNewOperator();
   if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();
@@ -613,7 +634,21 @@ function renderLoginGate(opts){
   const real = !!(window.flAuth && flAuth.configured());
   // A person whose session ended is told so — they did sign in; it is not their first time here.
   const was = (window.flAuth && flAuth.ended) ? flAuth.ended() : null;
-  const done = () => { el.remove(); (opts.onSignedIn || startApp)(); };
+  // The form stays up while the next step runs, and goes only if that step keeps this page (a step that reloads
+  // the page says so — then nothing of the screen underneath is shown in between).
+  const done = () => {
+    window.removeEventListener('storage', onOtherTab);
+    if ((opts.onSignedIn || startApp)() !== 'reloading') el.remove();
+  };
+  // Signed in from ANOTHER tab while this form is up: this tab must not go on saying "your session has ended"
+  // over a live session, with no way on but typing the password a second time. (The token and the board's
+  // record arrive as two events, in either order; act once both are there.)
+  const onOtherTab = e => {
+    if (e && e.key !== null && e.key !== 'fl_auth_token' && e.key !== AUTH_KEY) return;
+    if (!document.body.contains(el)) { window.removeEventListener('storage', onOtherTab); return; }
+    if (Auth.session() && Auth.canTell() && flApi.authed()) done();
+  };
+  window.addEventListener('storage', onOtherTab);
   const scopeOpts = (STATE.registry.layers||[]).filter(l => l.drilldown)
     .map(l => '<option value="'+esc(l.id)+'">'+esc(l.title)+'</option>').join('');
   const el = document.createElement('div');
@@ -1618,10 +1653,19 @@ function wireGlobalControls(){
   $('tars-btn').onclick = () => { if (window.Agents) Agents.openGlobal(); };
   // close overlays on backdrop click / Esc
   ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov') $('panel').innerHTML=''; } }));
-  document.addEventListener('keydown', e => { if (e.key==='Escape'){ hideOverlay('ov'); hideOverlay('gov'); } });
-  // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event)
+  // (Esc does nothing while the sign-in form is up: it used to close the tile underneath, unseen, and with it
+  // whatever was typed there)
+  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; hideOverlay('ov'); hideOverlay('gov'); } });
+  // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event) —
+  // or it now belongs to a different account than the one this page is presenting: then this page is someone
+  // else's screen, and it is reloaded (boot presents whoever the token names).
   window.addEventListener('fl:auth-ended', syncSignIn);
-  window.addEventListener('storage', e => { if (!e || e.key === null || e.key === 'fl_auth_token') syncSignIn(); });
+  window.addEventListener('storage', e => {
+    if (e && e.key !== null && e.key !== 'fl_auth_token' && e.key !== 'fl_auth_email' && e.key !== AUTH_KEY) return;
+    if ($('login-gate')) return;                // the form has its own listener
+    if (accountMoved()) { location.reload(); return; }
+    syncSignIn();
+  });
   // a Plans & Billing purchase flips entitlement → re-render the home so the new tile appears
   window.addEventListener('message', e => {
     const d = e.data || {};
