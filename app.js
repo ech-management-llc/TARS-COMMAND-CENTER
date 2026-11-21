@@ -922,13 +922,13 @@ function refreshGroupChips(){
 // entirely server-side (the server namespaces member codes + grants ownership atomically).
 function checkNewOperator(){
   if (!(window.flApi && flApi.authed && flApi.authed() && flApi.callX)) return;   // demo/local: skip
-  flApi.callX('GET', '/api/entities').then(r => {
+  return flApi.callX('GET', '/api/entities').then(r => {
     if (!r) return;
     const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
     if (!isNew){ settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return; }
     // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
     const done = a => settleAccess(boardOffersCreate(a, r), a);
-    if (window.flAccess && flAccess.classify) flAccess.classify(r).then(done, () => done(null));
+    if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
     else done(null);
   }).catch(()=>{});
 }
@@ -1729,17 +1729,31 @@ function openAddLayer(){
 
 function showOverlay(id){ $(id).classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; if (id==='ov') mountDrillIdentity(); }
 function hideOverlay(id){ $(id).classList.remove('on'); document.body.style.overflow=''; }
-function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLayer=null; }
+function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLayer=null; recheckAccess(); }
+
+// Wrong-words dispatch, item E: the board's access fact — "Create your first company", the no-access card, the setup
+// entry — was read once at start and outlived a grant or a revoke made elsewhere until the page was reloaded. It is
+// re-read when the person comes back to the board: closing a screen, pressing REFRESH, returning to this tab. One read at
+// a time; asks that arrive meanwhile are folded into one more read after it, so an older answer never lands last.
+let accessCheck = null, accessAgain = false;
+function recheckAccess(){   // every caller is wired by startApp() or lives on the board, so the board has started
+  if (accessCheck){ accessAgain = true; return; }
+  if (window.flAccess && flAccess.forget) flAccess.forget();
+  accessCheck = Promise.resolve(checkNewOperator()).catch(() => {}).then(() => {
+    accessCheck = null;
+    if (accessAgain){ accessAgain = false; recheckAccess(); }
+  });
+}
 
 /* ── global controls ── */
 function wireGlobalControls(){
   $('refresh-btn').onclick = forceRefresh;
   $('tars-btn').onclick = () => { if (window.Agents) Agents.openGlobal(); };
   // close overlays on backdrop click / Esc
-  ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov') $('panel').innerHTML=''; } }));
+  ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov'){ $('panel').innerHTML=''; recheckAccess(); } } }));
   // (Esc does nothing while the sign-in form is up: it used to close the tile underneath, unseen, and with it
   // whatever was typed there)
-  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; hideOverlay('ov'); hideOverlay('gov'); } });
+  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; const was = $('ov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
   // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event) —
   // or it now belongs to a different account than the one this page is presenting: then this page is someone
   // else's screen, and it is reloaded (boot presents whoever the token names).
@@ -1750,6 +1764,9 @@ function wireGlobalControls(){
     if (accountMoved()) { location.reload(); return; }
     syncSignIn();
   });
+  // back on this tab (or restored from the browser's back/forward cache): what was granted meanwhile shows
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') recheckAccess(); });
+  window.addEventListener('pageshow', e => { if (e && e.persisted) recheckAccess(); });
   // a Plans & Billing purchase flips entitlement → re-render the home so the new tile appears
   window.addEventListener('message', e => {
     const d = e.data || {};
@@ -1758,6 +1775,7 @@ function wireGlobalControls(){
     if (d && d.type === 'tcc:newop-created'){
       if (STATE.newOperator){ STATE.newOperator = false; renderHome(); }
       fetchAll();
+      recheckAccess();
     }
     // a tile's sign-in card asks for the sign-in form (same origin only — a tile of this site)
     if (d && d.type === 'tcc:signin:request' && e.origin === location.origin) requestSignIn();
@@ -1779,6 +1797,7 @@ function forceRefresh(){
   // re-pull live sources without nuking the SW cache (honest, fast)
   STATE.status.fl='pending'; refreshDataTiles();
   fetchAll();
+  recheckAccess();
   setTimeout(()=>{ btn.textContent='↻ REFRESH'; btn.classList.remove('refreshing'); }, 900);
 }
 
