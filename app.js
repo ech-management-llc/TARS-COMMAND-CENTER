@@ -913,10 +913,26 @@ function checkNewOperator(){
   flApi.callX('GET', '/api/entities').then(r => {
     if (!r) return;
     const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
-    // !! so the initial undefined doesn't force a redundant full home re-render for granted users
-    if (!!STATE.newOperator !== isNew){ STATE.newOperator = isNew; renderHome(); }
+    if (!isNew){ settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return; }
+    // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
+    const done = a => settleAccess(boardOffersCreate(a, r), a);
+    if (window.flAccess && flAccess.classify) flAccess.classify(r).then(done, () => done(null));
+    else done(null);
   }).catch(()=>{});
 }
+// Who is offered "Create your first company" on the board. a = the access fact (null when it could not be read).
+function boardOffersCreate(a, r){ return true; }
+// The board's copy of the access fact; redraws only when what it shows would change.
+function settleAccess(isNew, a){
+  const before = accessNote();
+  // !! so the initial undefined doesn't force a redundant full home re-render for granted users
+  const flipped = !!STATE.newOperator !== isNew;
+  STATE.newOperator = isNew; STATE.access = a; STATE.accessKind = a ? a.kind : null;
+  if (flipped || accessNote() !== before) renderHome();
+  try { window.dispatchEvent(new CustomEvent('tcc:access', { detail: a })); } catch (e) {}   // for anything else on the board that depends on it
+}
+// What the board says about a person's companies, above the areas.
+function accessNote(){ return ''; }
 
 function newOperatorCard(){
   const inSty = 'background:#0f1520;border:1.5px solid #2a3446;color:#e5e7eb;border-radius:8px;'+
@@ -983,6 +999,8 @@ function renderHome(){
   const collapsed = collapsedSet();
   let html = '';
   if (STATE.newOperator) html += newOperatorCard();   // first-run: create form, never "read-only"
+
+  html += accessNote();
   let firstCard = true;
   const locked = !boardUnlocked();      // Phase 2: locked until explored or setup-complete
   const LIVE_AREA = 'admin';            // only Administration is live until setup completes

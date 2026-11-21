@@ -100,10 +100,12 @@
 
 <script src="../../../shared/fl-auth.js?v=20260721a"></script>
 <script src="../../../shared/fl-api.js?v=20260721a"></script>
+<script src="../../../shared/fl-access.js?v=20261121a"></script>
 <script src="../../../shared/fl-state.js?v=20260721a"></script>
 <script src="../../../shared/fl-scope-select.js?v=20260721a"></script>
 <script>
   var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
+  var NO_CREATE = false, ACCESS = null;   // the empty state: no create offer / the access fact (shared/fl-access.js)
   // entity id -> {raw: pendingValue} while its ownership PATCH is pending (Set, Clear and Enter all funnel through
   // it; the busy row renders from it), else false/undefined
   var OWN_INFLIGHT = {};
@@ -220,7 +222,7 @@
     var list = scopedENTS();
     if(current>=ENTS.length) current = 0;
     var e = ENTS[current];
-    if(!e){ document.getElementById('ent-head').innerHTML='<div class="muted">No entities yet — add one below.</div>'; document.getElementById('ent-detail-rows').innerHTML=''; document.getElementById('ent-rows').innerHTML=''; return; }
+    if(!e){ document.getElementById('ent-head').innerHTML=emptyHeadHtml(); document.getElementById('ent-detail-rows').innerHTML=''; document.getElementById('ent-rows').innerHTML=''; return; }
     document.getElementById('ent-head').innerHTML =
       '<div style="font-size:16px;font-weight:800">'+esc(e.name)+'</div>'+
       '<div class="small muted">'+esc(e.code)+' · '+esc(e.type)+' · '+dash(e.doors)+' door'+(e.doors===1?'':'s')+' '+xref('Financials','financials')+'</div>';
@@ -309,7 +311,10 @@
       var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
       document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
     });
+    holdCreate();
   }
+  // No create offer stands through every re-render (this function re-shows every section first).
+  function holdCreate(){ if(NO_CREATE){ var add=document.getElementById('ent-add'); if(add) add.style.display='none'; } }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
   // (Re)build every surface from the current ENTS array. Called after load, create, and delete.
@@ -648,6 +653,35 @@
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
   }
 
+  // ── THE EMPTY STATE: no company to list ────────────────────────────
+  // FL answers "you were given none" and "this account has none yet" alike for an owner (200 []), and refuses a member
+  // (403). shared/fl-access.js says which it is; offerCreate() decides whether a company is offered here, and
+  // emptyHeadHtml() what the screen says. r = the list answer (403, or 200 with no rows).
+  function emptyState(r){
+    var go = function(a){
+      ACCESS = a;
+      if(offerCreate(a, r)){ if(r.status === 403) enterFirstRun(); else showEmptyList(); }
+      else showNoCreate();
+    };
+    if(window.flAccess && flAccess.classify) flAccess.classify(r).then(go, function(){ go(null); });
+    else go(null);
+  }
+  // Who is offered a company to create here. a = the access fact (null when it could not be read).
+  function offerCreate(a, r){ return true; }
+  function showEmptyList(){
+    NO_CREATE = false; ENTS = []; boot();
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+  }
+  // An empty list with no create offer: the add form stays hidden.
+  function showNoCreate(){
+    NO_CREATE = true; ENTS = []; boot(); holdCreate();
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+  }
+  // What the screen says when it lists no company.
+  function emptyHeadHtml(){
+    return NO_CREATE ? '<div class="muted">No companies to show.</div>' : '<div class="muted">No entities yet — add one below.</div>';
+  }
+
   // Auto-suggest a code from the legal name while the code field is untouched (first-run helper;
   // the server namespaces member codes anyway, so this is a convenience, not an identity).
   var codeTouched = false;
@@ -678,11 +712,12 @@
     listP.then(function(r){
       if(r.ok){
         ENTS = (r.data||[]).map(mapEntity);
+        if(!ENTS.length){ emptyState(r); return; }          // no rows: which kind of "none" decides what is offered
         boot();
         try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
         return;
       }
-      if(r.status === 403){ enterFirstRun(); return; }       // no grants yet = new operator, NOT down
+      if(r.status === 403){ emptyState(r); return; }         // no grants: which kind of "none" decides what is offered
       if(window.flApi && !flApi.authed()){ showAuth(); return; }  // session died mid-flight
       loadSampleFallback();   // signed in + API genuinely unreachable -> clearly-labeled dev sample
     }).catch(function(){
