@@ -530,6 +530,63 @@ document.addEventListener('click', e => {
   if (b.getAttribute('data-id-act') === 'signout') signOutEverywhere();
   else if (b.getAttribute('data-id-act') === 'signin') requestSignIn();
 });
+// Phase 2 (+ polish) — setup entry. Shows until setup is COMPLETE (not merely explored), so
+// "explore on my own" is never a one-way door: a persistent path back to setup always remains.
+// First run = the prominent flashing CTA on the locked board; after exploring = a compact resume bar.
+// Phase 3 swaps the click target from the global TARS chat to the TARS-led onboarding engine.
+// Wrong-words dispatch, item C: both are decided by two browser keys and no request, so they can say nothing about a
+// person's companies. Setting up an account is the business of the owner of a NEW account (the access fact: 'empty').
+// Everyone else keeps the way onto the board ("explore on my own") with words that promise nothing, and is not told
+// "Setup isn't finished" — there is no setup of theirs to finish. Re-drawn when the access fact lands (tcc:access).
+function renderSetupEntry(){
+  var host = $('tars-btn'); if(!host) return;
+  var old = document.getElementById('tars-firstrun'); if(old) old.remove();
+  if (STATE.role === 'field') return;            // scoped field role: no setup entry
+  if (setupComplete()) return;                   // setup finished -> no entry at all
+  if (isDemoAccount()) return;                   // demo/synthetic tenant: no setup funnel
+  var g = STATE.tenant.global_agent || {};
+  var name = esc(g.name||'TARS');
+  var building = STATE.accessKind === 'empty';   // the owner of a new account, who sets it up
+  var firstRun = !boardUnlocked();               // locked board, hasn't explored yet
+  if (!firstRun && !building) return;            // nothing true to say: no resume bar
+  var el = document.createElement('div');
+  el.id = 'tars-firstrun';
+  var goSetup = function(){ try{ if(window.Agents && Agents.openSetup) Agents.openSetup(); else if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
+  if (firstRun){
+    el.className = 'setup-cta';
+    el.innerHTML =
+      '<div class="setup-cta-row">'+
+        '<span style="flex:0 0 auto">'+tarsSvg(28)+'</span>'+
+        '<div style="flex:1">'+
+          (building
+            ? '<b>Welcome to Foundation Layer.</b> Your areas are locked until they’re set up. '+
+              name+' will walk you through it — your business, your entities, and which areas to turn on — '+
+              'and file everything as you go. Prefer hands-on? Explore on your own; you can come back to setup anytime.'
+            : '<b>Welcome to Foundation Layer.</b> On this browser the board starts with its areas closed. '+
+              'Explore on your own to open them all, or let '+name+' turn on the ones you use.')+
+        '</div>'+
+      '</div>'+
+      '<div class="setup-cta-btns">'+
+        '<button type="button" class="btn primary setup-cta-go" id="tfr-go">'+(building ? '🚀 Set up with '+name : 'Turn areas on with '+name)+'</button>'+
+        '<button type="button" class="btn" id="tfr-later">I’ll explore on my own →</button>'+
+      '</div>';
+  } else {
+    el.className = 'setup-resume';
+    el.innerHTML =
+      '<span style="flex:0 0 auto">'+tarsSvg(20)+'</span>'+
+      '<span class="setup-resume-tx"><b>Setup isn’t finished.</b> '+name+' can pick up where you left off and turn on the rest.</span>'+
+      '<button type="button" class="btn primary" id="tfr-go">Set up with '+name+'</button>';
+  }
+  host.parentNode.insertBefore(el, host.nextSibling);
+  var go=document.getElementById('tfr-go'), later=document.getElementById('tfr-later');
+  if(go) go.onclick=goSetup;
+  if(later) later.onclick=function(){
+    try{ localStorage.setItem('fl_explored','true'); }catch(e){}   // explore != setup complete
+    if (typeof renderChrome === 'function') renderChrome();        // swap CTA -> persistent resume bar
+    if (typeof renderHome === 'function') renderHome();            // unlock the board for roaming
+  };
+}
+window.addEventListener('tcc:access', () => { if (STATE.tenant) renderSetupEntry(); });
 
 function renderChrome(){
   const b = (STATE.tenant.branding)||{};
@@ -571,52 +628,7 @@ function renderChrome(){
       '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
   }
 
-  // Phase 2 (+ polish) — setup entry. Shows until setup is COMPLETE (not merely explored), so
-  // "explore on my own" is never a one-way door: a persistent path back to setup always remains.
-  // First run = the prominent flashing CTA on the locked board; after exploring = a compact resume bar.
-  // Phase 3 swaps the click target from the global TARS chat to the TARS-led onboarding engine.
-  (function(){
-    var host = $('tars-btn'); if(!host) return;
-    var old = document.getElementById('tars-firstrun'); if(old) old.remove();
-    if (STATE.role === 'field') return;            // scoped field role: no setup entry
-    if (setupComplete()) return;                   // setup finished -> no entry at all
-    if (isDemoAccount()) return;                   // demo/synthetic tenant: no setup funnel
-    var name = esc(g.name||'TARS');
-    var firstRun = !boardUnlocked();               // locked board, hasn't explored yet
-    var el = document.createElement('div');
-    el.id = 'tars-firstrun';
-    var goSetup = function(){ try{ if(window.Agents && Agents.openSetup) Agents.openSetup(); else if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
-    if (firstRun){
-      el.className = 'setup-cta';
-      el.innerHTML =
-        '<div class="setup-cta-row">'+
-          '<span style="flex:0 0 auto">'+tarsSvg(28)+'</span>'+
-          '<div style="flex:1">'+
-            '<b>Welcome to Foundation Layer.</b> Your areas are locked until they’re set up. '+
-            name+' will walk you through it — your business, your entities, and which areas to turn on — '+
-            'and file everything as you go. Prefer hands-on? Explore on your own; you can come back to setup anytime.'+
-          '</div>'+
-        '</div>'+
-        '<div class="setup-cta-btns">'+
-          '<button type="button" class="btn primary setup-cta-go" id="tfr-go">🚀 Set up with '+name+'</button>'+
-          '<button type="button" class="btn" id="tfr-later">I’ll explore on my own →</button>'+
-        '</div>';
-    } else {
-      el.className = 'setup-resume';
-      el.innerHTML =
-        '<span style="flex:0 0 auto">'+tarsSvg(20)+'</span>'+
-        '<span class="setup-resume-tx"><b>Setup isn’t finished.</b> '+name+' can pick up where you left off and turn on the rest.</span>'+
-        '<button type="button" class="btn primary" id="tfr-go">Set up with '+name+'</button>';
-    }
-    host.parentNode.insertBefore(el, host.nextSibling);
-    var go=document.getElementById('tfr-go'), later=document.getElementById('tfr-later');
-    if(go) go.onclick=goSetup;
-    if(later) later.onclick=function(){
-      try{ localStorage.setItem('fl_explored','true'); }catch(e){}   // explore != setup complete
-      if (typeof renderChrome === 'function') renderChrome();        // swap CTA -> persistent resume bar
-      if (typeof renderHome === 'function') renderHome();            // unlock the board for roaming
-    };
-  })();
+  renderSetupEntry();
 
   // header — tenant title only (date / role / sign-out moved up into the ribbon)
   $('head').innerHTML =
