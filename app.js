@@ -878,7 +878,7 @@ function collapsedSet(){ try { return new Set(JSON.parse(localStorage.getItem('t
    MARKET → REV/CEN/FRED/DEALCHECK · OVERVIEW → FL (Capital Rules + System). */
 function srcConnected(tag){
   switch(tag){
-    case 'FL':        return STATE.status.fl === 'ok';   // FL ledger API answered
+    case 'FL':        return STATE.status.fl === 'ok' || STATE.status.fl === 'refused';   // FL ledger API answered (a refusal is an answer)
     case 'REV':       return !!STATE.data.reventure;      // Reventure snapshot present
     case 'CEN':       return !!STATE.data.census;         // Census snapshot present
     case 'FRED':      return !!STATE.data.fred;           // FRED snapshot present
@@ -1430,7 +1430,7 @@ function tileWrap(l, inner, linkable){
 
 /* SYSTEM — health roll-up */
 function tileSystem(l){
-  const flUp = STATE.status.fl === 'ok';
+  const flUp = STATE.status.fl === 'ok' || STATE.status.fl === 'refused';   // a refusal is an answer: the source is up
   const flDown = STATE.status.fl === 'down';
   const nLayers = visibleLayers().length;
   let bcls='b-green', btxt='ALL GREEN', big='All green';
@@ -1457,6 +1457,11 @@ function tileCapitalRules(l){
   if (STATE.status.fl === 'down'){
     const inner = '<div class="top"><span class="lbl">'+lbl+'</span>'+badge('b-red','OFFLINE')+'</div>'+
       '<div class="big muted">Can’t reach it</div><div class="sub">showing last known · never faked</div>';
+    return tileWrap(l, inner, !!l.drilldown);
+  }
+  if (STATE.status.fl === 'refused'){   // FL answered: these figures are not for this account
+    const inner = '<div class="top"><span class="lbl">'+lbl+'</span>'+badge('b-gray','NO ACCESS')+'</div>'+
+      '<div class="big muted">Not shared with your account</div><div class="sub">Ask the owner of this account for access to these figures.</div>';
     return tileWrap(l, inner, !!l.drilldown);
   }
   if (!fl){ return tileWrap(l, '<div class="top"><span class="lbl">'+lbl+'</span>'+badge('b-gray','…')+'</div><div class="big muted">Checking…</div>', !!l.drilldown); }
@@ -1578,8 +1583,13 @@ function fetchAll(){
   if (flUrl && window.flApi && flApi.call){
     // H5: the Capital-Rules feed is the AUTHED, per-principal /api/dashboard/scoped (was the unauth
     // global /latest, now admin-only). flApi.call carries the JWT; null = no session/error -> down.
-    flApi.call('GET', '/api/dashboard/scoped')
-      .then(d=>{ if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
+    // Status-carrying (callX): a 403 is FL REFUSING this account the figures (a member without the clearance they need),
+    // which is a permission answer — never shown as "unreachable" / "offline" / "source down".
+    (flApi.callX ? flApi.callX('GET', '/api/dashboard/scoped')
+                 : flApi.call('GET', '/api/dashboard/scoped').then(d => ({ ok: !!d, status: d ? 200 : 0, data: d })))
+      .then(r=>{ const d = r && r.ok ? r.data : null;
+        if(!d && r && r.status === 403 && flApi.authed && flApi.authed()){ STATE.status.fl='refused'; refreshDataTiles(); updLiveBar(); return; }
+        if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
           STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
         STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
       .catch(()=>{ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
@@ -1613,6 +1623,9 @@ function updLiveBar(){
   } else if (STATE.status.fl === 'ok'){
     if (live) live.classList.remove('down');
     if (lbl) lbl.textContent = 'Live · updated '+ (STATE.data.fl ? fmtTs(STATE.data.fl.generated_at) : fmtTs(new Date().toISOString()));
+  } else if (STATE.status.fl === 'refused'){
+    if (live) live.classList.remove('down');
+    if (lbl) lbl.textContent = 'Live · the figures aren’t shared with your account';
   }
   refreshIdentity();   // a read has just come back: the corner line states the sign-in fact as it is now
 }
