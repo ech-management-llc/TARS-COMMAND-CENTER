@@ -312,6 +312,8 @@
       document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
     });
     holdCreate();
+
+    if(typeof holdEmpty === 'function') holdEmpty();
   }
   // No create offer stands through every re-render (this function re-shows every section first).
   function holdCreate(){ if(NO_CREATE){ var add=document.getElementById('ent-add'); if(add) add.style.display='none'; } }
@@ -679,9 +681,25 @@
     NO_CREATE = true; ENTS = []; boot(); holdCreate();
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
   }
-  // What the screen says when it lists no company.
+  // What the screen says when it lists no company — which of two different things "none" means. "None exist" means set
+  // it up; "you were not given any" means ask whoever runs the account. Only what the access fact supports is said.
   function emptyHeadHtml(){
+    var a = ACCESS, big = function(h, b){ return '<div style="font-size:16px;font-weight:800">'+esc(h)+'</div><div class="small muted">'+esc(b)+'</div>'; };
+    holdEmpty();
+    if(a && a.kind === 'none') return big('You don’t have access to any companies yet.', 'Ask the owner of this account to give you access.');
+    if(a && a.kind === 'unknown' && a.why === 'no-tenant') return big('Your sign-in isn’t linked to an account yet.', 'Ask the owner of this account to give you access.');
+    if(a && a.kind === 'unknown') return big('We couldn’t check which companies you can see just now.', 'Nothing is offered until we can. Open this screen again to retry.');
+    if(a && a.kind === 'empty' && !NO_CREATE) return '<div class="muted">This account has no companies yet — add the first one below.</div>';
     return NO_CREATE ? '<div class="muted">No companies to show.</div>' : '<div class="muted">No entities yet — add one below.</div>';
+  }
+  // A person shown no company because she was given none (or because it could not be checked) is not also shown empty
+  // company cards: a count of 0 and an empty roster would say "there are no companies".
+  function holdEmpty(){
+    var a = ACCESS, hide = !ENTS.length && !!a && (a.kind === 'none' || a.kind === 'unknown');
+    ['kpis','detail-rows','roster'].forEach(function(s){
+      var el = document.querySelector('[data-view-section="'+s+'"]'); if(el && hide) el.style.display = 'none';
+    });
+    var pk = document.getElementById('ent-picker'); if(pk) pk.style.display = hide ? 'none' : '';
   }
 
   // Auto-suggest a code from the legal name while the code field is untouched (first-run helper;

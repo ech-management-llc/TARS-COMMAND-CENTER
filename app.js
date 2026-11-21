@@ -935,7 +935,26 @@ function settleAccess(isNew, a){
   try { window.dispatchEvent(new CustomEvent('tcc:access', { detail: a })); } catch (e) {}   // for anything else on the board that depends on it
 }
 // What the board says about a person's companies, above the areas.
-function accessNote(){ return ''; }
+function accessNote(){
+  const w = accessWords(STATE.access);
+  if (!w) return '';
+  return '<section class="grp" id="access-note" style="border:1.5px solid var(--line,#2a3446);border-radius:12px;padding:14px 18px;margin-bottom:14px">'+
+    '<div style="font-size:15px;font-weight:800;margin-bottom:4px">'+esc(w.head)+'</div>'+
+    '<div class="note">'+esc(w.body)+'</div></section>';
+}
+// Which of two different things "no company" means, in words a person can act on. "None exist" means set it up;
+// "you were not given any" means ask whoever runs the account. Only what the access fact supports is said.
+function accessWords(a){
+  if (!a) return null;
+  if (a.kind === 'none') return { head:'You don’t have access to any companies yet.',
+    body:'Ask the owner of this account to give you access.' };
+  if (a.kind === 'unknown' && a.why === 'no-tenant') return { head:'Your sign-in isn’t linked to an account yet.',
+    body:'Ask the owner of this account to give you access.' };
+  if (a.kind === 'unknown') return { head:'We couldn’t check which companies you can see just now.',
+    body:'Nothing is offered until we can. Reload this page to try again.' };
+  return null;   // 'has', 'empty' (the create card says it), 'signed-out' (the sign-in says it)
+}
+window.accessSentence = a => { const w = accessWords(a); return w ? esc(w.head)+' '+esc(w.body) : ''; };
 
 function newOperatorCard(){
   const inSty = 'background:#0f1520;border:1.5px solid #2a3446;color:#e5e7eb;border-radius:8px;'+
@@ -1440,7 +1459,9 @@ function tileCapitalRules(l){
   else if (statuses.includes('GREEN')){ bcls='b-green'; btxt='HEALTHY'; big='Healthy'; }
   else { bcls='b-white'; btxt='NO DATA YET'; big='No data yet'; }   // all UNKNOWN → white
   const nPend = statuses.filter(s=>s==='UNKNOWN').length;
-  const sub = nPend ? ('Debt · loan coverage · cash cushion · per-door ('+nPend+' still setting up)') : 'Debt · loan coverage · cash cushion · per-door';
+  let sub = nPend ? ('Debt · loan coverage · cash cushion · per-door ('+nPend+' still setting up)') : 'Debt · loan coverage · cash cushion · per-door';
+  // nothing known because this person was given no company — not because anything is still being set up
+  if (nPend === keys.length && STATE.accessKind === 'none'){ btxt='NO ACCESS YET'; big='No companies shared with you'; sub='Figures show here for the companies you’re given access to.'; }
   const inner = '<div class="top"><span class="lbl">'+lbl+'</span>'+badge(bcls,btxt)+'</div>'+
     '<div class="big">'+esc(big)+'</div><div class="sub">'+esc(sub)+'</div>'+
     '<div class="stamp">FL API · '+esc(fmtTs(fl.generated_at))+'</div>';
