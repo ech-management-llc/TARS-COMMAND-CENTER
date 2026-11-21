@@ -448,6 +448,7 @@ function handleSetup(v){
     return true;
   }
   if (is('Set up my business & entities') || /(set ?up|setup).*(business|entit)|business (and|&) entit/.test(t)){
+    if (!entityStepOpen()){ aBubble(entityStepClosed()); return true; }   // no company offered to someone not given access
     var b=aBubble('Let’s capture your business and people. Your business (an LLC) becomes an <b>entity</b>; the owner is filed under <b>Personal Information</b>. Add any other entities one per line.'+
       '<div class="setup-mini">'+
         '<label class="setup-mini-l">Business / primary entity name (LLC)</label><input class="setup-mini-in" id="su-biz" placeholder="e.g. ECH Management Services LLC">'+
@@ -1174,11 +1175,32 @@ function handleSetup(v){
     return true;
   }
   if (is('Yes — start setup') || is('Yes') || /^(yes|start setup|begin|let's go|lets go)/.test(t)){
-    aBubble('Great — here’s how this works. Tell me your <b>business &amp; entities</b>, turn on the <b>areas</b> you use, and <b>hire or skip</b> each area’s employee. Everything files into your Document Navigator. Pick any to start — or just click an area on the board to set it up yourself.');
-    setGchips(['Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']);
+    aBubble(entityStepOpen()
+      ? 'Great — here’s how this works. Tell me your <b>business &amp; entities</b>, turn on the <b>areas</b> you use, and <b>hire or skip</b> each area’s employee. Everything files into your Document Navigator. Pick any to start — or just click an area on the board to set it up yourself.'
+      : 'Great — here’s how this works. Turn on the <b>areas</b> you use, and <b>hire or skip</b> each area’s employee. Pick any to start — or just click an area on the board to set it up yourself.');
+    setGchips(setupChipList(['Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']));
     return true;
   }
   return false;
+}
+
+// The "business & entities" step creates companies (POST /api/entities). It is offered only to someone who may create
+// one here: a person who already holds companies, or the owner of an account that has none yet (the board's access
+// fact, shared/fl-access.js via app.js). A person who was simply not given access is not offered a company to create —
+// FL would accept one from any owner and file it beside the companies she cannot see. With no session reaching the
+// API (the local demo) the walkthrough is unchanged: nothing it sends can land anywhere.
+function entityStepOpen(){
+  if (!(window.flApi && flApi.authed && flApi.authed())) return true;
+  var S = window.TCC && window.TCC.STATE, a = S && S.access;
+  return !!a && (a.kind === 'has' || a.kind === 'empty');
+}
+function entityStepClosed(){
+  var S = window.TCC && window.TCC.STATE, a = S && S.access;
+  var said = (typeof window.accessSentence === 'function') ? window.accessSentence(a) : '';
+  return said || 'Adding companies isn’t open to your account here.';
+}
+function setupChipList(list){
+  return entityStepOpen() ? list : list.filter(function(c){ return c !== 'Set up my business & entities'; });
 }
 
 // Setup-flavored entry (Phase 2 polish; Phase 3 wires the chips to the real engine above): opens the
@@ -1189,14 +1211,15 @@ function openSetup(){
   if (msgs){
     msgs.insertAdjacentHTML('beforeend',
       '<div class="emsg a"><b>Let’s set up your Foundation Layer — ready to start?</b><br>'+
-      'I’ll walk you through your business and entities, turn on the areas you want (or turn any on yourself in one click), '+
+      (entityStepOpen() ? 'I’ll walk you through your business and entities, turn on the areas you want (or turn any on yourself in one click), '
+                        : 'I’ll turn on the areas you want (or turn any on yourself in one click), ')+
       'hire or skip each area’s employee, and file everything into your Document Navigator as we go. '+
       'Text for now — voice conversation is coming soon.</div>');
     msgs.scrollTop = msgs.scrollHeight;
   }
   if (chips){
     chips.innerHTML = '';
-    ['Yes — start setup','Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']
+    setupChipList(['Yes — start setup','Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup'])
       .forEach(function(c){
         var b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=c;
         b.onclick=function(){ var i=$('ginput'), s=$('gsend'); if(i&&s){ i.value=c; s.click(); } };

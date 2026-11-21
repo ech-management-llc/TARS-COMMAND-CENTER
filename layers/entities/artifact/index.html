@@ -667,7 +667,9 @@
     else go(null);
   }
   // Who is offered a company to create here. a = the access fact (null when it could not be read).
-  function offerCreate(a, r){ return true; }
+  // Only someone who may create the account's first company; never a person who was simply not given access, and,
+  // without the fact, never a member (FL refuses her outright: 403).
+  function offerCreate(a, r){ return a ? !!a.mayCreate : r.status !== 403; }
   function showEmptyList(){
     NO_CREATE = false; ENTS = []; boot();
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}

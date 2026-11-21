@@ -921,7 +921,10 @@ function checkNewOperator(){
   }).catch(()=>{});
 }
 // Who is offered "Create your first company" on the board. a = the access fact (null when it could not be read).
-function boardOffersCreate(a, r){ return true; }
+// Only someone who may create the account's first company: a person who was simply not given access is never offered
+// one (FL would accept it from any owner and file it beside the companies she cannot see). Without the fact, never a
+// member (FL refuses her outright: 403).
+function boardOffersCreate(a, r){ return a ? !!a.mayCreate : r.status !== 403; }
 // The board's copy of the access fact; redraws only when what it shows would change.
 function settleAccess(isNew, a){
   const before = accessNote();
