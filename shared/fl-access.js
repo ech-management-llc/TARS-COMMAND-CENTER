@@ -78,8 +78,17 @@
     });
   }
 
+  // A read that never answers must not hold a screen open: past this, the fact is 'unknown' and nothing is offered.
+  var READ_LIMIT_MS = 10000;
+  function bounded(p) {
+    return Promise.race([p, new Promise(function (res) { setTimeout(function () { res(lost('slow')); }, READ_LIMIT_MS); })]);
+  }
+
   // r = the status-carrying answer to GET /api/entities ({ok, status, data}) a screen already holds.
   function classify(r) {
+    return bounded(classify0(r));
+  }
+  function classify0(r) {
     return Promise.resolve().then(function () {
       if (!r || r.status === 0) return lost('list-no-answer');
       if (r.status === 401) return fact('signed-out', 'list-401');
@@ -105,5 +114,17 @@
   }
   function forget() { memo = null; memoTok = null; }
 
-  window.flAccess = { classify: classify, read: read, forget: forget };
+  // At the moment a company create is pressed: read the fact afresh, for the session that will actually be sent.
+  // 'first' — a screen that offers the account's FIRST company: only 'empty'. 'more' — a screen that also serves a
+  // person who already holds companies (Entities, TARS): 'empty' or 'has'. A form drawn under an older fact, a person
+  // who changed under it, or a grant taken away meanwhile is caught here, before anything is sent.
+  function mayCreateNow(rule) {
+    forget();
+    return read().then(function (a) {
+      var ok = !!a && (a.mayCreate || (rule === 'more' && a.kind === 'has'));
+      return { ok: ok, a: a };
+    }, function () { return { ok: false, a: lost('error') }; });
+  }
+
+  window.flAccess = { classify: classify, read: read, forget: forget, mayCreateNow: mayCreateNow };
 })();

@@ -560,6 +560,14 @@ function handleSetup(v){
     var namesOf=function(rows){ var nm=rows.map(function(r){ return '<b>'+esc((r && (r.name||r.code))||'a company')+'</b>'; }); return nm.length<=1 ? (nm[0]||'') : nm.slice(0,-1).join(', ')+' and '+nm[nm.length-1]; };
     go.onclick=async function(){
       if(busy || done) return;                                   // guard: one row set per submission, no double-write
+      // the form may have been drawn under an older fact, or with no session: at the click, with a session, the fact is
+      // read again for the session that will be sent, and nothing is created for a person who may not create here
+      if(window.flApi && flApi.authed && flApi.authed()){
+        busy=true;   // a second click while the fact is read is not a second submission
+        var gate=(window.flAccess && flAccess.mayCreateNow) ? await flAccess.mayCreateNow('more') : { ok:false, a:null };
+        busy=false;
+        if(!gate.ok){ b.querySelector('#su-biz-msg').innerHTML='<span class="su-err">'+entityStepClosed(gate.a)+'</span> Nothing was saved.'; return; }
+      }
       var biz=cleanName(b.querySelector('#su-biz').value);
       var owner=cleanName(b.querySelector('#su-owner').value);
       var ents=(b.querySelector('#su-ents').value||'').split('\n').map(cleanName).filter(Boolean);
@@ -1194,8 +1202,8 @@ function entityStepOpen(){
   var S = window.TCC && window.TCC.STATE, a = S && S.access;
   return !!a && (a.kind === 'has' || a.kind === 'empty');
 }
-function entityStepClosed(){
-  var S = window.TCC && window.TCC.STATE, a = S && S.access;
+function entityStepClosed(fresh){
+  var S = window.TCC && window.TCC.STATE, a = fresh !== undefined ? fresh : (S && S.access);
   var said = (typeof window.accessSentence === 'function') ? window.accessSentence(a) : '';
   return said || 'Adding companies isn’t open to your account here.';
 }

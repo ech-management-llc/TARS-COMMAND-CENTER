@@ -935,8 +935,8 @@ function checkNewOperator(){
 // Who is offered "Create your first company" on the board. a = the access fact (null when it could not be read).
 // Only someone who may create the account's first company: a person who was simply not given access is never offered
 // one (FL would accept it from any owner and file it beside the companies she cannot see). Without the fact, never a
-// member (FL refuses her outright: 403).
-function boardOffersCreate(a, r){ return a ? !!a.mayCreate : r.status !== 403; }
+// member (FL refuses her outright: 403). Without the fact at all (shared/fl-access.js did not load), nothing is offered.
+function boardOffersCreate(a, r){ return !!(a && a.mayCreate); }
 // The board's copy of the access fact; redraws only when what it shows would change.
 function settleAccess(isNew, a){
   const before = accessNote();
@@ -989,7 +989,22 @@ function newOperatorCard(){
     '<div id="newop-msg" class="note" style="min-height:16px;margin-top:8px"></div></section>';
 }
 
+// The card was drawn under an earlier answer. At the click the fact is read again, for the session that will be sent:
+// a different person signed in meanwhile, or a company that appeared in the account, means nothing is created here.
+let newopGatePassed = false;
 function newOperatorCreate(){
+  if (!newopGatePassed){
+    const btn0 = $('newop-create'), msg0 = $('newop-msg');
+    if (btn0) btn0.disabled = true;
+    const gate = (window.flAccess && flAccess.mayCreateNow) ? flAccess.mayCreateNow('first') : Promise.resolve({ ok:false, a:null });
+    gate.then(g => {
+      if (btn0) btn0.disabled = false;
+      if (g.ok){ newopGatePassed = true; try { newOperatorCreate(); } finally { newopGatePassed = false; } return; }
+      if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+((typeof window.accessSentence === 'function' && window.accessSentence(g.a)) || 'Creating a company isn’t open to your account here.')+'</b>';
+      settleAccess(false, g.a);   // the card goes: what the board says now follows the fresh answer
+    });
+    return;
+  }
   const name = ($('newop-name').value||'').trim(), code = ($('newop-code').value||'').trim();
   const msg = $('newop-msg'), btn = $('newop-create');
   if (!name || !code){ msg.innerHTML = '<b style="color:#ef4444">Name and code are both required.</b>'; return; }
