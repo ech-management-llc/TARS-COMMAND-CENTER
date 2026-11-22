@@ -1603,7 +1603,7 @@ function fetchAll(){
     (flApi.callX ? flApi.callX('GET', '/api/dashboard/scoped')
                  : flApi.call('GET', '/api/dashboard/scoped').then(d => ({ ok: !!d, status: d ? 200 : 0, data: d })))
       .then(r=>{ const d = r && r.ok ? r.data : null;
-        if(!d && r && r.status === 403 && flApi.authed && flApi.authed()){ STATE.status.fl='refused'; refreshDataTiles(); updLiveBar(); return; }
+        if(!d && r && r.status === 403 && flApi.authed && flApi.authed()){ STATE.status.fl='refused'; STATE.data.fl=null; refreshDataTiles(); updLiveBar(); return; }   // refused: the figures held from before are not hers to read (TARS reads them too)
         if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
           STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
         STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })

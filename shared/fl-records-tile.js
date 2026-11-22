@@ -295,7 +295,7 @@
     if (!box) return;
     box.style.display = 'block';
     box.innerHTML = '<div class="section-label">NO ACCESS</div>' +
-      '<div class="small">' + esc(cfg.title) + ' records aren’t shared with your account. <b>Ask the owner of this account to give you access.</b> ' +
+      '<div class="small">' + esc(cfg.title) + ' records aren’t shared with your account. <b>Ask the owner of this account for access to these records.</b> ' +
       '<span class="muted">Your sign-in is fine — this is about what your account may see.</span></div>';
   }
 
