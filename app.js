@@ -130,7 +130,7 @@ function startApp(){
   renderChrome();
   renderHome();
   fetchAll();
-  checkNewOperator();   // real signed-in + zero grants -> "Create your first company" (find #1)
+  recheckAccess();      // the first read of the access fact, in the same one-at-a-time slot as every later one
   wireGlobalControls();
   loadBriefRouter();
   if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();  // "Report an issue" (bug-capture)
@@ -613,6 +613,7 @@ function renderChrome(){
     '<button type="button" id="signout-btn" class="vb-signout">sign out</button>';
   $('signout-btn').onclick = signOutEverywhere;
   $('refresh-btn').onclick = forceRefresh;   // this ribbon is redrawn on every board refresh; a redrawn button had no handler
+  if (STATE.status.fl) updLiveBar();         // ...and its label says what the last read said, not a bare "Live"
   if ($('ov') && $('ov').classList.contains('on')) mountDrillIdentity();   // an open tile's corner follows too
 
   // global TARS button — pinned at top; hidden for the scoped Field role
@@ -925,7 +926,10 @@ function checkNewOperator(){
   return flApi.callX('GET', '/api/entities').then(r => {
     if (!r) return;
     const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
-    if (!isNew){ settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return; }
+    if (!isNew){
+      if (!r.ok && STATE.access) return;   // a failed re-read leaves the last fact standing (it does not wipe what is said)
+      settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return;
+    }
     // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
     const done = a => settleAccess(boardOffersCreate(a, r), a);
     if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
@@ -1754,8 +1758,11 @@ let accessCheck = null, accessAgain = false;
 function recheckAccess(){   // every caller is wired by startApp() or lives on the board, so the board has started
   if (accessCheck){ accessAgain = true; return; }
   if (window.flAccess && flAccess.forget) flAccess.forget();
+  const was = STATE.accessKind;
   accessCheck = Promise.resolve(checkNewOperator()).catch(() => {}).then(() => {
     accessCheck = null;
+    // the figures follow: a grant or a revoke changes what Financial Health may say, and a refusal may have been lifted
+    if (was !== undefined && (STATE.accessKind !== was || STATE.status.fl === 'refused')) fetchAll();
     if (accessAgain){ accessAgain = false; recheckAccess(); }
   });
 }
@@ -1765,10 +1772,10 @@ function wireGlobalControls(){
   $('refresh-btn').onclick = forceRefresh;
   $('tars-btn').onclick = () => { if (window.Agents) Agents.openGlobal(); };
   // close overlays on backdrop click / Esc
-  ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov'){ $('panel').innerHTML=''; recheckAccess(); } } }));
+  ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov'){ $('panel').innerHTML=''; } recheckAccess(); } }));
   // (Esc does nothing while the sign-in form is up: it used to close the tile underneath, unseen, and with it
   // whatever was typed there)
-  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; const was = $('ov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
+  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; const was = $('ov').classList.contains('on') || $('gov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
   // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event) —
   // or it now belongs to a different account than the one this page is presenting: then this page is someone
   // else's screen, and it is reloaded (boot presents whoever the token names).

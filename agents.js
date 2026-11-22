@@ -367,7 +367,7 @@ function buildGlobal(){
   };
   $('gsend').onclick = send;
   input.addEventListener('keydown', e => { if (e.key==='Enter') send(); });
-  $('gclose').onclick = () => { $('gov').classList.remove('on'); document.body.style.overflow=''; };
+  $('gclose').onclick = () => { $('gov').classList.remove('on'); document.body.style.overflow=''; if (typeof window.recheckAccess === 'function') window.recheckAccess(); };   // back on the board: what she may see is read again
   const cw = $('gchips');
   (g.chips||[]).forEach(c => { const b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=c; b.onclick=()=>{ input.value=c; send(); }; cw.appendChild(b); });
   gInit = true;
@@ -876,6 +876,7 @@ function handleSetup(v){
       var ownerUnknown=!!owner && ownerMaybe.some(function(m){ return nkey(m.label)===nkey(owner); });   // the owner typed now may be filed
       var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed || ownerFound));
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
+      if(entCreated && typeof window.recheckAccess === 'function') window.recheckAccess();   // the board follows: a first company is no longer "none yet"
       var nowAuthed=!!(window.flApi && flApi.authed && flApi.authed());
       // the STORED key of the company holding the code when this click read it (the preview and the summary show stored keys); kept
       // on the line so the preview drawn below shows it too (round 30)
