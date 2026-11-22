@@ -71,6 +71,20 @@
   .emp-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--ln,#26243a); }
   .emp-row-l { display:flex; align-items:center; gap:10px; } .emp-row-nm { font-weight:800; color:var(--fg,#fff); font-size:13.5px; }
   .emp-row-r { display:flex; gap:6px; flex:0 0 auto; }
+  /* The setup surfaces' controls must LOOK like controls. The board's stylesheet never defined .btn (tiles get it
+     from artifact.css), so these drew as small grey system buttons — while the decorative chips above them, which
+     do nothing, looked pressable. Scoped to the setup surfaces; nothing else on the board changes. */
+  .setup-modal-card .btn, .setup-cta .btn, .setup-resume .btn { background:var(--surf2,#1c1c22); border:1px solid var(--purpleln,#5b4b8a); color:var(--txt,#f4f4f5); border-radius:10px; padding:9px 15px; font:inherit; font-size:13px; font-weight:700; line-height:1.2; cursor:pointer; }
+  .setup-modal-card .btn:hover, .setup-cta .btn:hover, .setup-resume .btn:hover { background:rgba(139,127,240,.18); }
+  .setup-modal-card .btn.primary, .setup-cta .btn.primary, .setup-resume .btn.primary { background:var(--accent,#10b981); border-color:var(--accent,#10b981); color:#06150f; }
+  .setup-modal-card .btn.primary:hover, .setup-cta .btn.primary:hover, .setup-resume .btn.primary:hover { filter:brightness(1.1); background:var(--accent,#10b981); }
+  .setup-modal-card .btn:focus-visible, .setup-cta .btn:focus-visible, .setup-resume .btn:focus-visible { outline:2px solid #c4b5fd; outline-offset:2px; }
+  .setup-modal-card .btn.sm { padding:5px 11px; font-size:12px; }
+  .setup-tile-chip { cursor:default; }
+  /* who is signed in — one right-aligned line: the top-right corner of the board, and of an open tile */
+  .idbar { display:flex; justify-content:flex-end; align-items:baseline; gap:10px; flex-wrap:wrap; margin:0 4px 8px; font-size:12px; color:var(--mut,#9aa3b2); }
+  .idbar b { color:var(--txt,#f4f4f5); font-weight:600; overflow-wrap:anywhere; }
+  .idbar .vb-signout { font-size:12px; }
   .btn.sm { padding:5px 11px; font-size:12px; }
   .setup-mini { margin-top:10px; display:flex; flex-direction:column; gap:5px; }
   .setup-mini-l { font-size:11.5px; font-weight:700; color:var(--dim,#9aa); margin-top:4px; }
@@ -115,13 +129,13 @@
 
 <!-- Supabase Auth: PUBLIC publishable (anon) key — safe to ship client-side (RLS + JWT verification enforce security). Disable public sign-ups in Supabase for a single-operator install. -->
 <script>window.FL_SUPABASE={url:'https://vnsbmzbnvszgsibttkot.supabase.co',anon:'sb_publishable_lAyX64SeqyQz8dyA25i91w_1jp7dxaL'};window.FL_API_BASE='https://api.foundationlayerhq.com';window.FL_AGENT_BASE='https://fl-agent.fly.dev';</script>
-<script src="shared/fl-auth.js?v=20260721a" defer></script>
+<script src="shared/fl-auth.js?v=20261120a" defer></script>
 <script src="shared/fl-api.js?v=20260721a" defer></script>
 <script src="shared/fl-state.js?v=20260721a" defer></script>
 <script src="shared/fl-text-tars.js?v=20260721a" defer></script>
 <script src="agents.js?v=20260925a" defer></script>
 <script src="shared/fl-coach-companion.js?v=20260721a" defer></script>
 <script src="shared/fl-brief-router.js?v=20260721a" defer></script>
-<script src="app.js?v=20260721a" defer></script>
+<script src="app.js?v=20261120a" defer></script>
 </body>
 </html>

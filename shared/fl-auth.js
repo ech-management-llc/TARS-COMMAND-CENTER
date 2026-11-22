@@ -24,6 +24,31 @@
   };
   var _expired = false;   // true once a refresh CONFIRMS the session is dead (vs merely signed-out)
 
+  // The same fact, where every window can read it. `_expired` alone lives in ONE window for ONE page load, and
+  // the board and each tile (an <iframe>) run their own copy of this file — so a session that ended in one of
+  // them had "never signed in" as far as the others could tell, and as far as anyone could tell after a reload.
+  // ENDED_KEY is written beside the cleared token and removed by the next sign-in or a deliberate sign-out.
+  var ENDED_KEY = 'fl_auth_ended';
+  function markEnded(emailAddr) {
+    _expired = true;
+    try { localStorage.setItem(ENDED_KEY, JSON.stringify({ at: Date.now(), email: emailAddr || '' })); } catch (e) {}
+    // a "storage" event never reaches the window that wrote, so say it here too (the board listens)
+    try { window.dispatchEvent(new CustomEvent('fl:auth-ended')); } catch (e) {}
+  }
+  function clearEnded() {
+    _expired = false;
+    try { localStorage.removeItem(ENDED_KEY); } catch (e) {}
+  }
+  // { at, email } when a session ended and nobody has signed in since; null otherwise. A live token wins.
+  function ended() {
+    try {
+      if (localStorage.getItem('fl_auth_token')) return null;
+      var v = JSON.parse(localStorage.getItem(ENDED_KEY) || 'null');
+      if (!v || typeof v !== 'object') return null;
+      return { at: Number(v.at) || 0, email: typeof v.email === 'string' ? v.email : '' };
+    } catch (e) { return null; }
+  }
+
   function configured() { return !!(CFG.url && CFG.anon); }
 
   async function signIn(email, password) {
@@ -44,7 +69,7 @@
         localStorage.setItem('fl_auth_exp', String(Date.now() + ((data.expires_in || 3600) * 1000)));
         localStorage.setItem('fl_auth_email', (data.user && data.user.email) || email);
       } catch (e) {}
-      _expired = false;   // fresh session
+      clearEnded();       // fresh session
       return { user: data.user, access_token: data.access_token };
     } catch (e) {
       return { error: 'Could not reach Supabase. Check your connection.' };
@@ -73,11 +98,13 @@
     }
   }
 
+  // A deliberate sign-out is not an ended session: it leaves no "ended" note behind.
   function signOut() {
     try {
       ['fl_auth_token', 'fl_auth_refresh', 'fl_auth_exp', 'fl_auth_email']
         .forEach(function (k) { localStorage.removeItem(k); });
     } catch (e) {}
+    clearEnded();
   }
 
   function token() { try { return localStorage.getItem('fl_auth_token'); } catch (e) { return null; } }
@@ -95,15 +122,18 @@
 
   // expired() = a refresh CONFIRMED the session is dead (refresh token rejected). Distinct from a
   // plain signed-out state — lets the UI say "your session expired" instead of a misleading empty.
-  function expired() { return _expired; }
+  // Read from storage as well as from this window, so the board, every tile and the next page load agree.
+  function expired() { return !token() && (_expired || !!ended()); }
 
   // Exchange the stored refresh token for a new access token. Returns true on success.
-  // On an AUTH rejection (refresh token bad/expired) it clears the session and marks expired.
-  // On a transient NETWORK error it returns false WITHOUT clearing (the existing token may still work).
+  // On an AUTH rejection (refresh token bad/expired) it clears the session and marks it ended.
+  // On anything that is NOT the sign-in service saying "this session is over" — a network error, a rate
+  // limit, a server error, an unreadable answer — it returns false WITHOUT clearing: the session may be alive.
   async function refresh() {
     if (!configured()) return false;
     var rt = null; try { rt = localStorage.getItem('fl_auth_refresh'); } catch (e) {}
-    if (!rt) { signOut(); _expired = true; return false; }
+    var who = email();
+    if (!rt) { signOut(); markEnded(who); return false; }
     try {
       var res = await fetch(CFG.url + '/auth/v1/token?grant_type=refresh_token', {
         method: 'POST',
@@ -111,13 +141,19 @@
         body: JSON.stringify({ refresh_token: rt }),
       });
       var data = await res.json().catch(function () { return {}; });
-      if (!res.ok || !data.access_token) { signOut(); _expired = true; return false; }
+      // The answer is about the session this request was SENT for. If storage holds a different one by now —
+      // another window refreshed it, or the person signed out, or someone signed in — the answer says nothing
+      // about what is here: it must not end it, and must not write an old session back over it.
+      var cur = null; try { cur = localStorage.getItem('fl_auth_refresh'); } catch (e) {}
+      if (cur !== rt) return !!token();
+      if (res.status === 400 || res.status === 401 || res.status === 403) { signOut(); markEnded(who); return false; }
+      if (!res.ok || !data.access_token) return false;   // 429 / 5xx / no token in the answer — not a verdict
       try {
         localStorage.setItem('fl_auth_token', data.access_token);
         if (data.refresh_token) localStorage.setItem('fl_auth_refresh', data.refresh_token);
         localStorage.setItem('fl_auth_exp', String(Date.now() + ((data.expires_in || 3600) * 1000)));
       } catch (e) {}
-      _expired = false;
+      clearEnded();
       return true;
     } catch (e) {
       return false;   // network error — don't clear; could be transient
@@ -128,6 +164,7 @@
     configured: configured, signIn: signIn, signOut: signOut, token: token, email: email,
     requestPasswordReset: requestPasswordReset,
     refresh: refresh, needsRefresh: needsRefresh, expired: expired,
+    ended: ended, markEnded: markEnded,
     mountReportButton: function () { _mountReportButton(); },   // callable after in-window login
   };
 
@@ -288,14 +325,91 @@
     } catch (e) {}
   }
 
+  // ── the control that performs "sign in", on every sign-in card ──
+  // A tile that finds no session draws a card headed SIGN IN REQUIRED or SESSION EXPIRED that tells the person
+  // to "sign in to the Command Center" — and, until now, gave them nothing to press. Every tile draws that card
+  // the same way (a .section-label carrying one of those two headings, inside the card), so the button is added
+  // HERE, once, for all of them. A tile is an <iframe>: it cannot show the board's sign-in form itself, so the
+  // button asks the board for it; opened on its own, it goes to the board. Once a session is back (signed in on
+  // the board, or in another tab) the same button reads "Continue" and reloads the tile — nothing reloads by
+  // itself, so whatever the card says about a change in flight stays on screen until the person moves on.
+  var _ROOT = (function () {
+    try { return new URL('../', document.currentScript.src).href; } catch (e) { return '/'; }
+  })();
+  function _signInPressed() {
+    if (token()) { location.reload(); return; }
+    try {
+      var p = window.parent;
+      if (p && p !== window) {
+        // A board that was already open before this button existed has nothing listening for the request, and
+        // the button would do nothing. Ask only a board that can answer; otherwise load the current board over
+        // the old one, which then shows the form itself.
+        var able = false;
+        try { able = typeof p.requestSignIn === 'function'; } catch (e) {}
+        if (able) { p.postMessage({ type: 'tcc:signin:request' }, location.origin); return; }
+        try { window.top.location.href = _ROOT; return; } catch (e) {}
+      }
+    } catch (e) {}
+    location.href = _ROOT;
+  }
+  function _dressSignInCards() {
+    try {
+      var back = !!token();
+      var want = back ? 'Continue' : 'Sign in';
+      var wantNote = back ? 'You are signed in again.' : '';
+      var labels = document.querySelectorAll('.section-label');
+      for (var i = 0; i < labels.length; i++) {
+        var t = (labels[i].textContent || '').replace(/\s+/g, ' ').trim();
+        if (t !== 'SIGN IN REQUIRED' && t !== 'SESSION EXPIRED') continue;
+        var box = labels[i].parentNode;
+        if (!box || !box.querySelector || !box.setAttribute) continue;
+        // Some tiles draw this card for a person who IS signed in and has simply been refused that kind of
+        // record. There, nothing this button could do is true: "Sign in" has nothing to do, and "Continue — you
+        // are signed in again" would be false and would reload into the same card for ever. So the card gets
+        // the button only if it has been seen with nobody signed in; otherwise it is left exactly as it was.
+        if (!back) box.setAttribute('data-fl-signed-out-seen', '1');
+        else if (!box.hasAttribute('data-fl-signed-out-seen')) continue;
+        var btn = box.querySelector('[data-fl-signin]');
+        if (!btn) {
+          var row = document.createElement('div');
+          row.className = 'fl-signin-row';
+          row.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+          btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn primary';
+          btn.setAttribute('data-fl-signin', '');
+          btn.addEventListener('click', _signInPressed);
+          var note = document.createElement('span');
+          note.className = 'small';
+          note.setAttribute('data-fl-signin-note', '');
+          row.appendChild(btn);
+          row.appendChild(note);
+          box.appendChild(row);
+        }
+        if (btn.textContent !== want) btn.textContent = want;
+        var n = box.querySelector('[data-fl-signin-note]');
+        if (n && n.textContent !== wantNote) n.textContent = wantNote;
+      }
+    } catch (e) {}
+  }
+  function _watchSignInCards() {
+    try {
+      if (!document.querySelector('.art-wrap')) return;        // tiles only (same test as the demo banner); never the board
+      _dressSignInCards();
+      if (typeof MutationObserver === 'undefined' || !document.body) return;
+      // re-dressing changes nothing once a card has its button, so this settles after one extra pass
+      new MutationObserver(_dressSignInCards).observe(document.body, { childList: true, subtree: true, characterData: true });
+    } catch (e) {}
+  }
+
   if (typeof document !== 'undefined') {
-    var _mountAll = function () { _mountDemoBanner(); _mountReportButton(); };
+    var _mountAll = function () { _mountDemoBanner(); _mountReportButton(); _watchSignInCards(); };
     if (document.readyState !== 'loading') _mountAll();
     else document.addEventListener('DOMContentLoaded', _mountAll);
     // The report button needs a session; if the tester signs in without a full reload, retry.
     window.addEventListener('focus', _mountReportButton);
     window.addEventListener('storage', function (e) {
-      if (!e || e.key === 'fl_auth_token' || e.key === null) _mountReportButton();
+      if (!e || e.key === 'fl_auth_token' || e.key === null) { _mountReportButton(); _dressSignInCards(); }
     });
   }
 })();
