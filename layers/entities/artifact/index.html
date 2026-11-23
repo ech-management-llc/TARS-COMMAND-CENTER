@@ -100,10 +100,13 @@
 
 <script src="../../../shared/fl-auth.js?v=20260721a"></script>
 <script src="../../../shared/fl-api.js?v=20260721a"></script>
+<script src="../../../shared/fl-access.js?v=20261121b"></script>
 <script src="../../../shared/fl-state.js?v=20260721a"></script>
 <script src="../../../shared/fl-scope-select.js?v=20260721a"></script>
 <script>
   var ENTS = [], current = 0, viewOps = [], SELE = null, scope = null;
+  var NO_CREATE = false, ACCESS = null;   // the empty state: no create offer / the access fact (shared/fl-access.js)
+  var CREATE_PENDING = false;             // the add form stays hidden until the list (and, if empty, the access fact) has answered
   // entity id -> {raw: pendingValue} while its ownership PATCH is pending (Set, Clear and Enter all funnel through
   // it; the busy row renders from it), else false/undefined
   var OWN_INFLIGHT = {};
@@ -220,7 +223,7 @@
     var list = scopedENTS();
     if(current>=ENTS.length) current = 0;
     var e = ENTS[current];
-    if(!e){ document.getElementById('ent-head').innerHTML='<div class="muted">No entities yet — add one below.</div>'; document.getElementById('ent-detail-rows').innerHTML=''; document.getElementById('ent-rows').innerHTML=''; return; }
+    if(!e){ document.getElementById('ent-head').innerHTML=emptyHeadHtml(); document.getElementById('ent-detail-rows').innerHTML=''; document.getElementById('ent-rows').innerHTML=''; return; }
     document.getElementById('ent-head').innerHTML =
       '<div style="font-size:16px;font-weight:800">'+esc(e.name)+'</div>'+
       '<div class="small muted">'+esc(e.code)+' · '+esc(e.type)+' · '+dash(e.doors)+' door'+(e.doors===1?'':'s')+' '+xref('Financials','financials')+'</div>';
@@ -309,7 +312,12 @@
       var sel = op.target_type==='section' ? '[data-view-section="'+op.target+'"]' : '[data-view-row="'+op.target+'"]';
       document.querySelectorAll(sel).forEach(function(el){ el.style.display = (op.type==='remove')?'none':''; });
     });
+    holdCreate();
+
+    if(typeof holdEmpty === 'function') holdEmpty();
   }
+  // No create offer stands through every re-render (this function re-shows every section first).
+  function holdCreate(){ if(NO_CREATE || CREATE_PENDING){ var add=document.getElementById('ent-add'); if(add) add.style.display='none'; } }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
   // (Re)build every surface from the current ENTS array. Called after load, create, and delete.
@@ -341,7 +349,27 @@
   }
 
   // ── CREATE ──────────────────────────────────────────────────────────
+  // At the click the fact is read again, for the session that will be sent: a screen left open across a revoke, or a
+  // person who changed under it, creates nothing (a person who holds companies may still add one).
+  var saveGatePassed = false;
   function saveEntity(){
+    if(!saveGatePassed){
+      var b0 = document.getElementById('ent-save'), m0 = document.getElementById('ent-msg');
+      if(b0) b0.disabled = true;
+      var gate = (window.flAccess && flAccess.mayCreateNow) ? flAccess.mayCreateNow('more') : Promise.resolve({ ok:false, a:null });
+      gate.then(function(g){
+        if(b0) b0.disabled = false;
+        if(g.ok){ saveGatePassed = true; try{ saveEntity(); } finally { saveGatePassed = false; } return; }
+        if(g.a && g.a.kind === 'signed-out'){ showAuth(); return; }
+        if(!g.a || g.a.kind === 'unknown'){   // a failed read does not wipe a list on screen: nothing was sent, say so
+          if(m0) m0.innerHTML = '<span class="err">Nothing was saved — your access couldn’t be checked just now.</span> Try again in a moment.';
+          return;
+        }
+        if(m0) m0.innerHTML = '';
+        ACCESS = g.a; ENTS = []; showNoCreate();   // nothing was sent; the screen now says what the fresh answer says
+      });
+      return;
+    }
     var btn = document.getElementById('ent-save'), msg = document.getElementById('ent-msg');
     var code = (document.getElementById('ent-code').value||'').trim();
     var name = (document.getElementById('ent-name').value||'').trim();
@@ -648,6 +676,54 @@
     try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
   }
 
+  // ── THE EMPTY STATE: no company to list ────────────────────────────
+  // FL answers "you were given none" and "this account has none yet" alike for an owner (200 []), and refuses a member
+  // (403). shared/fl-access.js says which it is; offerCreate() decides whether a company is offered here, and
+  // emptyHeadHtml() what the screen says. r = the list answer (403, or 200 with no rows).
+  function emptyState(r){
+    var go = function(a){
+      ACCESS = a;
+      if(offerCreate(a, r)){ CREATE_PENDING = false; if(r.status === 403) enterFirstRun(); else showEmptyList(); }
+      else showNoCreate();
+    };
+    if(window.flAccess && flAccess.classify) flAccess.classify(r).then(go, function(){ go(null); });
+    else go(null);
+  }
+  // Who is offered a company to create here. a = the access fact (null when it could not be read).
+  // Only someone who may create the account's first company; never a person who was simply not given access, and,
+  // without the fact at all (shared/fl-access.js did not load), never anyone.
+  function offerCreate(a, r){ return !!(a && a.mayCreate); }
+  function showEmptyList(){
+    NO_CREATE = false; ENTS = []; boot();
+    var add = document.getElementById('ent-add'); if(add) add.style.display = '';   // offered: shown (it starts hidden)
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+  }
+  // An empty list with no create offer: the add form stays hidden.
+  function showNoCreate(){
+    NO_CREATE = true; ENTS = []; boot(); holdCreate();
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
+  }
+  // What the screen says when it lists no company — which of two different things "none" means. "None exist" means set
+  // it up; "you were not given any" means ask whoever runs the account. Only what the access fact supports is said.
+  function emptyHeadHtml(){
+    var a = ACCESS, big = function(h, b){ return '<div style="font-size:16px;font-weight:800">'+esc(h)+'</div><div class="small muted">'+esc(b)+'</div>'; };
+    holdEmpty();
+    if(a && a.kind === 'none') return big('You don’t have access to any companies yet.', 'Ask the owner of this account to give you access.');
+    if(a && a.kind === 'unknown' && a.why === 'no-tenant') return big('Your sign-in isn’t linked to an account yet.', 'Ask the owner of this account to give you access.');
+    if(a && a.kind === 'unknown') return big('We couldn’t check which companies you can see just now.', 'Nothing is offered until we can. Open this screen again to retry.');
+    if(a && a.kind === 'empty' && !NO_CREATE) return '<div class="muted">This account has no companies yet — add the first one below.</div>';
+    return NO_CREATE ? '<div class="muted">No companies to show.</div>' : '<div class="muted">No entities yet — add one below.</div>';
+  }
+  // A person shown no company because she was given none (or because it could not be checked) is not also shown empty
+  // company cards: a count of 0 and an empty roster would say "there are no companies".
+  function holdEmpty(){
+    var a = ACCESS, hide = !ENTS.length && !!a && (a.kind === 'none' || a.kind === 'unknown');
+    ['kpis','detail-rows','roster'].forEach(function(s){
+      var el = document.querySelector('[data-view-section="'+s+'"]'); if(el && hide) el.style.display = 'none';
+    });
+    var pk = document.getElementById('ent-picker'); if(pk) pk.style.display = hide ? 'none' : '';
+  }
+
   // Auto-suggest a code from the legal name while the code field is untouched (first-run helper;
   // the server namespaces member codes anyway, so this is a convenience, not an identity).
   var codeTouched = false;
@@ -671,6 +747,7 @@
     if(!(window.flApi && window.flApi.authed && window.flApi.authed())){ showAuth(); return; }
 
     showLive();
+    CREATE_PENDING = true; holdCreate();     // nothing is offered while the answer is still out
     var listP = (window.flEntities.listX ? window.flEntities.listX()
       : window.flEntities.list().then(function(rows){       // stale-cached fl-api safety net
           return rows == null ? {ok:false, status:0, data:null} : {ok:true, status:200, data:rows};
@@ -678,11 +755,13 @@
     listP.then(function(r){
       if(r.ok){
         ENTS = (r.data||[]).map(mapEntity);
+        if(!ENTS.length){ emptyState(r); return; }          // no rows: which kind of "none" decides what is offered
+        CREATE_PENDING = false;
         boot();
         try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
         return;
       }
-      if(r.status === 403){ enterFirstRun(); return; }       // no grants yet = new operator, NOT down
+      if(r.status === 403){ emptyState(r); return; }         // no grants: which kind of "none" decides what is offered
       if(window.flApi && !flApi.authed()){ showAuth(); return; }  // session died mid-flight
       loadSampleFallback();   // signed in + API genuinely unreachable -> clearly-labeled dev sample
     }).catch(function(){

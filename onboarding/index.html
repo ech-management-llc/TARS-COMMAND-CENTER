@@ -176,9 +176,9 @@
   <!-- STEP 3 — ENTITIES (Intake C → /api/entities) -->
   <section id="s3" class="hidden">
     <div class="tarsrow"><span class="tarsav"><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.6" fill="#0a0a0b"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" fill="#0a0a0b"/></svg></span>
-      <div class="bubble">Now your companies. Add an LLC for each one you hold property (or do business) under. Already set some up? They'll show below — just add what's missing.</div></div>
+      <div class="bubble" id="s3_bubble">Now your companies. Add an LLC for each one you hold property (or do business) under. Already set some up? They'll show below — just add what's missing.</div></div>
     <div class="onfile" id="entOnfile"></div>
-    <div class="card">
+    <div class="card" id="ent_add_card" style="display:none">
       <div class="ttl">ADD AN ENTITY</div>
       <div class="grid2">
         <div><label>Code (natural key) *</label><input id="ent_code" placeholder="e.g. ECH_NEWCO"></div>
@@ -356,6 +356,7 @@
 </script>
 <script src="../shared/fl-auth.js?v=20260721a"></script>
 <script src="../shared/fl-api.js?v=20260721a"></script>
+<script src="../shared/fl-access.js?v=20261121b"></script>
 <script>
 const FOUNDATION=15, LAYER=15, EMPLOYEE=15;
 const LAST_STEP=11;
@@ -455,14 +456,52 @@ function saveProfile(){
 function loadEntities(){
   if(!isAuthed())return;
   refreshEntities().then(function(rows){
-    renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'No entities yet — add your first below.');
+    if(rows&&rows.length){renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'');if($('ent_add_card'))$('ent_add_card').style.display='';}
+    else{$('entOnfile').innerHTML='';holdEntityStep();}
+  });
+}
+// No company is offered to someone who may not create the account's first one: a person who was simply not given
+// access (FL would accept a company from any owner and file it beside the ones she cannot see), or one whose access
+// could not be read. shared/fl-access.js says which; the form starts hidden and appears only when it says so.
+function holdEntityStep(){
+  const card=$('ent_add_card');
+  if(!card)return;
+  card.style.display='none';
+  const say=function(a){
+    const none=a&&a.kind==='none', noAccount=a&&a.kind==='unknown'&&a.why==='no-tenant';
+    if($('s3_bubble'))$('s3_bubble').textContent=(none||noAccount)
+      ?'Companies on this account are added by its owner.'
+      :'We couldn’t check your companies just now.';
+    $('entOnfile').innerHTML='<div class="empty">'+esc(none
+      ?'You don’t have access to any companies yet. Ask the owner of this account to give you access.'
+      :noAccount?'Your sign-in isn’t linked to an account yet. Ask the owner of this account to give you access.'
+      :'Adding one stays closed until we can. Reload this page to try again.')+'</div>';
+  };
+  if(!window.flAccess||!flAccess.read){say(null);return;}
+  flAccess.read().then(function(a){
+    if(a&&a.mayCreate){$('entOnfile').innerHTML='<div class="empty">'+esc('No companies yet — add your first below.')+'</div>';card.style.display='';return;}
+    if(a&&a.kind==='has')return;   // the list above was read before a company arrived; the next visit shows it
+    say(a);
   });
 }
 function autoCode(){
   const c=$('ent_code'), n=$('ent_name');
   if(c&&!c.value&&n&&n.value){c.value=n.value.trim().toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,24);}
 }
+// At the click the fact is read again, for the session that will be sent: a person who changed under the page, or a
+// grant taken away meanwhile, creates nothing.
+let entGatePassed=false;
 function saveEntity(){
+  if(!entGatePassed&&isAuthed()){
+    const gate=(window.flAccess&&flAccess.mayCreateNow)?flAccess.mayCreateNow('more'):Promise.resolve({ok:false,a:null});
+    setMsg('ent_msg','sub','Checking…');
+    gate.then(function(g){
+      if(g.ok){entGatePassed=true;try{saveEntity();}finally{entGatePassed=false;}return;}
+      setMsg('ent_msg','err','Nothing was saved.');
+      holdEntityStep();
+    });
+    return;
+  }
   if(!isAuthed()){setMsg('ent_msg','err','Please sign in first.');return;}
   const code=txt('ent_code'),name=txt('ent_name');
   if(!code||!name){setMsg('ent_msg','err','Code and legal name are both required.');return;}

@@ -130,7 +130,7 @@ function startApp(){
   renderChrome();
   renderHome();
   fetchAll();
-  checkNewOperator();   // real signed-in + zero grants -> "Create your first company" (find #1)
+  recheckAccess();      // the first read of the access fact, in the same one-at-a-time slot as every later one
   wireGlobalControls();
   loadBriefRouter();
   if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();  // "Report an issue" (bug-capture)
@@ -530,6 +530,63 @@ document.addEventListener('click', e => {
   if (b.getAttribute('data-id-act') === 'signout') signOutEverywhere();
   else if (b.getAttribute('data-id-act') === 'signin') requestSignIn();
 });
+// Phase 2 (+ polish) — setup entry. Shows until setup is COMPLETE (not merely explored), so
+// "explore on my own" is never a one-way door: a persistent path back to setup always remains.
+// First run = the prominent flashing CTA on the locked board; after exploring = a compact resume bar.
+// Phase 3 swaps the click target from the global TARS chat to the TARS-led onboarding engine.
+// Wrong-words dispatch, item C: both are decided by two browser keys and no request, so they can say nothing about a
+// person's companies. Setting up an account is the business of the owner of a NEW account (the access fact: 'empty').
+// Everyone else keeps the way onto the board ("explore on my own") with words that promise nothing, and is not told
+// "Setup isn't finished" — there is no setup of theirs to finish. Re-drawn when the access fact lands (tcc:access).
+function renderSetupEntry(){
+  var host = $('tars-btn'); if(!host) return;
+  var old = document.getElementById('tars-firstrun'); if(old) old.remove();
+  if (STATE.role === 'field') return;            // scoped field role: no setup entry
+  if (setupComplete()) return;                   // setup finished -> no entry at all
+  if (isDemoAccount()) return;                   // demo/synthetic tenant: no setup funnel
+  var g = STATE.tenant.global_agent || {};
+  var name = esc(g.name||'TARS');
+  var building = STATE.accessKind === 'empty';   // the owner of a new account, who sets it up
+  var firstRun = !boardUnlocked();               // locked board, hasn't explored yet
+  if (!firstRun && !building) return;            // nothing true to say: no resume bar
+  var el = document.createElement('div');
+  el.id = 'tars-firstrun';
+  var goSetup = function(){ try{ if(window.Agents && Agents.openSetup) Agents.openSetup(); else if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
+  if (firstRun){
+    el.className = 'setup-cta';
+    el.innerHTML =
+      '<div class="setup-cta-row">'+
+        '<span style="flex:0 0 auto">'+tarsSvg(28)+'</span>'+
+        '<div style="flex:1">'+
+          (building
+            ? '<b>Welcome to Foundation Layer.</b> Your areas are locked until they’re set up. '+
+              name+' will walk you through it — your business, your entities, and which areas to turn on — '+
+              'and file everything as you go. Prefer hands-on? Explore on your own; you can come back to setup anytime.'
+            : '<b>Welcome to Foundation Layer.</b> On this browser the board starts with its areas closed. '+
+              'Explore on your own to open them all, or let '+name+' turn on the ones you use.')+
+        '</div>'+
+      '</div>'+
+      '<div class="setup-cta-btns">'+
+        '<button type="button" class="btn primary setup-cta-go" id="tfr-go">'+(building ? '🚀 Set up with '+name : 'Turn areas on with '+name)+'</button>'+
+        '<button type="button" class="btn" id="tfr-later">I’ll explore on my own →</button>'+
+      '</div>';
+  } else {
+    el.className = 'setup-resume';
+    el.innerHTML =
+      '<span style="flex:0 0 auto">'+tarsSvg(20)+'</span>'+
+      '<span class="setup-resume-tx"><b>Setup isn’t finished.</b> '+name+' can pick up where you left off and turn on the rest.</span>'+
+      '<button type="button" class="btn primary" id="tfr-go">Set up with '+name+'</button>';
+  }
+  host.parentNode.insertBefore(el, host.nextSibling);
+  var go=document.getElementById('tfr-go'), later=document.getElementById('tfr-later');
+  if(go) go.onclick=goSetup;
+  if(later) later.onclick=function(){
+    try{ localStorage.setItem('fl_explored','true'); }catch(e){}   // explore != setup complete
+    if (typeof renderChrome === 'function') renderChrome();        // swap CTA -> persistent resume bar
+    if (typeof renderHome === 'function') renderHome();            // unlock the board for roaming
+  };
+}
+window.addEventListener('tcc:access', () => { if (STATE.tenant) renderSetupEntry(); });
 
 function renderChrome(){
   const b = (STATE.tenant.branding)||{};
@@ -556,6 +613,7 @@ function renderChrome(){
     '<button type="button" id="signout-btn" class="vb-signout">sign out</button>';
   $('signout-btn').onclick = signOutEverywhere;
   $('refresh-btn').onclick = forceRefresh;   // this ribbon is redrawn on every board refresh; a redrawn button had no handler
+  if (STATE.status.fl) updLiveBar();         // ...and its label says what the last read said, not a bare "Live"
   if ($('ov') && $('ov').classList.contains('on')) mountDrillIdentity();   // an open tile's corner follows too
 
   // global TARS button — pinned at top; hidden for the scoped Field role
@@ -571,52 +629,7 @@ function renderChrome(){
       '<span style="margin-left:auto;color:var(--purple);font-size:18px">▸</span>';
   }
 
-  // Phase 2 (+ polish) — setup entry. Shows until setup is COMPLETE (not merely explored), so
-  // "explore on my own" is never a one-way door: a persistent path back to setup always remains.
-  // First run = the prominent flashing CTA on the locked board; after exploring = a compact resume bar.
-  // Phase 3 swaps the click target from the global TARS chat to the TARS-led onboarding engine.
-  (function(){
-    var host = $('tars-btn'); if(!host) return;
-    var old = document.getElementById('tars-firstrun'); if(old) old.remove();
-    if (STATE.role === 'field') return;            // scoped field role: no setup entry
-    if (setupComplete()) return;                   // setup finished -> no entry at all
-    if (isDemoAccount()) return;                   // demo/synthetic tenant: no setup funnel
-    var name = esc(g.name||'TARS');
-    var firstRun = !boardUnlocked();               // locked board, hasn't explored yet
-    var el = document.createElement('div');
-    el.id = 'tars-firstrun';
-    var goSetup = function(){ try{ if(window.Agents && Agents.openSetup) Agents.openSetup(); else if(window.Agents && Agents.openGlobal) Agents.openGlobal(); }catch(e){} };
-    if (firstRun){
-      el.className = 'setup-cta';
-      el.innerHTML =
-        '<div class="setup-cta-row">'+
-          '<span style="flex:0 0 auto">'+tarsSvg(28)+'</span>'+
-          '<div style="flex:1">'+
-            '<b>Welcome to Foundation Layer.</b> Your areas are locked until they’re set up. '+
-            name+' will walk you through it — your business, your entities, and which areas to turn on — '+
-            'and file everything as you go. Prefer hands-on? Explore on your own; you can come back to setup anytime.'+
-          '</div>'+
-        '</div>'+
-        '<div class="setup-cta-btns">'+
-          '<button type="button" class="btn primary setup-cta-go" id="tfr-go">🚀 Set up with '+name+'</button>'+
-          '<button type="button" class="btn" id="tfr-later">I’ll explore on my own →</button>'+
-        '</div>';
-    } else {
-      el.className = 'setup-resume';
-      el.innerHTML =
-        '<span style="flex:0 0 auto">'+tarsSvg(20)+'</span>'+
-        '<span class="setup-resume-tx"><b>Setup isn’t finished.</b> '+name+' can pick up where you left off and turn on the rest.</span>'+
-        '<button type="button" class="btn primary" id="tfr-go">Set up with '+name+'</button>';
-    }
-    host.parentNode.insertBefore(el, host.nextSibling);
-    var go=document.getElementById('tfr-go'), later=document.getElementById('tfr-later');
-    if(go) go.onclick=goSetup;
-    if(later) later.onclick=function(){
-      try{ localStorage.setItem('fl_explored','true'); }catch(e){}   // explore != setup complete
-      if (typeof renderChrome === 'function') renderChrome();        // swap CTA -> persistent resume bar
-      if (typeof renderHome === 'function') renderHome();            // unlock the board for roaming
-    };
-  })();
+  renderSetupEntry();
 
   // header — tenant title only (date / role / sign-out moved up into the ribbon)
   $('head').innerHTML =
@@ -866,7 +879,7 @@ function collapsedSet(){ try { return new Set(JSON.parse(localStorage.getItem('t
    MARKET → REV/CEN/FRED/DEALCHECK · OVERVIEW → FL (Capital Rules + System). */
 function srcConnected(tag){
   switch(tag){
-    case 'FL':        return STATE.status.fl === 'ok';   // FL ledger API answered
+    case 'FL':        return STATE.status.fl === 'ok' || STATE.status.fl === 'refused';   // FL ledger API answered (a refusal is an answer)
     case 'REV':       return !!STATE.data.reventure;      // Reventure snapshot present
     case 'CEN':       return !!STATE.data.census;         // Census snapshot present
     case 'FRED':      return !!STATE.data.fred;           // FRED snapshot present
@@ -910,13 +923,54 @@ function refreshGroupChips(){
 // entirely server-side (the server namespaces member codes + grants ownership atomically).
 function checkNewOperator(){
   if (!(window.flApi && flApi.authed && flApi.authed() && flApi.callX)) return;   // demo/local: skip
-  flApi.callX('GET', '/api/entities').then(r => {
+  return flApi.callX('GET', '/api/entities').then(r => {
     if (!r) return;
     const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
-    // !! so the initial undefined doesn't force a redundant full home re-render for granted users
-    if (!!STATE.newOperator !== isNew){ STATE.newOperator = isNew; renderHome(); }
+    if (!isNew){
+      if (!r.ok && STATE.access) return;   // a failed re-read leaves the last fact standing (it does not wipe what is said)
+      settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return;
+    }
+    // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
+    const done = a => settleAccess(boardOffersCreate(a, r), a);
+    if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
+    else done(null);
   }).catch(()=>{});
 }
+// Who is offered "Create your first company" on the board. a = the access fact (null when it could not be read).
+// Only someone who may create the account's first company: a person who was simply not given access is never offered
+// one (FL would accept it from any owner and file it beside the companies she cannot see). Without the fact, never a
+// member (FL refuses her outright: 403). Without the fact at all (shared/fl-access.js did not load), nothing is offered.
+function boardOffersCreate(a, r){ return !!(a && a.mayCreate); }
+// The board's copy of the access fact; redraws only when what it shows would change.
+function settleAccess(isNew, a){
+  const before = accessNote();
+  // !! so the initial undefined doesn't force a redundant full home re-render for granted users
+  const flipped = !!STATE.newOperator !== isNew;
+  STATE.newOperator = isNew; STATE.access = a; STATE.accessKind = a ? a.kind : null;
+  if (flipped || accessNote() !== before) renderHome();
+  try { window.dispatchEvent(new CustomEvent('tcc:access', { detail: a })); } catch (e) {}   // for anything else on the board that depends on it
+}
+// What the board says about a person's companies, above the areas.
+function accessNote(){
+  const w = accessWords(STATE.access);
+  if (!w) return '';
+  return '<section class="grp" id="access-note" style="border:1.5px solid var(--line,#2a3446);border-radius:12px;padding:14px 18px;margin-bottom:14px">'+
+    '<div style="font-size:15px;font-weight:800;margin-bottom:4px">'+esc(w.head)+'</div>'+
+    '<div class="note">'+esc(w.body)+'</div></section>';
+}
+// Which of two different things "no company" means, in words a person can act on. "None exist" means set it up;
+// "you were not given any" means ask whoever runs the account. Only what the access fact supports is said.
+function accessWords(a){
+  if (!a) return null;
+  if (a.kind === 'none') return { head:'You don’t have access to any companies yet.',
+    body:'Ask the owner of this account to give you access.' };
+  if (a.kind === 'unknown' && a.why === 'no-tenant') return { head:'Your sign-in isn’t linked to an account yet.',
+    body:'Ask the owner of this account to give you access.' };
+  if (a.kind === 'unknown') return { head:'We couldn’t check which companies you can see just now.',
+    body:'Nothing is offered until we can. Reload this page to try again.' };
+  return null;   // 'has', 'empty' (the create card says it), 'signed-out' (the sign-in says it)
+}
+window.accessSentence = a => { const w = accessWords(a); return w ? esc(w.head)+' '+esc(w.body) : ''; };
 
 function newOperatorCard(){
   const inSty = 'background:#0f1520;border:1.5px solid #2a3446;color:#e5e7eb;border-radius:8px;'+
@@ -939,7 +993,22 @@ function newOperatorCard(){
     '<div id="newop-msg" class="note" style="min-height:16px;margin-top:8px"></div></section>';
 }
 
+// The card was drawn under an earlier answer. At the click the fact is read again, for the session that will be sent:
+// a different person signed in meanwhile, or a company that appeared in the account, means nothing is created here.
+let newopGatePassed = false;
 function newOperatorCreate(){
+  if (!newopGatePassed){
+    const btn0 = $('newop-create'), msg0 = $('newop-msg');
+    if (btn0) btn0.disabled = true;
+    const gate = (window.flAccess && flAccess.mayCreateNow) ? flAccess.mayCreateNow('first') : Promise.resolve({ ok:false, a:null });
+    gate.then(g => {
+      if (btn0) btn0.disabled = false;
+      if (g.ok){ newopGatePassed = true; try { newOperatorCreate(); } finally { newopGatePassed = false; } return; }
+      if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+((typeof window.accessSentence === 'function' && window.accessSentence(g.a)) || 'Creating a company isn’t open to your account here.')+'</b>';
+      settleAccess(false, g.a);   // the card goes: what the board says now follows the fresh answer
+    });
+    return;
+  }
   const name = ($('newop-name').value||'').trim(), code = ($('newop-code').value||'').trim();
   const msg = $('newop-msg'), btn = $('newop-create');
   if (!name || !code){ msg.innerHTML = '<b style="color:#ef4444">Name and code are both required.</b>'; return; }
@@ -983,6 +1052,8 @@ function renderHome(){
   const collapsed = collapsedSet();
   let html = '';
   if (STATE.newOperator) html += newOperatorCard();   // first-run: create form, never "read-only"
+
+  html += accessNote();
   let firstCard = true;
   const locked = !boardUnlocked();      // Phase 2: locked until explored or setup-complete
   const LIVE_AREA = 'admin';            // only Administration is live until setup completes
@@ -1378,7 +1449,7 @@ function tileWrap(l, inner, linkable){
 
 /* SYSTEM — health roll-up */
 function tileSystem(l){
-  const flUp = STATE.status.fl === 'ok';
+  const flUp = STATE.status.fl === 'ok' || STATE.status.fl === 'refused';   // a refusal is an answer: the source is up
   const flDown = STATE.status.fl === 'down';
   const nLayers = visibleLayers().length;
   let bcls='b-green', btxt='ALL GREEN', big='All green';
@@ -1407,6 +1478,11 @@ function tileCapitalRules(l){
       '<div class="big muted">Can’t reach it</div><div class="sub">showing last known · never faked</div>';
     return tileWrap(l, inner, !!l.drilldown);
   }
+  if (STATE.status.fl === 'refused'){   // FL answered: these figures are not for this account
+    const inner = '<div class="top"><span class="lbl">'+lbl+'</span>'+badge('b-gray','NO ACCESS')+'</div>'+
+      '<div class="big muted">Not shared with your account</div><div class="sub">Ask the owner of this account for access to these figures.</div>';
+    return tileWrap(l, inner, !!l.drilldown);
+  }
   if (!fl){ return tileWrap(l, '<div class="top"><span class="lbl">'+lbl+'</span>'+badge('b-gray','…')+'</div><div class="big muted">Checking…</div>', !!l.drilldown); }
   const cr = fl.capital_rules || {};
   const keys = ['ltv','dscr','liquidity','per_door'];
@@ -1419,7 +1495,9 @@ function tileCapitalRules(l){
   else if (statuses.includes('GREEN')){ bcls='b-green'; btxt='HEALTHY'; big='Healthy'; }
   else { bcls='b-white'; btxt='NO DATA YET'; big='No data yet'; }   // all UNKNOWN → white
   const nPend = statuses.filter(s=>s==='UNKNOWN').length;
-  const sub = nPend ? ('Debt · loan coverage · cash cushion · per-door ('+nPend+' still setting up)') : 'Debt · loan coverage · cash cushion · per-door';
+  let sub = nPend ? ('Debt · loan coverage · cash cushion · per-door ('+nPend+' still setting up)') : 'Debt · loan coverage · cash cushion · per-door';
+  // nothing known because this person was given no company — not because anything is still being set up
+  if (nPend === keys.length && STATE.accessKind === 'none'){ btxt='NO ACCESS YET'; big='No companies shared with you'; sub='Figures show here for the companies you’re given access to.'; }
   const inner = '<div class="top"><span class="lbl">'+lbl+'</span>'+badge(bcls,btxt)+'</div>'+
     '<div class="big">'+esc(big)+'</div><div class="sub">'+esc(sub)+'</div>'+
     '<div class="stamp">FL API · '+esc(fmtTs(fl.generated_at))+'</div>';
@@ -1524,8 +1602,13 @@ function fetchAll(){
   if (flUrl && window.flApi && flApi.call){
     // H5: the Capital-Rules feed is the AUTHED, per-principal /api/dashboard/scoped (was the unauth
     // global /latest, now admin-only). flApi.call carries the JWT; null = no session/error -> down.
-    flApi.call('GET', '/api/dashboard/scoped')
-      .then(d=>{ if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
+    // Status-carrying (callX): a 403 is FL REFUSING this account the figures (a member without the clearance they need),
+    // which is a permission answer — never shown as "unreachable" / "offline" / "source down".
+    (flApi.callX ? flApi.callX('GET', '/api/dashboard/scoped')
+                 : flApi.call('GET', '/api/dashboard/scoped').then(d => ({ ok: !!d, status: d ? 200 : 0, data: d })))
+      .then(r=>{ const d = r && r.ok ? r.data : null;
+        if(!d && r && r.status === 403 && flApi.authed && flApi.authed()){ STATE.status.fl='refused'; STATE.data.fl=null; refreshDataTiles(); updLiveBar(); return; }   // refused: the figures held from before are not hers to read (TARS reads them too)
+        if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
           STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
         STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
       .catch(()=>{ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
@@ -1559,6 +1642,9 @@ function updLiveBar(){
   } else if (STATE.status.fl === 'ok'){
     if (live) live.classList.remove('down');
     if (lbl) lbl.textContent = 'Live · updated '+ (STATE.data.fl ? fmtTs(STATE.data.fl.generated_at) : fmtTs(new Date().toISOString()));
+  } else if (STATE.status.fl === 'refused'){
+    if (live) live.classList.remove('down');
+    if (lbl) lbl.textContent = 'Live · the figures aren’t shared with your account';
   }
   refreshIdentity();   // a read has just come back: the corner line states the sign-in fact as it is now
 }
@@ -1662,17 +1748,34 @@ function openAddLayer(){
 
 function showOverlay(id){ $(id).classList.add('on'); window.scrollTo(0,0); document.body.style.overflow='hidden'; if (id==='ov') mountDrillIdentity(); }
 function hideOverlay(id){ $(id).classList.remove('on'); document.body.style.overflow=''; }
-function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLayer=null; }
+function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLayer=null; recheckAccess(); }
+
+// Wrong-words dispatch, item E: the board's access fact — "Create your first company", the no-access card, the setup
+// entry — was read once at start and outlived a grant or a revoke made elsewhere until the page was reloaded. It is
+// re-read when the person comes back to the board: closing a screen, pressing REFRESH, returning to this tab. One read at
+// a time; asks that arrive meanwhile are folded into one more read after it, so an older answer never lands last.
+let accessCheck = null, accessAgain = false;
+function recheckAccess(){   // every caller is wired by startApp() or lives on the board, so the board has started
+  if (accessCheck){ accessAgain = true; return; }
+  if (window.flAccess && flAccess.forget) flAccess.forget();
+  const was = STATE.accessKind;
+  accessCheck = Promise.resolve(checkNewOperator()).catch(() => {}).then(() => {
+    accessCheck = null;
+    // the figures follow: a grant or a revoke changes what Financial Health may say, and a refusal may have been lifted
+    if (was !== undefined && (STATE.accessKind !== was || STATE.status.fl === 'refused')) fetchAll();
+    if (accessAgain){ accessAgain = false; recheckAccess(); }
+  });
+}
 
 /* ── global controls ── */
 function wireGlobalControls(){
   $('refresh-btn').onclick = forceRefresh;
   $('tars-btn').onclick = () => { if (window.Agents) Agents.openGlobal(); };
   // close overlays on backdrop click / Esc
-  ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov') $('panel').innerHTML=''; } }));
+  ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov'){ $('panel').innerHTML=''; } recheckAccess(); } }));
   // (Esc does nothing while the sign-in form is up: it used to close the tile underneath, unseen, and with it
   // whatever was typed there)
-  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; hideOverlay('ov'); hideOverlay('gov'); } });
+  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; const was = $('ov').classList.contains('on') || $('gov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
   // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event) —
   // or it now belongs to a different account than the one this page is presenting: then this page is someone
   // else's screen, and it is reloaded (boot presents whoever the token names).
@@ -1683,6 +1786,9 @@ function wireGlobalControls(){
     if (accountMoved()) { location.reload(); return; }
     syncSignIn();
   });
+  // back on this tab (or restored from the browser's back/forward cache): what was granted meanwhile shows
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') recheckAccess(); });
+  window.addEventListener('pageshow', e => { if (e && e.persisted) recheckAccess(); });
   // a Plans & Billing purchase flips entitlement → re-render the home so the new tile appears
   window.addEventListener('message', e => {
     const d = e.data || {};
@@ -1691,6 +1797,7 @@ function wireGlobalControls(){
     if (d && d.type === 'tcc:newop-created'){
       if (STATE.newOperator){ STATE.newOperator = false; renderHome(); }
       fetchAll();
+      recheckAccess();
     }
     // a tile's sign-in card asks for the sign-in form (same origin only — a tile of this site)
     if (d && d.type === 'tcc:signin:request' && e.origin === location.origin) requestSignIn();
@@ -1712,6 +1819,7 @@ function forceRefresh(){
   // re-pull live sources without nuking the SW cache (honest, fast)
   STATE.status.fl='pending'; refreshDataTiles();
   fetchAll();
+  recheckAccess();
   setTimeout(()=>{ btn.textContent='↻ REFRESH'; btn.classList.remove('refreshing'); }, 900);
 }
 

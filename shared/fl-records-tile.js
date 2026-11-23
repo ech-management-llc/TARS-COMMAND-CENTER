@@ -288,6 +288,17 @@
       '</div>';
   }
 
+  // Signed in, and FL refused these records to this account (403 — e.g. a member without the clearance these kinds need).
+  // That is a permission answer: the person is not told to sign in, and not told anything is broken.
+  function showRefused(cfg) {
+    var box = document.getElementById('rec-auth');
+    if (!box) return;
+    box.style.display = 'block';
+    box.innerHTML = '<div class="section-label">NO ACCESS</div>' +
+      '<div class="small">' + esc(cfg.title) + ' records aren’t shared with your account. <b>Ask the owner of this account for access to these records.</b> ' +
+      '<span class="muted">Your sign-in is fine — this is about what your account may see.</span></div>';
+  }
+
   function mount(cfg) {
     var rootId = cfg.rootId || 'rec-root';
     var root = document.getElementById(rootId);
@@ -318,8 +329,11 @@
       var rx = res[0], entities = res[1];             // rx = {ok, status, data} (status-carrying)
       if (!rx || !rx.ok) {
         // Honest per-status — NEVER a false-empty "no records yet" on a transient error:
-        if (!rx || rx.status === 401 || rx.status === 403 || (window.flApi && !flApi.authed())) {
-          showAuth(cfg); return;                      // signed-out / expired / no grant
+        if (rx && rx.status === 403 && window.flApi && flApi.authed()) {
+          showRefused(cfg); return;                   // signed in, and refused: a permission answer, not a sign-in one
+        }
+        if (!rx || rx.status === 401 || (window.flApi && !flApi.authed())) {
+          showAuth(cfg); return;                      // signed-out / expired
         }
         var eh = document.getElementById('rec-list');
         if (eh) eh.innerHTML = '<div class="small err">Couldn\'t load your records just now (the ' +

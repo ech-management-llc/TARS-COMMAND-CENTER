@@ -367,7 +367,7 @@ function buildGlobal(){
   };
   $('gsend').onclick = send;
   input.addEventListener('keydown', e => { if (e.key==='Enter') send(); });
-  $('gclose').onclick = () => { $('gov').classList.remove('on'); document.body.style.overflow=''; };
+  $('gclose').onclick = () => { $('gov').classList.remove('on'); document.body.style.overflow=''; if (typeof window.recheckAccess === 'function') window.recheckAccess(); };   // back on the board: what she may see is read again
   const cw = $('gchips');
   (g.chips||[]).forEach(c => { const b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=c; b.onclick=()=>{ input.value=c; send(); }; cw.appendChild(b); });
   gInit = true;
@@ -448,6 +448,7 @@ function handleSetup(v){
     return true;
   }
   if (is('Set up my business & entities') || /(set ?up|setup).*(business|entit)|business (and|&) entit/.test(t)){
+    if (!entityStepOpen()){ aBubble(entityStepClosed()); return true; }   // no company offered to someone not given access
     var b=aBubble('Let’s capture your business and people. Your business (an LLC) becomes an <b>entity</b>; the owner is filed under <b>Personal Information</b>. Add any other entities one per line.'+
       '<div class="setup-mini">'+
         '<label class="setup-mini-l">Business / primary entity name (LLC)</label><input class="setup-mini-in" id="su-biz" placeholder="e.g. ECH Management Services LLC">'+
@@ -559,6 +560,14 @@ function handleSetup(v){
     var namesOf=function(rows){ var nm=rows.map(function(r){ return '<b>'+esc((r && (r.name||r.code))||'a company')+'</b>'; }); return nm.length<=1 ? (nm[0]||'') : nm.slice(0,-1).join(', ')+' and '+nm[nm.length-1]; };
     go.onclick=async function(){
       if(busy || done) return;                                   // guard: one row set per submission, no double-write
+      // the form may have been drawn under an older fact, or with no session: at the click, with a session, the fact is
+      // read again for the session that will be sent, and nothing is created for a person who may not create here
+      if(window.flApi && flApi.authed && flApi.authed()){
+        busy=true;   // a second click while the fact is read is not a second submission
+        var gate=(window.flAccess && flAccess.mayCreateNow) ? await flAccess.mayCreateNow('more') : { ok:false, a:null };
+        busy=false;
+        if(!gate.ok){ b.querySelector('#su-biz-msg').innerHTML='<span class="su-err">'+entityStepClosed(gate.a)+'</span> Nothing was saved.'; return; }
+      }
       var biz=cleanName(b.querySelector('#su-biz').value);
       var owner=cleanName(b.querySelector('#su-owner').value);
       var ents=(b.querySelector('#su-ents').value||'').split('\n').map(cleanName).filter(Boolean);
@@ -867,6 +876,7 @@ function handleSetup(v){
       var ownerUnknown=!!owner && ownerMaybe.some(function(m){ return nkey(m.label)===nkey(owner); });   // the owner typed now may be filed
       var ownerSaved=!!(owner && (ownerSavedNow || ownerSkipped || ownerRenamed || ownerFound));
       if(entCreated) fl.activateArea('legal');   // Entities live in the Legal area
+      if(entCreated && typeof window.recheckAccess === 'function') window.recheckAccess();   // the board follows: a first company is no longer "none yet"
       var nowAuthed=!!(window.flApi && flApi.authed && flApi.authed());
       // the STORED key of the company holding the code when this click read it (the preview and the summary show stored keys); kept
       // on the line so the preview drawn below shows it too (round 30)
@@ -1174,11 +1184,32 @@ function handleSetup(v){
     return true;
   }
   if (is('Yes — start setup') || is('Yes') || /^(yes|start setup|begin|let's go|lets go)/.test(t)){
-    aBubble('Great — here’s how this works. Tell me your <b>business &amp; entities</b>, turn on the <b>areas</b> you use, and <b>hire or skip</b> each area’s employee. Everything files into your Document Navigator. Pick any to start — or just click an area on the board to set it up yourself.');
-    setGchips(['Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']);
+    aBubble(entityStepOpen()
+      ? 'Great — here’s how this works. Tell me your <b>business &amp; entities</b>, turn on the <b>areas</b> you use, and <b>hire or skip</b> each area’s employee. Everything files into your Document Navigator. Pick any to start — or just click an area on the board to set it up yourself.'
+      : 'Great — here’s how this works. Turn on the <b>areas</b> you use, and <b>hire or skip</b> each area’s employee. Pick any to start — or just click an area on the board to set it up yourself.');
+    setGchips(setupChipList(['Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']));
     return true;
   }
   return false;
+}
+
+// The "business & entities" step creates companies (POST /api/entities). It is offered only to someone who may create
+// one here: a person who already holds companies, or the owner of an account that has none yet (the board's access
+// fact, shared/fl-access.js via app.js). A person who was simply not given access is not offered a company to create —
+// FL would accept one from any owner and file it beside the companies she cannot see. With no session reaching the
+// API (the local demo) the walkthrough is unchanged: nothing it sends can land anywhere.
+function entityStepOpen(){
+  if (!(window.flApi && flApi.authed && flApi.authed())) return true;
+  var S = window.TCC && window.TCC.STATE, a = S && S.access;
+  return !!a && (a.kind === 'has' || a.kind === 'empty');
+}
+function entityStepClosed(fresh){
+  var S = window.TCC && window.TCC.STATE, a = fresh !== undefined ? fresh : (S && S.access);
+  var said = (typeof window.accessSentence === 'function') ? window.accessSentence(a) : '';
+  return said || 'Adding companies isn’t open to your account here.';
+}
+function setupChipList(list){
+  return entityStepOpen() ? list : list.filter(function(c){ return c !== 'Set up my business & entities'; });
 }
 
 // Setup-flavored entry (Phase 2 polish; Phase 3 wires the chips to the real engine above): opens the
@@ -1189,14 +1220,15 @@ function openSetup(){
   if (msgs){
     msgs.insertAdjacentHTML('beforeend',
       '<div class="emsg a"><b>Let’s set up your Foundation Layer — ready to start?</b><br>'+
-      'I’ll walk you through your business and entities, turn on the areas you want (or turn any on yourself in one click), '+
+      (entityStepOpen() ? 'I’ll walk you through your business and entities, turn on the areas you want (or turn any on yourself in one click), '
+                        : 'I’ll turn on the areas you want (or turn any on yourself in one click), ')+
       'hire or skip each area’s employee, and file everything into your Document Navigator as we go. '+
       'Text for now — voice conversation is coming soon.</div>');
     msgs.scrollTop = msgs.scrollHeight;
   }
   if (chips){
     chips.innerHTML = '';
-    ['Yes — start setup','Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup']
+    setupChipList(['Yes — start setup','Set up my business & entities','Turn on an area','Hire or skip an employee','I’ll set up manually','Finish setup'])
       .forEach(function(c){
         var b=document.createElement('button'); b.type='button'; b.className='echip'; b.textContent=c;
         b.onclick=function(){ var i=$('ginput'), s=$('gsend'); if(i&&s){ i.value=c; s.click(); } };
