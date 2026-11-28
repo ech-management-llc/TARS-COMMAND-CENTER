@@ -1008,12 +1008,20 @@ function checkNewOperator(){
       settleAccess(false, { kind:'has', mayCreate:false, why:'listed' }); return;
     }
     // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
-    const done = a => { if (seq === accessSeq) settleAccess(boardOffersCreate(a, r), a); };
+    const done = a => {
+      if (seq !== accessSeq) return;
+      // 'unknown' from a re-read (the roster failed, or ran past its limit) is a read that said nothing, like a failed
+      // list read: "You don't have access" is not replaced by "couldn't check" (TD-266 DE-3). A 409 on the roster
+      // ("no account") is an answer, not a failure.
+      if (!a || (a.kind === 'unknown' && a.why !== 'no-tenant')){ unreadAccess(a); return; }
+      settleAccess(boardOffersCreate(a, r), a);
+    };
     if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
     else done(null);
   }).catch(()=>{});
 }
-// A read that said nothing (the list failed). On the first read, what is known is said: nothing, or "couldn't check". On a
+// A read that said nothing (the list failed; or the roster failed or ran past its limit, DE-3). On the first read, what
+// is known is said: nothing, or "couldn't check". On a
 // re-read the last fact stands — a read that said nothing does not wipe what is said — EXCEPT an offer to create: the
 // account may have stopped being empty meanwhile (another owner filed its first company), so the card, the setup entry
 // and the TARS step go, with "couldn't check", until a read answers again (TD-266 DE-2).
