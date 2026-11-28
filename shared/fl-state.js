@@ -14,44 +14,150 @@
      });
      FLState.save('buybox', 'fl_buybox_v1', value);   // LS immediately + debounced server PUT
      FLState.flush();                                  // force all pending PUTs (e.g. pagehide)
+     FLState.local('fl_buybox_v1');                    // sync read of THIS person's browser copy
+     FLState.setLocal('fl_buybox_v1', value);          // sync browser-only write (no server PUT)
+     FLState.removeLocal('fl_buybox_v1');              // sync browser-only remove
+     FLState.storageKey('fl_buybox_v1');               // the real localStorage name (raw-string keys)
+     FLState.suffix();                                 // '::<account>' — for prefix scanners
+     FLState.account();                                // the signed-in account id, or null
 
    Semantics: load() prefers the server copy and mirrors it into LS; a 404 with a legacy LS
    value present pushes that value up (one-time migration) and returns it; signed-out or
    API-down returns the LS copy labeled 'local' so tiles can render an honest badge.
+
+   The browser copy belongs to a PERSON, not to the browser (TD-264). Every lsKey this file
+   touches lives under '<lsKey>::<account>' — <account> is the signed-in user's id (the JWT
+   'sub'; the lower-cased email when the token does not decode) — or under '<lsKey>::anon'
+   while nobody is signed in. fl_state_owner_v1 remembers whose copies this browser holds;
+   when the signed-in account changes or the session ends (sign-out, or fl_auth_ended written
+   by a failed refresh) that account's copies are removed and its pending PUTs dropped, so the
+   next person on a shared browser never sees — and never saves into their own account — what
+   the last person typed. The server's answer for THIS person decides what is shown once it
+   arrives. A tile that reads its lsKey directly for the first paint must read it through
+   local() / storageKey(); a plain localStorage.getItem(lsKey) finds nothing.
+
+   Migration from the pre-TD-264 plain name: the first time an lsKey is seen with a known
+   account, a plain copy is moved under that account (or dropped if the account already has
+   one) and fl_state_migrated_v1 records the lsKey. From then on a plain copy is stale code's
+   and is deleted unread — it is never claimed by whoever signs in next.
    ════════════════════════════════════════════════════════════════ */
 (function () {
   if (window.FLState) return;
 
   var PUT_DEBOUNCE_MS = 800;
-  var timers = {};   // key -> timeout id
-  var queued = {};   // key -> latest value awaiting PUT
+  var OWNER_KEY = 'fl_state_owner_v1';         // the account whose copies this browser holds
+  var MIGRATED_KEY = 'fl_state_migrated_v1';   // { lsKey: 1 } once the plain name has been claimed
+  var ANON = 'anon';                           // the bucket while nobody is signed in
+  var timers = {};     // key -> timeout id
+  var queued = {};     // key -> latest value awaiting PUT
+  var queuedAs = {};   // key -> the account the queued value was typed as
 
-  function lsGet(lsKey) {
-    try { return JSON.parse(localStorage.getItem(lsKey)); } catch (e) { return null; }
-  }
-  function lsSet(lsKey, value) {
-    try { localStorage.setItem(lsKey, JSON.stringify(value)); } catch (e) {}
-  }
+  function rawGet(name) { try { return localStorage.getItem(name); } catch (e) { return null; } }
+  function rawSet(name, s) { try { localStorage.setItem(name, s); } catch (e) {} }
+  function rawRemove(name) { try { localStorage.removeItem(name); } catch (e) {} }
+  function parse(s) { if (s == null) return null; try { return JSON.parse(s); } catch (e) { return null; } }
+
   function authed() { return !!(window.flApi && flApi.authed && flApi.authed()); }
   function api() { return (window.flTileState && flTileState.get) ? flTileState : null; }
+
+  // ── who is signed in ──
+  // The JWT's 'sub' is the user id: stable across an email change and carries no address into
+  // key names. Decoded once per distinct token string.
+  function jwtSub(tok) {
+    try {
+      var p = String(tok).split('.');
+      if (p.length < 2) return null;
+      var b = p[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b.length % 4) b += '=';
+      var claims = JSON.parse(atob(b));
+      return (claims && typeof claims.sub === 'string' && claims.sub) ? claims.sub : null;
+    } catch (e) { return null; }
+  }
+  var _acctTok = null, _acctSub = null;
+  function account() {
+    var tok = null;
+    try { tok = (window.flAuth && flAuth.token && flAuth.token()) || (window.flApi && flApi.token && flApi.token()) || null; } catch (e) {}
+    if (tok) {
+      if (tok !== _acctTok) { _acctTok = tok; _acctSub = jwtSub(tok); }
+      if (_acctSub) return _acctSub;
+    }
+    var em = null;
+    try { em = window.flAuth && flAuth.email && flAuth.email(); } catch (e) {}
+    em = (typeof em === 'string') ? em.trim().toLowerCase() : '';
+    return em || null;
+  }
+  function suffix() { return '::' + (account() || ANON); }
+
+  // ── one account's copies per browser ──
+  function clearAccount(acct) {
+    var sfx = '::' + acct, names = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.length > sfx.length && k.slice(-sfx.length) === sfx) names.push(k);
+      }
+    } catch (e) {}
+    names.forEach(rawRemove);
+  }
+  function dropQueued() {
+    Object.keys(timers).forEach(function (k) { clearTimeout(timers[k]); });
+    timers = {}; queued = {}; queuedAs = {};
+  }
+  // Runs at load, on every auth change this window can hear, and at the top of every call — so
+  // the clean-up happens even when no copy of this file was alive at the moment of sign-out.
+  function reconcile() {
+    var cur = account();
+    var owner = rawGet(OWNER_KEY);
+    if (owner === cur) return;
+    if (owner) { clearAccount(owner); dropQueued(); rawRemove(OWNER_KEY); }
+    if (cur) rawSet(OWNER_KEY, cur);
+  }
+
+  // ── the one-time claim of the pre-TD-264 plain name ──
+  function migrate(lsKey, acct) {
+    var done = parse(rawGet(MIGRATED_KEY));
+    if (!done || typeof done !== 'object') done = {};
+    var plain = rawGet(lsKey);
+    if (!done[lsKey]) {
+      if (plain != null && rawGet(lsKey + '::' + acct) == null) rawSet(lsKey + '::' + acct, plain);
+      done[lsKey] = 1;
+      rawSet(MIGRATED_KEY, JSON.stringify(done));
+    }
+    if (plain != null) rawRemove(lsKey);
+  }
+  function storageKey(lsKey) {
+    reconcile();
+    var acct = account();
+    if (acct) migrate(lsKey, acct);
+    return lsKey + '::' + (acct || ANON);
+  }
+
+  function lsGet(lsKey) { return parse(rawGet(storageKey(lsKey))); }
+  function lsSet(lsKey, value) { rawSet(storageKey(lsKey), JSON.stringify(value)); }
+  function lsRemove(lsKey) { rawRemove(storageKey(lsKey)); }
 
   async function load(key, lsKey) {
     var local = lsKey ? lsGet(lsKey) : null;
     if (!authed() || !api()) {
       return { value: local, source: local != null ? 'local' : 'none' };
     }
+    var as = account();
     var r = await flTileState.get(key);
+    // The answer is about the person the request was SENT for. If someone else is signed in by
+    // now, it must not be mirrored into their bucket or painted as theirs.
+    if (account() !== as) return { value: null, source: 'none' };
     if (r && r.ok) {
       if (lsKey) lsSet(lsKey, r.data.state);            // mirror server -> LS for offline reads
       return { value: r.data.state, source: 'server' };
     }
     if (r && r.status === 404) {
       // The server has NO row for this signed-in principal -> the HONEST answer is empty (0), even
-      // if this browser still holds stale localStorage from a prior tenant/session. We deliberately
-      // do NOT resurrect that LS into the server: auto-migrating it up would repopulate a cleared /
-      // brand-new tenant with another context's data and show fake non-zero counts (Real-Data
-      // Foundation requires an empty tenant to read 0 honestly). The stale LS is left as an inert
-      // offline breadcrumb; only an explicit user save() ever writes this tenant's server state.
+      // if this browser still holds a copy from an earlier visit. We deliberately do NOT resurrect
+      // that copy into the server: auto-migrating it up would repopulate a cleared / brand-new
+      // tenant with older data and show fake non-zero counts (Real-Data Foundation requires an
+      // empty tenant to read 0 honestly). The browser copy — this person's own, never another
+      // account's (TD-264) — stays an inert offline breadcrumb; only an explicit user save() ever
+      // writes this tenant's server state.
       return { value: null, source: 'none' };
     }
     // API down / session died mid-flight: serve the offline cache, honestly labeled 'local'.
@@ -59,14 +165,17 @@
   }
 
   function save(key, lsKey, value) {
+    reconcile();
     if (lsKey) lsSet(lsKey, value);                     // cache immediately, never lose input
     if (!authed() || !api()) return;
     queued[key] = value;
+    queuedAs[key] = account();
     if (timers[key]) clearTimeout(timers[key]);
     timers[key] = setTimeout(function () {
       delete timers[key];
-      var v = queued[key];
-      delete queued[key];
+      var v = queued[key], who = queuedAs[key];
+      delete queued[key]; delete queuedAs[key];
+      if (who !== account()) return;                    // typed as one person, never sent as another
       flTileState.put(key, v);                          // fire-and-forget; LS still has it
     }, PUT_DEBOUNCE_MS);
   }
@@ -74,8 +183,9 @@
   function flush() {
     Object.keys(queued).forEach(function (key) {
       if (timers[key]) { clearTimeout(timers[key]); delete timers[key]; }
-      var v = queued[key];
-      delete queued[key];
+      var v = queued[key], who = queuedAs[key];
+      delete queued[key]; delete queuedAs[key];
+      if (who !== account()) return;                    // typed as one person, never sent as another
       // keepalive so a pagehide/unload PUT survives document teardown (a plain fetch is cancelled,
       // silently losing the last debounced edit); falls back to a normal PUT if unavailable.
       if (authed() && api()) {
@@ -86,5 +196,18 @@
   }
   window.addEventListener('pagehide', flush);
 
-  window.FLState = { load: load, save: save, flush: flush };
+  // Another window signed out, signed in, or had its session end: a 'storage' event never reaches
+  // the window that wrote, so the writer's own window hears fl:auth-ended (fl-auth.js) instead.
+  window.addEventListener('storage', function (e) {
+    var k = e ? e.key : null;
+    if (k == null || k === 'fl_auth_token' || k === 'fl_auth_email' || k === 'fl_auth_ended' || k === OWNER_KEY) reconcile();
+  });
+  window.addEventListener('fl:auth-ended', function () { reconcile(); });
+  reconcile();
+
+  window.FLState = {
+    load: load, save: save, flush: flush,
+    local: lsGet, setLocal: lsSet, removeLocal: lsRemove,
+    storageKey: storageKey, suffix: suffix, account: account,
+  };
 })();
