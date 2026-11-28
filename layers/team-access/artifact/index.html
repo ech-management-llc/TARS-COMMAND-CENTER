@@ -162,6 +162,13 @@
   var ROSTER_SEQ = 0;                      // the newest roster read issued (Refresh or a post-write re-read); an
                                            // older answer is dropped (round 4: a slow Refresh read used to land
                                            // after a Remove/Add re-read and paint the old roster back)
+  var ROSTER_WAIT = Promise.resolve();     // the newest roster read's promise, settled once its answer has RENDERED.
+                                           // A roster read that finds itself stale resolves with THIS, not at once
+                                           // (TD-259 RV5-A-2: Remove's re-read, made stale by Add person's, resolved
+                                           // at once; the controls came back on the pre-Remove rows — the removed
+                                           // person shown active, with access and live buttons — for as long as the
+                                           // newer read took, and a Grant click there asked the server for a grant
+                                           // to a disabled account)
   var HIST_GEN = 0;                        // bumped by every first-page history load; an older page is dropped
   // What the sign-in card says about the changes made on this page. A session that ends around a change shows the
   // sign-in card, and that card used to say "Nothing was changed" with the success line hidden behind it (round 4).
@@ -250,9 +257,11 @@
     ME = ((window.flAuth && flAuth.email && flAuth.email()) || '').toLowerCase();
     var rf = $('ta-refresh'); if(rf) rf.disabled = true;
     var seq = ++ROSTER_SEQ;
-    flTeam.roster().then(function(r){
+    // registered as ROSTER_WAIT (settled once this read has rendered, or handed on to a newer read), so a
+    // post-write re-read that this read makes stale can wait for it (TD-259 RV5-A-2)
+    ROSTER_WAIT = flTeam.roster().then(function(r){
       if(rf) rf.disabled = BUSY;
-      if(seq !== ROSTER_SEQ) return;   // a newer roster read (a post-write re-read) was issued after this one
+      if(seq !== ROSTER_SEQ) return ROSTER_WAIT;   // a newer roster read (a post-write re-read) was issued after this one: it renders, not this
       if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return loadAll(); }
       if(r.ok){ showState('UNEXPECTED ANSWER', 'The roster did not come back as a list — nothing is shown.', true); return; }
       if(r.status === 403){
@@ -309,21 +318,26 @@
   }
   // After a write that changes WHO is on the roster. A failed re-read is said above the table (round 2: it used to
   // re-render the pre-write rows under a success line); the written person's access is still re-read so at least
-  // that row is current. Resolves when the screen is consistent with what could be read.
+  // that row is current. Resolves when the screen is consistent with what could be read — and only once the NEWEST
+  // roster read has rendered: a read made stale by a newer one (Refresh, or Add person's own re-read) waits for
+  // that newer read instead of resolving at once (TD-259 RV5-A-2), so the controls released on this promise never
+  // come back on rows a read still in flight is about to replace.
   function reloadRoster(writtenId){
     var seq = ++ROSTER_SEQ;
-    return flTeam.roster().then(function(r){
-      if(seq !== ROSTER_SEQ) return 'stale';   // a newer roster read (Refresh) was issued: it renders, not this
+    var pr = flTeam.roster().then(function(r){
+      if(seq !== ROSTER_SEQ) return 'stale';   // a newer roster read was issued: it renders, not this
       if(sessionGone(r)) return 'session';
       if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return Promise.all(ROSTER.map(loadAccess)); }
       ROSTER_NOTE = 'The roster could not be re-read after this change — '+(r.ok ? 'it came back in an unexpected shape' : fail(r,'read'))+' — the rows below may be stale. Use Refresh to try again.';
       var w = writtenId ? personById(writtenId) : null;
       return w ? loadAccess(w) : null;
     }).then(function(x){
-      if(x === 'stale') return;
+      if(x === 'stale') return ROSTER_WAIT;   // the newer read's promise — registered before any answer can arrive, so never this one's
       if(x === 'session' || checkSession()){ if(x === 'session'){ BUSY = false; boot(); } return; }
       renderRoster(); renderManage(); renderAddCodes();
     });
+    ROSTER_WAIT = pr;
+    return pr;
   }
   // After a write to ONE person's access. Resolves only once the newest read for that person has landed and been
   // rendered (loadAccess waits for it) — so the controls, released on this promise, never come back on a level
