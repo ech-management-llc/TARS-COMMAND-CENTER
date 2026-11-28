@@ -479,6 +479,11 @@
     SENT_MANAGE = false;
     if(sessionGone(r)){ wroteUnanswered(r, LAST_MSG); BUSY = false; boot(); return; }
     wroteAnswered(LAST_MSG, r);
+    // The session ended while this change was out and the sign-in card is up, saying the change got no answer:
+    // it has one now, so the card is repainted with it — boot()'s own words, nothing re-read on a dead session
+    // (TD-259 R5B-1: a refusal on the merits is not a dead-session answer, so sessionGone() above did not catch
+    // it, and the card kept saying "may or may not have been applied" after the server had refused).
+    if(checkSession()) return;
     var freed = false, free = function(){ if(!freed){ freed = true; release(); } };
     setTimeout(free, REREAD_CAP_MS);
     return (reread ? reread() : Promise.resolve()).then(free, free);
@@ -628,6 +633,7 @@
       if(!r.ok){
         var hint = (r.status===409 && /tenant-owner/.test(detail422(r.data)||'')) ? ' Use <b>Manage</b> on that person\'s row instead.' : '';
         msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint; wroteAnswered('adding '+esc(email)+': '+msg.innerHTML, r);
+        if(checkSession()) return;   // the sign-in card is up and said this change got no answer: repaint it with the answer (TD-259 R5B-1)
         if(r.status===0){ reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); }); }
         return;
       }
@@ -644,6 +650,7 @@
       else if(!codes.length) line += ' <span class="muted">No company was included.</span>';
       msg.innerHTML = line; wroteAnswered(line, r);
       $('ta-add-email').value=''; $('ta-add-code').value=''; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
+      if(checkSession()) return;   // the sign-in card is up: repaint it with the answer; nothing is re-read on a dead session (TD-259 R5B-1)
       reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); });
     });
   });
