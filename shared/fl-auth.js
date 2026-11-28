@@ -129,7 +129,23 @@
   // On an AUTH rejection (refresh token bad/expired) it clears the session and marks it ended.
   // On anything that is NOT the sign-in service saying "this session is over" — a network error, a rate
   // limit, a server error, an unreadable answer — it returns false WITHOUT clearing: the session may be alive.
-  async function refresh() {
+  //
+  // ONE request at a time (TD-267). The board's REFRESH re-reads the figures and the access at once, and each
+  // read asks for a refresh when the token is past its hour — so one click sent the same refresh token twice.
+  // The first ask starts the request; every ask that arrives while it is out is handed the same promise; the
+  // slot is emptied when it settles, so the next ask after that starts a fresh one. The slot is per window
+  // (this file runs once in the board and once in each tile), so a tile still refreshes for itself.
+  var _refreshing = null;
+  function refresh() {
+    if (!_refreshing) {
+      _refreshing = _refreshOnce().then(
+        function (ok) { _refreshing = null; return ok; },
+        function () { _refreshing = null; return false; }   // _refreshOnce answers false itself; belt and braces
+      );
+    }
+    return _refreshing;
+  }
+  async function _refreshOnce() {
     if (!configured()) return false;
     var rt = null; try { rt = localStorage.getItem('fl_auth_refresh'); } catch (e) {}
     var who = email();
