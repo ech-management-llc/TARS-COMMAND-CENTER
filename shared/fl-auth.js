@@ -145,16 +145,24 @@
     }
     return _refreshing;
   }
+  // A request that never settles would hold the shared slot for the life of the page, and every later ask would
+  // join it instead of sending its own. After REFRESH_TIMEOUT_MS it is abandoned: that is no verdict (nothing is
+  // cleared, nothing marked ended), the slot empties, and the next ask sends a fresh request.
+  var REFRESH_TIMEOUT_MS = 15000;
   async function _refreshOnce() {
     if (!configured()) return false;
     var rt = null; try { rt = localStorage.getItem('fl_auth_refresh'); } catch (e) {}
     var who = email();
     if (!rt) { signOut(); markEnded(who); return false; }
+    var ctl = null, timer = null;
+    try { if (typeof AbortController !== 'undefined') ctl = new AbortController(); } catch (e) {}
     try {
+      if (ctl) timer = setTimeout(function () { try { ctl.abort(); } catch (e) {} }, REFRESH_TIMEOUT_MS);
       var res = await fetch(CFG.url + '/auth/v1/token?grant_type=refresh_token', {
         method: 'POST',
         headers: { 'apikey': CFG.anon, 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: rt }),
+        signal: ctl ? ctl.signal : undefined,
       });
       var data = await res.json().catch(function () { return {}; });
       // The answer is about the session this request was SENT for. If storage holds a different one by now —
@@ -172,7 +180,9 @@
       clearEnded();
       return true;
     } catch (e) {
-      return false;   // network error — don't clear; could be transient
+      return false;   // network error or timeout — don't clear; could be transient
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 

@@ -36,7 +36,7 @@ function makeWindow() {
     refreshes: 0,            // refresh POSTs sent to the sign-in service
     refreshBodies: [],       // their JSON bodies ({ refresh_token })
     apiCalls: [],            // every API request: { path, token }
-    refreshMode: 'ok',       // 'ok' = answer at once · 'defer' = hold until release() · 'fail-500' = server error
+    refreshMode: 'ok',       // 'ok' = answer at once · 'defer' = hold until release() · 'fail-500' = server error · 'refuse-401' = session over
     nextToken: 'T2',         // what the next successful refresh mints
     deferred: [],            // held answers; release() lets them all through
     // (call) => { status, body, defer? } — how the API answers a request carrying call.token
@@ -51,8 +51,8 @@ function makeWindow() {
     if (url === REFRESH_PATH) {
       net.refreshes += 1;
       net.refreshBodies.push(JSON.parse(opts.body));
-      const answer = () => (net.refreshMode === 'fail-500'
-        ? response(500, {})
+      const answer = () => (net.refreshMode === 'fail-500' ? response(500, {})
+        : net.refreshMode === 'refuse-401' ? response(401, { error: 'invalid_grant' })
         : response(200, { access_token: net.nextToken, refresh_token: 'R-' + net.nextToken, expires_in: 3600 }));
       if (net.refreshMode === 'defer') return new Promise((res) => net.deferred.push(() => res(answer())));
       return Promise.resolve(answer());
@@ -70,7 +70,10 @@ function makeWindow() {
   // the tiniest FormData the upload path needs
   class FormData { constructor() { this.parts = []; } append(k, v) { this.parts.push([k, v]); } }
 
-  const w = { localStorage, fetch, FormData, console, FL_SUPABASE: { url: AUTH_URL, anon: 'anon-test-key' }, FL_API_BASE: API_URL };
+  // real timers and AbortController by default (the refresh timeout arms one per request and clears it on settle);
+  // the timeout scenario swaps in fake timers it fires by hand
+  const w = { localStorage, fetch, FormData, console, setTimeout, clearTimeout, AbortController,
+              FL_SUPABASE: { url: AUTH_URL, anon: 'anon-test-key' }, FL_API_BASE: API_URL };
   w.window = w;                                        // the scripts read window.* and bare globals alike
   vm.createContext(w);
   vm.runInContext(AUTH_SRC, w, { filename: 'shared/fl-auth.js' });
@@ -206,19 +209,71 @@ async function scenario(title, fn) {
     check('and it is not marked ended', w.flAuth.expired() === false);
   });
 
-  await scenario('(8) a refused refresh (401) ends the session once, through the shared request', async () => {
+  await scenario('(8) a refused proactive refresh (401) ends the session once, through the shared request', async () => {
     const { w, store, net } = makeWindow();
     seedSession(store, { expired: true });
-    net.api = () => ({ status: 401, body: {} });
-    // the sign-in service refuses the refresh token
-    w.fetch = ((real) => (url, opts) => (url === REFRESH_PATH
-      ? (net.refreshes += 1, Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid_grant' }) }))
-      : real(url, opts)))(w.fetch);
+    net.refreshMode = 'refuse-401';                       // the sign-in service refuses the refresh token
     const [a, b] = await Promise.all([w.flApi.callX('GET', '/api/dashboard/scoped'), w.flApi.callX('GET', '/api/entities')]);
     check('exactly one refresh request', net.refreshes === 1, 'sent ' + net.refreshes);
     check('no API request went out without a token', net.apiCalls.length === 0, JSON.stringify(net.apiCalls));
     check('both reads report no session', a.status === 0 && b.status === 0 && !a.ok && !b.ok);
     check('the session is cleared and marked ended', !store.has('fl_auth_token') && w.flAuth.expired() === true);
+  });
+
+  await scenario('(9) a refused reactive refresh: fresh token, API 401, sign-in service 401 -> the 401 is returned', async () => {
+    const { w, store, net } = makeWindow();
+    seedSession(store, { expired: false });
+    net.api = () => ({ status: 401, body: { detail: 'token revoked' } });
+    net.refreshMode = 'refuse-401';
+    const r = await w.flApi.callX('GET', '/api/team');
+    check('exactly one refresh request', net.refreshes === 1, 'sent ' + net.refreshes);
+    check('one API request, no retry (nothing to retry with)', net.apiCalls.length === 1, 'sent ' + net.apiCalls.length);
+    check('the 401 is returned as it is', r.ok === false && r.status === 401 && r.data && r.data.detail === 'token revoked', JSON.stringify(r));
+    check('the session is cleared and marked ended', !store.has('fl_auth_token') && w.flAuth.expired() === true);
+  });
+
+  await scenario('(10) five waiters on a refresh the sign-in service refuses all get false', async () => {
+    const { w, store, net } = makeWindow();
+    seedSession(store, { expired: true });
+    net.refreshMode = 'defer';
+    const ps = [1, 2, 3, 4, 5].map(() => w.flAuth.refresh());
+    check('one refresh request for five waiters', net.refreshes === 1, 'sent ' + net.refreshes);
+    net.refreshMode = 'refuse-401';
+    net.release();
+    const results = await Promise.all(ps);
+    check('all five resolve false', results.every((r) => r === false), JSON.stringify(results));
+    check('still exactly one refresh request', net.refreshes === 1, 'sent ' + net.refreshes);
+    check('the session is cleared and marked ended once', !store.has('fl_auth_token') && !store.has('fl_auth_refresh') && w.flAuth.expired() === true);
+  });
+
+  await scenario('(11) a refresh that never answers times out: false, slot emptied, the next ask sends a new request', async () => {
+    const { w, store, net } = makeWindow();
+    seedSession(store, { expired: true });
+    // fake timers the scenario fires by hand, so the 15 s timeout costs no wall-clock time
+    const timers = [];
+    w.setTimeout = (fn, ms) => { timers.push({ fn, ms, live: true }); return timers.length; };
+    w.clearTimeout = (id) => { if (timers[id - 1]) timers[id - 1].live = false; };
+    const fire = () => { const t = timers.find((x) => x.live); t.live = false; t.fn(); };
+    // a sign-in service that never answers: the request settles only when its signal aborts
+    w.fetch = (url, opts) => {
+      if (url !== REFRESH_PATH) return Promise.reject(new Error('unexpected fetch ' + url));
+      net.refreshes += 1;
+      return new Promise((_, rej) => {
+        opts.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+      });
+    };
+    const p = w.flAuth.refresh();
+    const q = w.flAuth.refresh();
+    check('one request went out, shared by both asks', net.refreshes === 1 && p === q, 'sent ' + net.refreshes);
+    check('a timeout of at most 15 s is armed', timers.length === 1 && timers[0].live && timers[0].ms <= 15000, JSON.stringify(timers.map((t) => t.ms)));
+    fire();
+    const raced = await Promise.race([p, new Promise((r) => setTimeout(() => r('still hung'), 2000))]);
+    check('refresh() resolves false once the timeout fires', raced === false, String(raced));
+    check('the timeout is a verdict on nothing: the session is kept', store.get('fl_auth_token') === 'T1' && store.get('fl_auth_refresh') === 'R1' && w.flAuth.expired() === false);
+    const again = w.flAuth.refresh();
+    check('a second refresh() afterwards sends a new request', net.refreshes === 2 && again !== p, 'sent ' + net.refreshes);
+    fire();
+    check('and it too resolves false on its own timeout', (await again) === false);
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

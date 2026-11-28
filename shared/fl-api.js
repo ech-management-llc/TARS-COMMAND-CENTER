@@ -77,7 +77,7 @@
     }
     try {
       var res = await doFetch(t);
-      res = await recover401(res, t, doFetch);             // ONE retry; at most ONE (shared) refresh
+      res = await recover401(res, t, doFetch);             // ONE retry; at most one reactive refresh (the proactive one above may precede it)
       var data = null;
       if (res.status !== 204) { data = await res.json().catch(function () { return null; }); }
       else { data = {}; }
