@@ -680,10 +680,16 @@ function renderLoginGate(opts){
   const real = !!(window.flAuth && flAuth.configured());
   // A person whose session ended is told so — they did sign in; it is not their first time here.
   const was = (window.flAuth && flAuth.ended) ? flAuth.ended() : null;
+  // Under the form, the page is out of reach: nothing beneath it stays in the tab order or is read out (Enter on an
+  // unseen "Back" used to close the open tile; on an unseen "sign out", to reload to a plain form). The form takes
+  // focus when it appears; when it goes, what was under it is reachable again and focus returns where it was.
+  let covered = [], prevFocus = null;
   // The form goes: after a sign-in that keeps this page, or on "Not now".
   const close = () => {
     window.removeEventListener('storage', onOtherTab);
     el.remove();
+    covered.forEach(n => n.removeAttribute('inert'));
+    if (prevFocus && prevFocus.focus && document.contains(prevFocus)) { try { prevFocus.focus(); } catch(e){} }
   };
   // The form stays up while the next step runs, and goes only if that step keeps this page (a step that reloads
   // the page says so — then nothing of the screen underneath is shown in between).
@@ -750,8 +756,12 @@ function renderLoginGate(opts){
         ? 'Sign in with your Foundation Layer account (Supabase Auth) — your session syncs deals + scoped data to the backend. No account yet? Use demo.'
         : 'Auth not configured — demo session only (local, this browser).')+'</div>'+
     '</div>';
+  prevFocus = document.activeElement;
+  covered = Array.from(document.body.children).filter(n => n.tagName !== 'SCRIPT' && !n.hasAttribute('inert'));
+  covered.forEach(n => n.setAttribute('inert', ''));
   document.body.appendChild(el);
   if (was && was.email) el.querySelector('#gate-email').value = was.email;   // set as a value, never as markup
+  el.querySelector(was && was.email ? '#gate-pass' : '#gate-email').focus();   // the address is filled in: the password is next
 
   const notNow = el.querySelector('#gate-notnow');
   if (notNow) notNow.onclick = close;   // back to the page as it was: nothing reloads, nothing is signed in
