@@ -456,9 +456,17 @@ function saveProfile(){
 function loadEntities(){
   if(!isAuthed())return;
   refreshEntities().then(function(rows){
-    if(rows&&rows.length){renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'');if($('ent_add_card'))$('ent_add_card').style.display='';}
+    if(rows&&rows.length){renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'');if($('ent_add_card'))$('ent_add_card').style.display='';s3Bubble(null);}   // the bubble follows the fact: she holds companies (TD-266 R1A1-5)
     else{$('entOnfile').innerHTML='';holdEntityStep();}
   });
+}
+// Step 3's bubble says what the fact says, and is redrawn whenever the fact changes: null = the page's own opening line
+// (kept from the markup the first time), so a line written under an older fact never outlives it (TD-266 R1A1-5).
+let S3_BUBBLE_DEFAULT=null;
+function s3Bubble(text){
+  const b=$('s3_bubble');if(!b)return;
+  if(S3_BUBBLE_DEFAULT===null)S3_BUBBLE_DEFAULT=b.textContent;
+  b.textContent=(text===null)?S3_BUBBLE_DEFAULT:text;
 }
 // No company is offered to someone who may not create the account's first one: a person who was simply not given
 // access (FL would accept a company from any owner and file it beside the ones she cannot see), or one whose access
@@ -469,10 +477,10 @@ function holdEntityStep(){
   card.style.display='none';
   const say=function(a){
     const none=a&&a.kind==='none', noAccount=a&&a.kind==='unknown'&&a.why==='no-tenant', ended=a&&a.kind==='signed-out';
-    if($('s3_bubble'))$('s3_bubble').textContent=(none||noAccount)
+    s3Bubble((none||noAccount)
       ?'Companies on this account are added by its owner.'
       :ended?'Your session ended — sign in again.'
-      :'We couldn’t check your companies just now.';
+      :'We couldn’t check your companies just now.');
     $('entOnfile').innerHTML='<div class="empty">'+esc(none
       ?'You don’t have access to any companies yet. Ask the owner of this account to give you access.'
       :noAccount?'Your sign-in isn’t linked to an account yet. Ask the owner of this account to give you access.'
@@ -481,7 +489,7 @@ function holdEntityStep(){
   };
   if(!window.flAccess||!flAccess.read){say(null);return;}
   flAccess.read().then(function(a){
-    if(a&&a.mayCreate){$('entOnfile').innerHTML='<div class="empty">'+esc('No companies yet — add your first below.')+'</div>';card.style.display='';return;}
+    if(a&&a.mayCreate){$('entOnfile').innerHTML='<div class="empty">'+esc('No companies yet — add your first below.')+'</div>';card.style.display='';s3Bubble(null);return;}
     if(a&&a.kind==='has')return;   // the list above was read before a company arrived; the next visit shows it
     say(a);
   });
@@ -505,8 +513,9 @@ function saveEntity(){
       if(btn)btn.disabled=false;
       if(g.a&&g.a.kind==='signed-out'){setMsg('ent_msg','err',esc('Your session ended — sign in again; nothing was saved.'));return;}   // the form stays: her entries are still here (TD-266 R1A1-1)
       if(g.a&&g.a.kind==='has'){setMsg('ent_msg','err',esc('Adding companies isn’t open to your account here. Nothing was saved.'));return;}   // she holds companies but is not the owner; the list and the form stay, so the words can be seen (TD-266 R1A1-3)
+      if(!g.a||(g.a.kind==='unknown'&&g.a.why!=='no-tenant')){setMsg('ent_msg','err',esc('Nothing was saved — your access couldn’t be checked just now. Try again in a moment.'));return;}   // one failed check at the click keeps the list and the form on screen (TD-266 R1A1-5)
       setMsg('ent_msg','err','Nothing was saved.');
-      holdEntityStep();
+      holdEntityStep();   // given none, or no account: the step now says what the fresh answer says
     });
     return;
   }
