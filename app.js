@@ -682,8 +682,16 @@ function renderLoginGate(opts){
   };
   // The form stays up while the next step runs, and goes only if that step keeps this page (a step that reloads
   // the page says so — then nothing of the screen underneath is shown in between).
+  // ONCE. Two tabs at the form, "Sign in" pressed in both before either answer is back: the tab answered later was
+  // let through by the other tab's sign-in (onOtherTab) and again by its own answer, and started the app twice —
+  // every global listener wired twice, a tile's question reaching the assistant twice. (One tab, a slow sign-in,
+  // then "Enter demo" did the same.) The second time through does nothing — unless that answer is for a different
+  // account than this tab started as: then this page is someone else's, and it is reloaded.
+  let finished = false;
   const done = () => {
     window.removeEventListener('storage', onOtherTab);
+    if (finished){ if (accountMoved()) location.reload(); return; }
+    finished = true;
     if ((opts.onSignedIn || startApp)() !== 'reloading') close();
   };
   // Signed in from ANOTHER tab while this form is up: this tab must not go on saying "your session has ended"
