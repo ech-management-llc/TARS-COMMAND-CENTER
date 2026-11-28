@@ -41,9 +41,11 @@
   function thresholds(){
     var ltv=65, pd=300;
     try{
+      // TD-264: the knobs are keyed by account ('...::<owner>::<account>'); read only this person's
+      var sfx=(window.FLState&&FLState.suffix) ? FLState.suffix() : '';
       for(var i=0;i<localStorage.length;i++){
         var k=localStorage.key(i);
-        if(k && k.indexOf('tcc_tile_settings::financials::')===0){
+        if(k && k.indexOf('tcc_tile_settings::financials::')===0 && (!sfx || k.slice(-sfx.length)===sfx)){
           var v=JSON.parse(localStorage.getItem(k)||'null');
           if(v&&v.values){ if(v.values.ltv_max!=null) ltv=Number(v.values.ltv_max); if(v.values.per_door_floor!=null) pd=Number(v.values.per_door_floor); break; }
         }

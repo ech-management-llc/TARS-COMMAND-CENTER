@@ -105,8 +105,12 @@
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  function loadOverlay(){ try{ return JSON.parse(localStorage.getItem(OVKEY)) || {added:[],removed:[],hard:{}}; }catch(e){ return {added:[],removed:[],hard:{}}; } }
-  function saveOverlay(ov){ try{ localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){} }
+  // TD-264: the overlay is this person's — FLState (loaded below the main script, present by the time
+  // anything renders) keys it by account and clears it at sign-out; the plain reads are the no-FLState fallback only.
+  function loadOverlay(){
+    try{ var ov=(window.FLState&&FLState.local) ? FLState.local(OVKEY) : JSON.parse(localStorage.getItem(OVKEY)); return ov || {added:[],removed:[],hard:{}}; }catch(e){ return {added:[],removed:[],hard:{}}; }
+  }
+  function saveOverlay(ov){ try{ if(window.FLState&&FLState.setLocal) FLState.setLocal(OVKEY, ov); else localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){} }
   function mergedFeed(){
     var ov = loadOverlay(), rm = {};
     (ov.removed||[]).forEach(function(k){ rm[k]=1; });
@@ -239,7 +243,7 @@
     document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.remove('on'); });
     btn.classList.add('on');
     MODE = btn.getAttribute('data-mode');
-    try{ localStorage.setItem('fl_inbox_dispatch', MODE); }catch(e){}
+    try{ localStorage.setItem((window.FLState&&FLState.storageKey) ? FLState.storageKey('fl_inbox_dispatch') : 'fl_inbox_dispatch', MODE); }catch(e){}   // this person's setting (TD-264)
     document.getElementById('modenote').innerHTML = MODE==='auto'
       ? 'Auto dispatch — Nadia sends team texts, client replies, and applications on her own. Flip back to draft any time.'
       : 'Default: <b>draft dispatch</b> — external sends hold for your approval inside the flow. Flip to auto once you trust it.';
@@ -258,8 +262,12 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  try{ MODE = localStorage.getItem('fl_inbox_dispatch')==='auto' ? 'auto' : 'draft'; }catch(e){}
-  if(MODE==='auto'){ document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')==='auto'); }); }
+  // The dispatch setting is this person's (TD-264): read through FLState once the shared scripts below have loaded.
+  function restoreDispatchMode(){
+    try{ MODE = localStorage.getItem((window.FLState&&FLState.storageKey) ? FLState.storageKey('fl_inbox_dispatch') : 'fl_inbox_dispatch')==='auto' ? 'auto' : 'draft'; }catch(e){}
+    if(MODE==='auto'){ document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')==='auto'); }); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', restoreDispatchMode); else restoreDispatchMode();
 
   /* ── LIVE Gmail (Google connector, brief 2026-07-11) ──
      When the tenant's Google connection is live, the INCOMING list shows the REAL mailbox
@@ -414,9 +422,10 @@
     }).catch(function(){ bootSample(); });
   }
 </script>
-<script src="../../../shared/fl-auth.js?v=20261127a"></script>
-<script src="../../../shared/fl-api.js?v=20261127a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20261127a"></script>
+<script src="../../../shared/fl-auth.js?v=20260721a"></script>
+<script src="../../../shared/fl-api.js?v=20260721a"></script>
+<script src="../../../shared/fl-state.js?v=20260721a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
 <script>FLSettings.mount({tileId:'inbox'});</script>
 <script>bootInbox(); /* AFTER fl-auth/fl-api so the live-Gmail path can actually run */</script>
 </body>

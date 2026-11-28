@@ -953,7 +953,10 @@
     ];
 
     function load(){
-      var s={}; try{ s=JSON.parse(localStorage.getItem(AKEY))||{}; }catch(e){}
+      // TD-264: the browser copy is this person's — FLState keys it by account; the plain read is the no-FLState fallback only
+      var s={};
+      if(window.FLState && FLState.local){ s=FLState.local(AKEY)||{}; }
+      else { try{ s=JSON.parse(localStorage.getItem(AKEY))||{}; }catch(e){} }
       var o={}; for(var k in DEF){ o[k]=(s[k]!==undefined && s[k]!==null)?s[k]:DEF[k]; }
       return o;
     }

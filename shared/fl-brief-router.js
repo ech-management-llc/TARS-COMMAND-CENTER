@@ -28,7 +28,9 @@
   function daysUntil(ds){ if(!ds) return null; var d=new Date(ds+'T00:00:00'); if(isNaN(d)) return null; var n=new Date(); return Math.round((d - new Date(n.getFullYear(),n.getMonth(),n.getDate()))/864e5); }
 
   function lsValues(prefix){
-    try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k && k.indexOf(prefix)===0){ var v=JSON.parse(localStorage.getItem(k)||'null'); if(v && v.values) return v.values; } } }catch(e){}
+    // TD-264: the knobs are keyed by account ('<prefix><owner>::<account>'); read only this person's
+    try{ var sfx=(window.FLState&&FLState.suffix) ? FLState.suffix() : '';
+      for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k && k.indexOf(prefix)===0 && (!sfx || k.slice(-sfx.length)===sfx)){ var v=JSON.parse(localStorage.getItem(k)||'null'); if(v && v.values) return v.values; } } }catch(e){}
     return null;
   }
   function finThresholds(){ var v=lsValues('tcc_tile_settings::financials::')||{}; return { ltv:(v.ltv_max!=null?+v.ltv_max:65), pd:(v.per_door_floor!=null?+v.per_door_floor:300) }; }

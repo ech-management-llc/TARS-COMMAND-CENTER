@@ -383,12 +383,12 @@
     // a rollup render fault must never blank the other sections or read as an outage
     try{ renderRollups(); }catch(e){ rollupFault('from this payload'); }
     document.getElementById('stamp').textContent='Source: '+source+' · generated '+ts(d.generated_at);
-    try{ localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}
+    try{ if(window.FLState&&FLState.setLocal) FLState.setLocal(LS, {ts:d.generated_at}); else localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}   // this person's "last good" (TD-264)
   }
 
   function fail(err){
     DATA=null;   // nothing rendered from this load — a late /api/entities response has nothing to paint over
-    var last=''; try{ var s=JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ts) last=' · last good '+ts(s.ts); }catch(e){}
+    var last=''; try{ var s=(window.FLState&&FLState.local) ? FLState.local(LS) : JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ts) last=' · last good '+ts(s.ts); }catch(e){}
     var bar=document.getElementById('statusbar'); bar.className='livewire apidown';
     var det=err&&err.data&&err.data.detail; det=(typeof det==='string' && det) ? det : null;
     // a sign-in state is claimed ONLY when fl-api is present to answer; with the shared scripts unloaded (offline: the

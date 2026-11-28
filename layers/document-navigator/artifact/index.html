@@ -87,7 +87,8 @@
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  function overlayDocs(){ try{ return (JSON.parse(localStorage.getItem(DOCKEY))||{added:[]}).added||[]; }catch(e){ return []; } }
+  // TD-264: the browser copy is this person's — FLState keys it by account; the plain read is the no-FLState fallback only
+  function overlayDocs(){ try{ var ov=(window.FLState&&FLState.local) ? FLState.local(DOCKEY) : JSON.parse(localStorage.getItem(DOCKEY)); return (ov||{added:[]}).added||[]; }catch(e){ return []; } }
   function navMsg(html){ var el=document.getElementById('nav-msg'); if(el) el.innerHTML=html||''; }
 
   // Turn one admin_records row into a doc-list entry (carrying recordId+real so it gets a Delete).

@@ -84,11 +84,17 @@
     function selected(){ return isAll()?allIds():SEL.slice(); }
     function count(){ return isAll()?items.length:SEL.length; }
     function load(){
-      try{ var s=JSON.parse(localStorage.getItem(key)||'null');
+      try{ var s=(window.FLState&&FLState.local) ? FLState.local(key) : JSON.parse(localStorage.getItem(key)||'null');   // this person's selection (TD-264)
         if(Array.isArray(s)&&s.length){ var valid=allIds(); SEL=s.filter(function(i){ return valid.indexOf(i)>=0; }); if(!SEL.length) SEL=null; }
       }catch(e){}
     }
-    function save(){ try{ if(SEL&&SEL.length&&SEL.length<items.length) localStorage.setItem(key, JSON.stringify(SEL)); else localStorage.removeItem(key); }catch(e){} }
+    function save(){
+      try{
+        var S=window.FLState, keep=(SEL&&SEL.length&&SEL.length<items.length);
+        if(S&&S.setLocal){ if(keep) S.setLocal(key, SEL); else S.removeLocal(key); }        // this person's selection (TD-264)
+        else { if(keep) localStorage.setItem(key, JSON.stringify(SEL)); else localStorage.removeItem(key); }
+      }catch(e){}
+    }
     function fire(){ save(); renderBar(); refreshChooser(); onChange(selected(), isAll()); }
     function setAll(){ SEL=null; fire(); }
     function set(ids){ var valid=allIds(); var f=(ids||[]).filter(function(i){return valid.indexOf(i)>=0;}); SEL=(f.length&&f.length<items.length)?f:null; fire(); }

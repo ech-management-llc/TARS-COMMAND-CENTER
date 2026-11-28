@@ -57,7 +57,7 @@
       }).join(' · ')+' <button class="xref" type="button" onclick="flOpen(\'build-renovate\')" title="Open Build &amp; Renovate">Build &amp; Renovate</button>';
       el.style.display='block';
     }
-    function lsRead(){ try{ return JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){ return null; } }
+    function lsRead(){ try{ return (window.FLState&&FLState.local) ? FLState.local('fl_reno_estimate_v1') : JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(err){ return null; } }   // this person's copy (TD-264)
     var loading = window.FLState
       ? FLState.load('reno_estimates','fl_reno_estimate_v1').then(function(r){ return r.value; }).catch(lsRead)
       : Promise.resolve(lsRead());

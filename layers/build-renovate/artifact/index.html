@@ -121,7 +121,11 @@
   // labeled. Deal Analyzer reads it as its reno-budget input; Reserves & CapEx and Sell/Exit
   // read the same record. Totals come from the demo buttons, but the property / sqft / scope
   // the user typed above ride along in the stored entry.
-  function lsEstimates(){ try{ return JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(e){ return null; } }
+  // TD-264: the browser copy is this person's — FLState keys it by account; the plain read is the no-FLState fallback only
+  function lsEstimates(){
+    if(window.FLState && FLState.local) return FLState.local('fl_reno_estimate_v1');
+    try{ return JSON.parse(localStorage.getItem('fl_reno_estimate_v1')); }catch(e){ return null; }
+  }
   function fieldVal(id){ var el=document.getElementById(id); return el&&el.value?String(el.value).trim():''; }
   function sendEstimate(id, total, property, label){
     var entry = { id:id, total:total, property:fieldVal('br-prop')||property, label:label,
