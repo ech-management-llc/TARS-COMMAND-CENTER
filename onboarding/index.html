@@ -191,7 +191,7 @@
       <label>Parent entity (optional)</label>
       <select id="ent_parent"><option value="">— top-level (no parent) —</option></select>
       <p class="hint">Code must be unique. EIN, formation date, registered agent &amp; annual-report status aren't stored yet (the entities table has no columns for them — TD-109) — they arrive with the Secretary-of-State source. Not collected here, so nothing's faked.</p>
-      <button class="savebtn" onclick="saveEntity()">Save entity</button>
+      <button class="savebtn" id="ent_save" onclick="saveEntity()">Save entity</button>
       <div class="msg" id="ent_msg"></div>
     </div>
     <div class="nav"><button class="btn ghost" onclick="go(2)">Back</button><button class="btn prim" onclick="go(4)">Next →</button></div>
@@ -494,11 +494,15 @@ function autoCode(){
 // grant taken away meanwhile, creates nothing.
 let entGatePassed=false;
 function saveEntity(){
+  const btn=$('ent_save');
   if(!entGatePassed&&isAuthed()){
+    if(btn&&btn.disabled)return;   // one save at a time: a press while the last is being checked or sent is not a second submission (TD-266 R1A1-4)
+    if(btn)btn.disabled=true;      // held from the press until the answer — re-enabled below on every ending
     const gate=(window.flAccess&&flAccess.mayCreateNow)?flAccess.mayCreateNow('more'):Promise.resolve({ok:false,a:null});
     setMsg('ent_msg','sub','Checking…');
     gate.then(function(g){
       if(g.ok){entGatePassed=true;try{saveEntity();}finally{entGatePassed=false;}return;}
+      if(btn)btn.disabled=false;
       if(g.a&&g.a.kind==='signed-out'){setMsg('ent_msg','err',esc('Your session ended — sign in again; nothing was saved.'));return;}   // the form stays: her entries are still here (TD-266 R1A1-1)
       if(g.a&&g.a.kind==='has'){setMsg('ent_msg','err',esc('Adding companies isn’t open to your account here. Nothing was saved.'));return;}   // she holds companies but is not the owner; the list and the form stay, so the words can be seen (TD-266 R1A1-3)
       setMsg('ent_msg','err','Nothing was saved.');
@@ -506,13 +510,14 @@ function saveEntity(){
     });
     return;
   }
-  if(!isAuthed()){setMsg('ent_msg','err','Please sign in first.');return;}
+  if(!isAuthed()){if(btn)btn.disabled=false;setMsg('ent_msg','err','Please sign in first.');return;}
   const code=txt('ent_code'),name=txt('ent_name');
-  if(!code||!name){setMsg('ent_msg','err','Code and legal name are both required.');return;}
+  if(!code||!name){if(btn)btn.disabled=false;setMsg('ent_msg','err','Code and legal name are both required.');return;}
   const payload={code:code,name:name,legal_form:val('ent_legal')||'LLC',primary_bank:(val('ent_bank')||'').trim()||'Altra'};
   const parent=val('ent_parent');if(parent)payload.parent_entity_id=parent;
   setMsg('ent_msg','sub','Saving…');
   window.flEntities.create(payload).then(function(res){
+    if(btn)btn.disabled=false;
     if(!res){setMsg('ent_msg','err',(window.flApi&&!flApi.authed())?failCopy():'Save failed — that code may already exist, or you may not have create access. Try a different code.');return;}
     setMsg('ent_msg','ok','✓ '+esc(res.name||name)+' created.');
     ['ent_code','ent_name','ent_bank'].forEach(function(id){if($(id))$(id).value=(id==='ent_bank'?'Altra':'');});
