@@ -1079,6 +1079,10 @@ function newOperatorCreate(){
     gate.then(g => {
       if (btn0) btn0.disabled = false;
       if (g.ok){ newopGatePassed = true; try { newOperatorCreate(); } finally { newopGatePassed = false; } return; }
+      if (g.a && g.a.kind === 'signed-out'){   // her session ended under the card: say so, and keep the card — her entries are still here (TD-266 R1A1-1)
+        if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+esc('Your session ended — sign in again; nothing was saved.')+'</b>';
+        return;
+      }
       if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+((typeof window.accessSentence === 'function' && window.accessSentence(g.a)) || 'Creating a company isn’t open to your account here.')+'</b>';
       settleAccess(false, g.a);   // the card goes: what the board says now follows the fresh answer
     });

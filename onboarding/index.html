@@ -468,13 +468,15 @@ function holdEntityStep(){
   if(!card)return;
   card.style.display='none';
   const say=function(a){
-    const none=a&&a.kind==='none', noAccount=a&&a.kind==='unknown'&&a.why==='no-tenant';
+    const none=a&&a.kind==='none', noAccount=a&&a.kind==='unknown'&&a.why==='no-tenant', ended=a&&a.kind==='signed-out';
     if($('s3_bubble'))$('s3_bubble').textContent=(none||noAccount)
       ?'Companies on this account are added by its owner.'
+      :ended?'Your session ended — sign in again.'
       :'We couldn’t check your companies just now.';
     $('entOnfile').innerHTML='<div class="empty">'+esc(none
       ?'You don’t have access to any companies yet. Ask the owner of this account to give you access.'
       :noAccount?'Your sign-in isn’t linked to an account yet. Ask the owner of this account to give you access.'
+      :ended?'Your session ended — sign in again.'
       :'Adding one stays closed until we can. Reload this page to try again.')+'</div>';
   };
   if(!window.flAccess||!flAccess.read){say(null);return;}
@@ -497,6 +499,7 @@ function saveEntity(){
     setMsg('ent_msg','sub','Checking…');
     gate.then(function(g){
       if(g.ok){entGatePassed=true;try{saveEntity();}finally{entGatePassed=false;}return;}
+      if(g.a&&g.a.kind==='signed-out'){setMsg('ent_msg','err',esc('Your session ended — sign in again; nothing was saved.'));return;}   // the form stays: her entries are still here (TD-266 R1A1-1)
       setMsg('ent_msg','err','Nothing was saved.');
       holdEntityStep();
     });

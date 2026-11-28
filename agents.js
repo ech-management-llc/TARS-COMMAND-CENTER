@@ -573,7 +573,11 @@ function handleSetup(v){
         busy=true;   // a second click while the fact is read is not a second submission
         var gate=(window.flAccess && flAccess.mayCreateNow) ? await flAccess.mayCreateNow('more') : { ok:false, a:null };
         busy=false;
-        if(!gate.ok){ b.querySelector('#su-biz-msg').innerHTML='<span class="su-err">'+entityStepClosed(gate.a)+'</span> Nothing was saved.'; return; }
+        if(!gate.ok){
+          // a session that ended under the form is not "not open to your account": say what happened (TD-266 R1A1-1)
+          var closed=(gate.a && gate.a.kind==='signed-out') ? esc('Your session ended — sign in again; nothing was saved.') : entityStepClosed(gate.a)+' '+esc('Nothing was saved.');
+          b.querySelector('#su-biz-msg').innerHTML='<span class="su-err">'+closed+'</span>'; return;
+        }
       }
       var biz=cleanName(b.querySelector('#su-biz').value);
       var owner=cleanName(b.querySelector('#su-owner').value);
