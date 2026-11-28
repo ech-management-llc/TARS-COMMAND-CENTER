@@ -114,14 +114,34 @@
   }
   function forget() { memo = null; memoTok = null; }
 
+  // A person who holds companies ('has'): is she the account's OWNER? FL takes a company from an owner (or the platform
+  // account) only — a member given companies is refused at the create (routes/entities.py: "only a tenant-owner or
+  // genesis can create a company") — and the fact alone cannot tell the two apart. The roster says which: an owner may
+  // read it, the platform account gets 400, a member is refused (403). Adds role: 'owner' | 'member' to the fact.
+  // (The exact FL signal, a read-only access route, is described in the report and not commissioned.) TD-266 R1A1-3.
+  function ownerHolds(a) {
+    var x = api();
+    if (!x) return Promise.resolve(fact('unknown', 'no-api'));
+    return x.callX('GET', '/api/team').then(function (t) {
+      if (!t || t.status === 0 || t.status === 401) return lost('role-' + (t ? t.status : 'no-answer'));
+      if (t.ok || t.status === 400) return fact('has', 'owner-holds', { count: a.count, role: 'owner' });
+      if (t.status === 403) return fact('has', 'member-holds', { count: a.count, role: 'member' });
+      return fact('unknown', 'role-' + t.status);
+    }, function () { return lost('error'); });
+  }
+
   // At the moment a company create is pressed: read the fact afresh, for the session that will actually be sent.
   // 'first' — a screen that offers the account's FIRST company: only 'empty'. 'more' — a screen that also serves a
-  // person who already holds companies (Entities, TARS): 'empty' or 'has'. A form drawn under an older fact, a person
-  // who changed under it, or a grant taken away meanwhile is caught here, before anything is sent.
+  // person who already holds companies (Entities, TARS, Get set up): 'empty', or 'has' as the account's owner. A form
+  // drawn under an older fact, a person who changed under it, or a grant taken away meanwhile is caught here, before
+  // anything is sent.
   function mayCreateNow(rule) {
     forget();
     return read().then(function (a) {
-      var ok = !!a && (a.mayCreate || (rule === 'more' && a.kind === 'has'));
+      if (!a || a.mayCreate || rule !== 'more' || a.kind !== 'has') return a;
+      return ownerHolds(a);
+    }).then(function (a) {
+      var ok = !!a && (a.mayCreate || (rule === 'more' && a.kind === 'has' && a.role === 'owner'));
       return { ok: ok, a: a };
     }, function () { return { ok: false, a: lost('error') }; });
   }

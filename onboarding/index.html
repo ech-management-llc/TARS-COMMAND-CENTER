@@ -500,6 +500,7 @@ function saveEntity(){
     gate.then(function(g){
       if(g.ok){entGatePassed=true;try{saveEntity();}finally{entGatePassed=false;}return;}
       if(g.a&&g.a.kind==='signed-out'){setMsg('ent_msg','err',esc('Your session ended — sign in again; nothing was saved.'));return;}   // the form stays: her entries are still here (TD-266 R1A1-1)
+      if(g.a&&g.a.kind==='has'){setMsg('ent_msg','err',esc('Adding companies isn’t open to your account here. Nothing was saved.'));return;}   // she holds companies but is not the owner; the list and the form stay, so the words can be seen (TD-266 R1A1-3)
       setMsg('ent_msg','err','Nothing was saved.');
       holdEntityStep();
     });

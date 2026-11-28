@@ -361,6 +361,10 @@
         if(b0) b0.disabled = false;
         if(g.ok){ saveGatePassed = true; try{ saveEntity(); } finally { saveGatePassed = false; } return; }
         if(g.a && g.a.kind === 'signed-out'){ showAuth(); return; }
+        if(g.a && g.a.kind === 'has'){   // she holds companies but is not the account's owner: FL takes a company from owners only; her list stays (TD-266 R1A1-3)
+          if(m0) m0.innerHTML = '<span class="err">'+esc('Adding companies isn’t open to your account here.')+'</span> '+esc('Nothing was saved.');
+          return;
+        }
         if(!g.a || g.a.kind === 'unknown'){   // a failed read does not wipe a list on screen: nothing was sent, say so
           if(m0) m0.innerHTML = '<span class="err">Nothing was saved — your access couldn’t be checked just now.</span> Try again in a moment.';
           return;
