@@ -996,17 +996,19 @@ function refreshGroupChips(){
 // supposed to use (TD-086). That 403 must read as "new operator — create your first company",
 // never as a read-only app or an outage. FE-only: detection + a form; authorization stays
 // entirely server-side (the server namespaces member codes + grants ownership atomically).
+let accessSeq = 0;   // each read of the fact is numbered: an answer older than the newest ask never lands (TD-266 DE-1)
 function checkNewOperator(){
   if (!(window.flApi && flApi.authed && flApi.authed() && flApi.callX)) return;   // demo/local: skip
+  const seq = ++accessSeq;
   return flApi.callX('GET', '/api/entities').then(r => {
-    if (!r) return;
+    if (!r || seq !== accessSeq) return;   // a newer read was asked meanwhile (this one outran its limit): that one's answer lands
     const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
     if (!isNew){
       if (!r.ok && STATE.access) return;   // a failed re-read leaves the last fact standing (it does not wipe what is said)
       settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return;
     }
     // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
-    const done = a => settleAccess(boardOffersCreate(a, r), a);
+    const done = a => { if (seq === accessSeq) settleAccess(boardOffersCreate(a, r), a); };
     if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
     else done(null);
   }).catch(()=>{});
@@ -1834,12 +1836,16 @@ function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLay
 // entry — was read once at start and outlived a grant or a revoke made elsewhere until the page was reloaded. It is
 // re-read when the person comes back to the board: closing a screen, pressing REFRESH, returning to this tab. One read at
 // a time; asks that arrive meanwhile are folded into one more read after it, so an older answer never lands last.
+// A read that never answers must not hold the slot for the whole visit: past this limit the slot is freed and the next ask
+// runs. The late answer, if it ever comes, lands only while no newer read has been asked (checkNewOperator). TD-266 DE-1.
+const ACCESS_CHECK_MS = 15000;
 let accessCheck = null, accessAgain = false;
 function recheckAccess(){   // every caller is wired by startApp() or lives on the board, so the board has started
   if (accessCheck){ accessAgain = true; return; }
   if (window.flAccess && flAccess.forget) flAccess.forget();
   const was = STATE.accessKind;
-  accessCheck = Promise.resolve(checkNewOperator()).catch(() => {}).then(() => {
+  const check = Promise.resolve(checkNewOperator()).catch(() => {});
+  accessCheck = Promise.race([check, new Promise(res => setTimeout(res, ACCESS_CHECK_MS))]).then(() => {
     accessCheck = null;
     // the figures follow: a grant or a revoke changes what Financial Health may say, and a refusal may have been lifted
     if (was !== undefined && (STATE.accessKind !== was || STATE.status.fl === 'refused')) fetchAll();
