@@ -504,8 +504,10 @@ function identityHtml(){
 // ...and it follows the fact when the fact changes under an open page: another tab or a tile signs in, signs out
 // or loses the session (storage event), this window's own session ends (announced by fl-auth.js), or a data
 // read has just come back (updLiveBar).
+// Each line is rewritten only when its text changes: a rewrite drops keyboard focus from a button in it ("sign in",
+// an open tile's "sign out"), and a token renewal or a first company created announce themselves without changing it.
 function refreshIdentity(){
-  const id = $('vb-id'); if (id) id.innerHTML = identityHtml();
+  const id = $('vb-id'); if (id){ const h = identityHtml(); if (id.innerHTML !== h) id.innerHTML = h; }
   if ($('drill-id')) mountDrillIdentity();
 }
 window.addEventListener('storage', e => { if (!e || e.key === null || e.key === 'fl_auth_token' || e.key === 'fl_auth_email') refreshIdentity(); });
@@ -515,8 +517,9 @@ function mountDrillIdentity(){
   const panel = $('panel'); if (!panel) return;
   let bar = $('drill-id');
   if (!bar){ bar = document.createElement('div'); bar.id = 'drill-id'; bar.className = 'idbar'; panel.insertBefore(bar, panel.firstChild); }
-  bar.innerHTML = '<span>'+identityHtml()+'</span>'+
+  const h = '<span>'+identityHtml()+'</span>'+
     '<button type="button" class="vb-signout" data-id-act="signout">sign out</button>';
+  if (bar.innerHTML !== h) bar.innerHTML = h;
 }
 // A tile's sign-in card (or the demo's "sign in") asks for the sign-in form. A tile is an <iframe> and cannot
 // show it itself. If a session is in fact live, the tile is simply stale: reload it.
