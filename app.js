@@ -76,8 +76,11 @@ async function boot(){
   // has ended never shows the board first. A network failure settles nothing and the board opens as before;
   // a sign-in service that does not answer is not waited on past BOOT_REFRESH_CAP_MS — if its refusal arrives
   // later, fl-auth.js announces it and syncSignIn() brings the gate up then.
+  // The verdict is asked for whenever a token is PRESENT — not only when the record is real: a token with no record
+  // (or a local demo's) is about to be trusted by followToken, and must be refreshed first or the board draws and
+  // the first read lands the "session ended" form over it.
   try {
-    if (Auth.isReal(Auth.session()) && Auth.canTell() && flAuth.needsRefresh && flAuth.needsRefresh())
+    if (Auth.canTell() && flAuth.token && flAuth.token() && flAuth.needsRefresh && flAuth.needsRefresh())
       await Promise.race([flAuth.refresh(), new Promise(r => setTimeout(r, BOOT_REFRESH_CAP_MS))]);
   } catch(e){}
   endDeadSession();
@@ -176,7 +179,20 @@ const Auth = {
   dead(s){ return this.isReal(s) && this.canTell() && !flApi.authed(); },
   // WHOSE sign-in: the address a record names, and the address the live token was issued to ('' = not known)
   addr(s){ return String((s && (s.contact || s.email)) || '').trim().toLowerCase(); },
-  tokenAddr(){ return (this.canTell() && flApi.authed() && flAuth.email) ? String(flAuth.email() || '').trim().toLowerCase() : ''; }
+  // The stored address first; a token stored by the supabase-js path has none, so then the token's own `email` claim
+  // (the payload decoded, nothing verified — the API verifies); '' when neither can be read.
+  tokenAddr(){
+    if (!(this.canTell() && flApi.authed())) return '';
+    let who = (flAuth.email && flAuth.email()) || '';
+    if (!who && flApi.token){
+      try {
+        const part = String(flApi.token() || '').split('.')[1] || '';
+        const claims = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+        who = (claims && typeof claims.email === 'string') ? claims.email : '';
+      } catch(e){ who = ''; }
+    }
+    return String(who || '').trim().toLowerCase();
+  }
 };
 
 // The token decides WHO as well as WHETHER. Two accounts taking turns in one browser used to leave a tab naming
@@ -188,7 +204,8 @@ const Auth = {
 function followToken(){
   const s = Auth.session(), who = Auth.tokenAddr();
   if (!who || (s && Auth.isReal(s) && Auth.addr(s) === who)) return;
-  const next = Object.assign({ role: 'owner', tenant: (STATE.tenant && STATE.tenant.tenant_id) || 'ech' }, s || {},
+  // only a REAL record carries anything over (its role, tenant); a local demo's role and scope are not the account's
+  const next = Object.assign({ role: 'owner', tenant: (STATE.tenant && STATE.tenant.tenant_id) || 'ech' }, Auth.isReal(s) ? s : {},
     { name: who.split('@')[0], contact: who, supabase: true, at: new Date().toISOString() });
   delete next.demo;
   Auth.signIn(next);
@@ -536,9 +553,10 @@ function requestSignIn(){
   if (typeof syncSignIn === 'function' && typeof resumeAfterSignIn === 'function'){
     syncSignIn();                        // a real session without its token: the "session ended" form, returning here
     if ($('login-gate')) return;
+    const setupWasOpen = !!($('setup-modal') && $('setup-modal').classList.contains('on'));
     closeSetupModal();                   // a local demo, or nobody: the plain form, with a way back ("Not now");
     const was = STATE.user;              // the same demo keeps this page, anyone else loads a fresh one
-    renderLoginGate({ onSignedIn: () => resumeAfterSignIn(was), notNow: true });
+    renderLoginGate({ onSignedIn: () => resumeAfterSignIn(was), notNow: true, restoreSetup: setupWasOpen });
   } else {
     Auth.signOut(); location.reload();   // without those helpers: the plain route to the sign-in form
   }
@@ -678,6 +696,8 @@ function deriveName(contact, role){
 // opts.onSignedIn — what to do once signed in (default: start the app; mid-visit: resumeAfterSignIn).
 // opts.notNow — the form was asked for by a "sign in" press over a page that is fine without one (a local demo):
 //   it offers "Not now", which puts the form away and leaves that page as it was.
+// opts.restoreSetup — the setup modal was open and was closed to show the form: it comes back when the form goes
+//   and the page is kept.
 function renderLoginGate(opts){
   opts = opts || {};
   const b = (STATE.tenant.branding)||{};
@@ -693,6 +713,7 @@ function renderLoginGate(opts){
     window.removeEventListener('storage', onOtherTab);
     el.remove();
     covered.forEach(n => n.removeAttribute('inert'));
+    if (opts.restoreSetup && $('setup-modal')){ $('setup-modal').classList.add('on'); document.body.style.overflow = 'hidden'; }
     if (prevFocus && prevFocus.focus && document.contains(prevFocus)) { try { prevFocus.focus(); } catch(e){} }
   };
   // The form stays up while the next step runs, and goes only if that step keeps this page (a step that reloads
@@ -707,7 +728,10 @@ function renderLoginGate(opts){
     window.removeEventListener('storage', onOtherTab);
     if (finished){ if (accountMoved()) location.reload(); return; }
     finished = true;
-    if ((opts.onSignedIn || startApp)() !== 'reloading') close();
+    let r;
+    try { r = (opts.onSignedIn || startApp)(); }
+    catch(e){ finished = false; throw e; }        // the step failed: it may be tried again, and the page is not left inert
+    finally { if (r !== 'reloading') close(); }
   };
   // Signed in from ANOTHER tab while this form is up: this tab must not go on saying "your session has ended"
   // over a live session, with no way on but typing the password a second time. (The token, its address and the
