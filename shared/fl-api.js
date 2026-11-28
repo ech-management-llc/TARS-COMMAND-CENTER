@@ -285,6 +285,9 @@
     get: function (id) { return call('GET', '/api/properties/' + encodeURIComponent(id)); },
     create: function (p) { return call('POST', '/api/properties', p); },
     update: function (id, patch) { return call('PATCH', '/api/properties/' + encodeURIComponent(id), patch); },
+    // Status-carrying update (TD-252: edit a property in place) so the screen can show the server's own
+    // words on a refusal (404 not in reach · 422 a value it will not take) instead of one blended guess.
+    updateX: function (id, patch) { return callX('PATCH', '/api/properties/' + encodeURIComponent(id), patch); },
     del: function (id) { return call('DELETE', '/api/properties/' + encodeURIComponent(id)); },
   };
 
