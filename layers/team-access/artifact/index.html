@@ -153,6 +153,12 @@
   var ROSTER_NOTE = '';                    // shown above the roster: a failed re-read, or unreadable entries
   var MINE_ST = 200;                       // the status of the caller's own company-list read (names + picker)
   var ACCESS_SEQ = Object.create(null);    // per person: the newest access read issued; an older answer is dropped
+  var ACCESS_WAIT = Object.create(null);   // per person: the newest access read's promise. An older read that finds
+                                           // itself stale resolves with THIS, not at once (TD-259 RV5-A-1: a Refresh
+                                           // or Add person read issued after the write's own made the write's re-read
+                                           // stale; refreshPerson() then resolved on the dropped answer, the controls
+                                           // came back on the OLD level, and the newest read flipped the row under
+                                           // live buttons — a repeat click on Revoke landed on Grant edit)
   var ROSTER_SEQ = 0;                      // the newest roster read issued (Refresh or a post-write re-read); an
                                            // older answer is dropped (round 4: a slow Refresh read used to land
                                            // after a Remove/Add re-read and paint the old roster back)
@@ -282,10 +288,13 @@
   }
   function loadAccess(p){
     // the newest read for this person wins: a Refresh read answered after a post-write read must not paint the
-    // pre-write state back over it (round 2)
+    // pre-write state back over it (round 2). Resolves only once the NEWEST read for this person has landed in
+    // ACCESS (TD-259 RV5-A-1): a read made stale by a newer one hands back that newer read's promise — which is
+    // registered before any answer can arrive, so it is never this read's own — and whoever waited on this read
+    // (refreshPerson, reloadRoster, loadAll) renders the newest level, never the one this read was issued under.
     var seq = (ACCESS_SEQ[p.id] || 0) + 1; ACCESS_SEQ[p.id] = seq;
-    return Promise.all([flTeam.entities(p.id), flTeam.capabilities(p.id)]).then(function(rs){
-      if(ACCESS_SEQ[p.id] !== seq) return;
+    var pr = Promise.all([flTeam.entities(p.id), flTeam.capabilities(p.id)]).then(function(rs){
+      if(ACCESS_SEQ[p.id] !== seq) return ACCESS_WAIT[p.id];
       var e = rs[0], c = rs[1];
       ACCESS[p.id] = {
         entities: (e.ok && e.data && Array.isArray(e.data.entities)) ? e.data.entities.filter(function(x){ return x && typeof x === 'object'; }) : null,
@@ -295,6 +304,8 @@
         est: e.status, cst: c.status
       };
     });
+    ACCESS_WAIT[p.id] = pr;
+    return pr;
   }
   // After a write that changes WHO is on the roster. A failed re-read is said above the table (round 2: it used to
   // re-render the pre-write rows under a success line); the written person's access is still re-read so at least
@@ -314,6 +325,9 @@
       renderRoster(); renderManage(); renderAddCodes();
     });
   }
+  // After a write to ONE person's access. Resolves only once the newest read for that person has landed and been
+  // rendered (loadAccess waits for it) — so the controls, released on this promise, never come back on a level
+  // that a read still in flight is about to overwrite (TD-259 RV5-A-1).
   function refreshPerson(id){
     var p = personById(id); if(!p) return Promise.resolve();
     return loadAccess(p).then(function(){ if(checkSession()) return; renderRoster(); renderManage(); renderAddCodes(); });
