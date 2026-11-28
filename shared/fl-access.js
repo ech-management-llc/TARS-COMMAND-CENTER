@@ -110,8 +110,8 @@
     var tok = a.token ? a.token() : '';
     if (memo && memoTok === tok) return memo;
     memoTok = tok;
-    memo = bounded(a.callX('GET', '/api/entities').then(classify0, function () { return lost('error'); }));
-    return memo;
+    memo = a.callX('GET', '/api/entities').then(classify0, function () { return lost('error'); });   // the real answer is what is kept for the token
+    return bounded(memo);   // what a caller gets ends within the limit; a stall is never cached as the answer
   }
   function forget() { memo = null; memoTok = null; }
 

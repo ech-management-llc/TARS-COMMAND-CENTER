@@ -455,6 +455,7 @@ function saveProfile(){
 /* ───────── C — entities → /api/entities ───────── */
 function loadEntities(){
   if(!isAuthed())return;
+  if(window.flAccess&&flAccess.forget)flAccess.forget();   // each visit to step 3 reads the fact afresh: an older 'empty' is not served to someone since given none
   refreshEntities().then(function(rows){
     if(rows&&rows.length){renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'');if($('ent_add_card'))$('ent_add_card').style.display='';s3Bubble(null);}   // the bubble follows the fact: she holds companies (TD-266 R1A1-5)
     else{$('entOnfile').innerHTML='';holdEntityStep();}

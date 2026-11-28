@@ -1013,7 +1013,12 @@ function checkNewOperator(){
       // 'unknown' from a re-read (the roster failed, or ran past its limit) is a read that said nothing, like a failed
       // list read: "You don't have access" is not replaced by "couldn't check" (TD-266 DE-3). A 409 on the roster
       // ("no account") is an answer, not a failure.
-      if (!a || (a.kind === 'unknown' && a.why !== 'no-tenant')){ unreadAccess(a); return; }
+      if (!a || (a.kind === 'unknown' && a.why !== 'no-tenant')){
+        // the list itself DID answer (none, or 403): a last fact of 'has' is no longer true, so it is not kept — the
+        // board says "couldn't check" and the figures are read again, rather than standing on companies she lost
+        if (STATE.access && STATE.access.kind === 'has'){ settleAccess(false, a || { kind:'unknown', mayCreate:false, why:'roster-unread' }); return; }
+        unreadAccess(a); return;
+      }
       settleAccess(boardOffersCreate(a, r), a);
     };
     if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
@@ -1100,6 +1105,10 @@ function newOperatorCreate(){
       if (g.ok){ newopGatePassed = true; try { newOperatorCreate(); } finally { newopGatePassed = false; } return; }
       if (g.a && g.a.kind === 'signed-out'){   // her session ended under the card: say so, and keep the card — her entries are still here (TD-266 R1A1-1)
         if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+esc('Your session ended — sign in again; nothing was saved.')+'</b>';
+        return;
+      }
+      if (g.a && g.a.kind === 'unknown' && g.a.why !== 'no-tenant'){   // could not be checked (a failed or slow read): keep the card and her entries, as Entities and Get set up do
+        if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+esc('Nothing was saved — your access couldn’t be checked just now. Try again in a moment.')+'</b>';
         return;
       }
       if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+((typeof window.accessSentence === 'function' && window.accessSentence(g.a)) || 'Creating a company isn’t open to your account here.')+'</b>';
