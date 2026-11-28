@@ -79,10 +79,10 @@
   <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20261127a"></script>
-<script src="../../../shared/fl-api.js?v=20261127a"></script>
-<script src="../../../shared/fl-state.js?v=20261127a"></script>
-<script src="../../../shared/fl-scope-select.js?v=20261127a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
+<script src="../../../shared/fl-scope-select.js?v=20261128a"></script>
 <script>
   // H5: the financial dashboard now reads the AUTHED, per-principal /api/dashboard/scoped (was the
   // unauth global /latest, now admin-only). flApi.call carries the caller's JWT + returns null on
@@ -458,7 +458,7 @@
   // a synchronous fault inside load() (a broken client) must reach fail(), never leave "Loading…" on screen
   try{ load(); }catch(e){ fail({status:0, render_error:(e && typeof e.message==='string' && e.message) || 'load fault'}); }
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20261127a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
 </body>
 </html>

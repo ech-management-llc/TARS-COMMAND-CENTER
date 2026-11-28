@@ -96,9 +96,9 @@
 
 <!-- shared scripts BEFORE the tile script (TD-264): a fetch callback below can run while a later blocking
      script include is still downloading, and would then read the plain key instead of this person's copy -->
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
 <script>
   // ── the real seams (backend swaps the transport, NOT this logic) ──
   // proposeSlots(feed, constraints) -> 3 conflict-free slots from the live calendar feed
@@ -424,7 +424,7 @@
     }).catch(function(){ bootSample(); });
   }
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>FLSettings.mount({tileId:'inbox'});</script>
 <script>bootInbox(); /* AFTER fl-auth/fl-api so the live-Gmail path can actually run */</script>
 </body>

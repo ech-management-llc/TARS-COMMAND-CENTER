@@ -3,7 +3,7 @@
 // Cache-first for same-origin assets; live sources (FL API, data snapshots) fall
 // through to the network when online.
 
-const CACHE_NAME = 'tcc-tilehome-live-20261127a';   // TD-267: fl-auth.js / fl-api.js changed (one shared refresh) — was 20261121b
+const CACHE_NAME = 'tcc-tilehome-live-20261128a';   // TD-267: fl-auth.js / fl-api.js changed (one shared refresh) — was 20261121b
 
 const ASSETS = [
   './',
