@@ -231,6 +231,7 @@ function resumeAfterSignIn(wasAddr){
   const s = Auth.session(); if (!s) return;
   if (!wasAddr || !Auth.isReal(s) || Auth.addr(s) !== wasAddr){ location.reload(); return 'reloading'; }
   STATE.user = s;
+  refreshIdentity();   // the corner says "signed in" now, not after the next read answers (it said "not signed in" when the session ended)
   fetchAll();
   checkNewOperator();
   if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();
