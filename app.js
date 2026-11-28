@@ -322,10 +322,14 @@ function fileToDocNav(name, folder, sourceTile){
   var entry = { name:name, folder:folder||'entity', source_tile:sourceTile||'document-navigator',
                 added:(new Date()).toISOString().slice(0,10) };
   try {
-    var ov = JSON.parse(localStorage.getItem('fl_documents_overlay_v1')||'{"added":[]}');
+    // TD-264: the browser copy is keyed by account through FLState (plain key copies are migrated
+    // once and then deleted unread), so the write must go through the same helper.
+    var ov = (window.FLState && FLState.local) ? (FLState.local('fl_documents_overlay_v1') || {added:[]})
+           : JSON.parse(localStorage.getItem('fl_documents_overlay_v1')||'{"added":[]}');
     if (!ov.added) ov.added = [];
     ov.added.push(entry);
-    localStorage.setItem('fl_documents_overlay_v1', JSON.stringify(ov));
+    if (window.FLState && FLState.setLocal) FLState.setLocal('fl_documents_overlay_v1', ov);
+    else localStorage.setItem('fl_documents_overlay_v1', JSON.stringify(ov));
   } catch(e){}
   try {
     if (window.FLState && window.flApi && flApi.authed()){
