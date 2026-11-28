@@ -489,6 +489,8 @@ function isDemoSession(){ return !!(STATE.user && STATE.user.demo === true); }
 // The line states the sign-in FACT — is there a live token, and whose — not what the board's own record says.
 // With a token it names the token's account, whatever the record is; with none it says "not signed in" and
 // offers the way to sign in. (If the script that holds the token never loaded, only the record is left to go by.)
+// The NAME comes from the token's stored address alone (flAuth.email): a token whose owner is not stored is
+// "Signed in" with no name, and a local demo record's typed address is never the name — it is not an account.
 function identityHtml(){
   const u = STATE.user || {};
   const can = !!(window.flApi && flApi.authed);
@@ -496,7 +498,7 @@ function identityHtml(){
   if (!live)
     return (isDemoSession() ? '<b>Demo</b> — not signed in' : '<b>Not signed in</b>')+
       ' <button type="button" class="vb-signout" data-id-act="signin">sign in</button>';
-  const em = (window.flAuth && flAuth.email && flAuth.email()) || u.contact || u.email || '';
+  const em = (window.flAuth && flAuth.email) ? (flAuth.email() || '') : (isDemoSession() ? '' : (u.contact || u.email || ''));
   return em ? 'Signed in as <b>'+esc(em)+'</b>' : 'Signed in';
 }
 // ...and it follows the fact when the fact changes under an open page: another tab or a tile signs in, signs out
