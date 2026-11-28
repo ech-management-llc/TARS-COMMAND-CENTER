@@ -490,7 +490,10 @@ function holdEntityStep(){
   if(!window.flAccess||!flAccess.read){say(null);return;}
   flAccess.read().then(function(a){
     if(a&&a.mayCreate){$('entOnfile').innerHTML='<div class="empty">'+esc('No companies yet — add your first below.')+'</div>';card.style.display='';s3Bubble(null);return;}
-    if(a&&a.kind==='has')return;   // the list above was read before a company arrived; the next visit shows it
+    // the fact says she holds companies but the list read above gave none: that read failed (or a company arrived
+    // between the two). Saying "they'll show below" over an empty list promised a list that is not there — it is
+    // "couldn't check", with the way forward (TD-266 R1A1-6)
+    if(a&&a.kind==='has'){say({kind:'unknown',why:'list-unread'});return;}
     say(a);
   });
 }
