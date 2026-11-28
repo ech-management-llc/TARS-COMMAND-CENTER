@@ -434,8 +434,20 @@
     else document.addEventListener('DOMContentLoaded', _mountAll);
     // The report button needs a session; if the tester signs in without a full reload, retry.
     window.addEventListener('focus', _mountReportButton);
+    // A tile opened by its own address — the top window, not the board's frame — presents the account it was opened
+    // as, and nothing in it asked whether that is still the account signed in: it kept the first person's list on
+    // screen, and a record saved there went to the account actually signed in. When another window signs in a
+    // DIFFERENT account (fl_auth_email changes to another address), the page is reloaded, as the board is. The same
+    // person signing in again is not a change, and neither is a sign-out: the card, and whatever it says about a
+    // change in flight, stays until the person moves on ("Continue").
+    var _openedAs = (email() || '').trim().toLowerCase();
     window.addEventListener('storage', function (e) {
       if (!e || e.key === 'fl_auth_token' || e.key === null) { _mountReportButton(); _dressSignInCards(); }
+      if (e && e.key === 'fl_auth_email' && _openedAs && document.querySelector('.art-wrap')) {
+        var now = (e.newValue || '').trim().toLowerCase(), top = false;
+        try { top = window.top === window.self; } catch (err) {}
+        if (top && now && now !== _openedAs) location.reload();
+      }
     });
   }
 })();
