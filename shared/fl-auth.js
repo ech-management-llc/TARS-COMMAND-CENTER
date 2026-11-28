@@ -129,16 +129,40 @@
   // On an AUTH rejection (refresh token bad/expired) it clears the session and marks it ended.
   // On anything that is NOT the sign-in service saying "this session is over" — a network error, a rate
   // limit, a server error, an unreadable answer — it returns false WITHOUT clearing: the session may be alive.
-  async function refresh() {
+  //
+  // ONE request at a time (TD-267). The board's REFRESH re-reads the figures and the access at once, and each
+  // read asks for a refresh when the token is past its hour — so one click sent the same refresh token twice.
+  // The first ask starts the request; every ask that arrives while it is out is handed the same promise; the
+  // slot is emptied when it settles, so the next ask after that starts a fresh one. The slot is per window
+  // (this file runs once in the board and once in each tile), so a tile still refreshes for itself.
+  var _refreshing = null;
+  function refresh() {
+    if (!_refreshing) {
+      _refreshing = _refreshOnce().then(
+        function (ok) { _refreshing = null; return ok; },
+        function () { _refreshing = null; return false; }   // _refreshOnce answers false itself; belt and braces
+      );
+    }
+    return _refreshing;
+  }
+  // A request that never settles would hold the shared slot for the life of the page, and every later ask would
+  // join it instead of sending its own. After REFRESH_TIMEOUT_MS it is abandoned: that is no verdict (nothing is
+  // cleared, nothing marked ended), the slot empties, and the next ask sends a fresh request.
+  var REFRESH_TIMEOUT_MS = 15000;
+  async function _refreshOnce() {
     if (!configured()) return false;
     var rt = null; try { rt = localStorage.getItem('fl_auth_refresh'); } catch (e) {}
     var who = email();
     if (!rt) { signOut(); markEnded(who); return false; }
+    var ctl = null, timer = null;
+    try { if (typeof AbortController !== 'undefined') ctl = new AbortController(); } catch (e) {}
     try {
+      if (ctl) timer = setTimeout(function () { try { ctl.abort(); } catch (e) {} }, REFRESH_TIMEOUT_MS);
       var res = await fetch(CFG.url + '/auth/v1/token?grant_type=refresh_token', {
         method: 'POST',
         headers: { 'apikey': CFG.anon, 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: rt }),
+        signal: ctl ? ctl.signal : undefined,
       });
       var data = await res.json().catch(function () { return {}; });
       // The answer is about the session this request was SENT for. If storage holds a different one by now —
@@ -156,7 +180,9 @@
       clearEnded();
       return true;
     } catch (e) {
-      return false;   // network error — don't clear; could be transient
+      return false;   // network error or timeout — don't clear; could be transient
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -408,8 +434,20 @@
     else document.addEventListener('DOMContentLoaded', _mountAll);
     // The report button needs a session; if the tester signs in without a full reload, retry.
     window.addEventListener('focus', _mountReportButton);
+    // A tile opened by its own address — the top window, not the board's frame — presents the account it was opened
+    // as, and nothing in it asked whether that is still the account signed in: it kept the first person's list on
+    // screen, and a record saved there went to the account actually signed in. When another window signs in a
+    // DIFFERENT account (fl_auth_email changes to another address), the page is reloaded, as the board is. The same
+    // person signing in again is not a change, and neither is a sign-out: the card, and whatever it says about a
+    // change in flight, stays until the person moves on ("Continue").
+    var _openedAs = (email() || '').trim().toLowerCase();
     window.addEventListener('storage', function (e) {
       if (!e || e.key === 'fl_auth_token' || e.key === null) { _mountReportButton(); _dressSignInCards(); }
+      if (e && e.key === 'fl_auth_email' && _openedAs && document.querySelector('.art-wrap')) {
+        var now = (e.newValue || '').trim().toLowerCase(), top = false;
+        try { top = window.top === window.self; } catch (err) {}
+        if (top && now && now !== _openedAs) location.reload();
+      }
     });
   }
 })();

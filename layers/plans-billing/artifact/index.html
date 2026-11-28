@@ -42,6 +42,9 @@
 </div>
 
 <script>
+  // tcc_entitlements stays under its plain name on purpose (TD-264): the board (app.js, Entitlement.overrides)
+  // reads the same plain key to decide which layers show on the home screen, so keying it here alone would hide
+  // purchases from the board. It is a demo purchase stub (no real charge); key both sides together, in one change.
   var ENT_KEY = 'tcc_entitlements';
   var BASE = 15;                 // Foundation base (sample $/mo)
   var TIER = { L0:0, L1:15, L2:15, L3:15 };  // sample add-on $/mo by tier
@@ -101,10 +104,10 @@
     })
     .catch(function(){ document.getElementById('market').innerHTML='<tr><td class="muted">Could not load the layer catalog.</td></tr>'; });
 </script>
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>FLSettings.mount({tileId:'plans-billing'});</script>
 </body>
 </html>

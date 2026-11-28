@@ -35,7 +35,7 @@
   var cfgPromise = null;                                 // one shared fetch of the settings file
   var cssDone = false, modalEl = null;
 
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function money(n){ if(n==null||isNaN(n)) return '—'; return '$'+Number(n).toLocaleString('en-US'); }
 
   function loadCfg(url){
@@ -110,7 +110,7 @@
         if(r && r.ok && r.data && r.data.state && r.data.state.owners){
           SRV = r.data.state;
           Object.keys(SRV.owners).forEach(function(o){
-            try{ localStorage.setItem(lsKey(o), JSON.stringify(SRV.owners[o])); }catch(e){}
+            lsWrite(o, SRV.owners[o]);
           });
           renderSetbar(); onChange(effective(OWNER));
         } else if(r && r.status === 404){
@@ -134,7 +134,12 @@
     function emp(){ return tileCfg().employee || {name:'your employee', avatar:'•', intro:''}; }
     function title(){ return opts.title || tileCfg().title || tileId; }
     function lsKey(owner){ return 'tcc_tile_settings::'+tileId+'::'+owner; }
-    function savedFor(owner){ try{ return JSON.parse(localStorage.getItem(lsKey(owner))||'null'); }catch(e){ return null; } }
+    // TD-264: the knobs are this person's — FLState keys them by account ('<lsKey>::<account>') and clears them at
+    // sign-out; the plain reads/writes are the no-FLState fallback only. Scanners (Watchlist, the brief router)
+    // match the same suffix.
+    function lsWrite(owner, v){ try{ if(window.FLState&&FLState.setLocal) FLState.setLocal(lsKey(owner), v); else localStorage.setItem(lsKey(owner), JSON.stringify(v)); }catch(e){} }
+    function lsDrop(owner){ try{ if(window.FLState&&FLState.removeLocal) FLState.removeLocal(lsKey(owner)); else localStorage.removeItem(lsKey(owner)); }catch(e){} }
+    function savedFor(owner){ try{ return (window.FLState&&FLState.local) ? FLState.local(lsKey(owner)) : JSON.parse(localStorage.getItem(lsKey(owner))||'null'); }catch(e){ return null; } }
     function configured(owner){ return !!savedFor(owner); }
     function effective(owner){
       var out={}; params().forEach(function(p){ out[p.key]=p.default; });
@@ -151,9 +156,12 @@
       var e=emp(), hasParams=params().length>0;
       var demo='<button class="fls-link" data-fls="demo" title="demo only — simulates the employee plug-in on/off">demo: employee '+(EMP?'ON':'OFF')+'</button>';
       if(hasParams && configured(OWNER)){
-        var saved=savedFor(OWNER), by=saved.by||(EMP?e.name:'manual'), eff=effective(OWNER);
+        var saved=savedFor(OWNER), by=saved.by||(EMP?'guided':'manual'), eff=effective(OWNER);
+        // 'guided' = the tile's employee set it (name resolved from the config here, not stored);
+        // older saves carried the name itself — still shown, escaped.
+        var byTxt=(by==='manual')?'manually':('by '+esc(by==='guided'?e.name:by));
         var summary=params().map(function(p){ return esc(p.label.split('(')[0].trim())+': '+(p.type==='money'?money(eff[p.key]):(esc(eff[p.key])+(p.unit?(' '+p.unit):''))); }).slice(0,3).join(' · ');
-        hostEl.innerHTML='<span class="fls-si">⚙️ Tuned '+(by==='manual'?'manually':('by '+esc(by)))+' for '+esc(OWNER)+'</span>'+
+        hostEl.innerHTML='<span class="fls-si">⚙️ Tuned '+byTxt+' for '+esc(OWNER)+'</span>'+
           '<span class="fls-mut">'+summary+'</span>'+
           '<button class="btn sm" data-fls="adjust">Adjust</button>'+demo;
       } else if(EMP){
@@ -221,11 +229,12 @@
     }
     function saveSetup(){
       var vals={}; params().forEach(function(p){ var el=document.getElementById('fls_set_'+p.key); if(el){ var n=Number(el.value); vals[p.key]=isNaN(n)?p.default:n; } });
-      try{ localStorage.setItem(lsKey(OWNER), JSON.stringify({by:(MODE==='guided'&&EMP)?emp().name:'manual', values:vals, at:new Date().toISOString()})); }catch(e){}
+      // by: 'guided' | 'manual' — a mode marker; the employee's name is config, resolved when rendered (CodeQL #12)
+      lsWrite(OWNER, {by:(MODE==='guided'&&EMP)?'guided':'manual', values:vals, at:new Date().toISOString()});
       pushToServer();
       closeModal(); renderSetbar(); onChange(effective(OWNER));
     }
-    function useDefaults(){ try{ localStorage.removeItem(lsKey(OWNER)); }catch(e){} pushToServer(); closeModal(); renderSetbar(); onChange(effective(OWNER)); }
+    function useDefaults(){ lsDrop(OWNER); pushToServer(); closeModal(); renderSetbar(); onChange(effective(OWNER)); }
 
     var ctrl = {
       get:     function(){ return effective(OWNER); },

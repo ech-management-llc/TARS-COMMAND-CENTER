@@ -17,6 +17,8 @@ let STATE  = null;
 // The agent service persists each turn to FL Postgres and returns the thread id; we keep it
 // to continue the thread and to reload history on a fresh page load.
 const convByScope = {};
+// Memory.append() queue — lives in memory for the page's life (see Memory.append).
+const memQueue = [];
 
 /* ════════════════════════════════════════════════════════════════
    MEMORY STORE — pluggable abstraction (the anti-relearning substrate)
@@ -40,14 +42,14 @@ const Memory = {
     return { connected:false, scope:scope, provider:c.provider, label:c.label, status:c.status||'configured' };
   },
   // append a learning back to the store (consent-gated by writeback_mode)
+  // v1: queued in memory for the page's life. Nothing reads the queue back yet (the real
+  // write-back lands with the live store), so the old localStorage copy only parked every
+  // queued entry in the browser profile for no reader (CodeQL #11).
   append(scope, entry){
     const c = this.cfg();
     const mode = c.writeback_mode || 'draft-for-approval';
-    try {
-      const q = JSON.parse(localStorage.getItem('tcc_mem_queue')||'[]');
-      q.push({ scope:scope, entry:entry, mode:mode, at:new Date().toISOString() });
-      localStorage.setItem('tcc_mem_queue', JSON.stringify(q.slice(-200)));
-    } catch(e){}
+    memQueue.push({ scope:scope, entry:entry, mode:mode, at:new Date().toISOString() });
+    if (memQueue.length > 200) memQueue.splice(0, memQueue.length - 200);
     return { queued:true, mode:mode };
   }
 };
@@ -229,7 +231,8 @@ function pushViewConfig(layerId){
   const fr = document.getElementById('drill-iframe');
   if (!fr || !fr.contentWindow) return;
   const cfg = ViewConfig.get(layerId);
-  try { fr.contentWindow.postMessage({ type:'tcc:viewcfg', layer:layerId, ops: cfg.ops }, '*'); } catch(e){}
+  // drill-ins are same-origin pages under layers/ — target our own origin, never '*' (CodeQL #3)
+  try { fr.contentWindow.postMessage({ type:'tcc:viewcfg', layer:layerId, ops: cfg.ops }, window.location.origin); } catch(e){}
 }
 
 // route a layer-chat message: view-edit command first, else a normal reply
@@ -257,10 +260,14 @@ function handleLayerMessage(layer, emp, text){
 /* ════════════════════════════════════════════════════════════════
    CHAT UI
    ════════════════════════════════════════════════════════════════ */
-// a real escaper, byte-identical to the shell's TCC.esc (app.js) — never a pass-through: the old `(window.TCC?window.TCC.esc:String)(s)`
+// a real escaper (the shell's TCC.esc in app.js plus the single quote) — never a pass-through: the old `(window.TCC?window.TCC.esc:String)(s)`
 // rendered typed names raw whenever app.js had not run, and CodeQL (js/xss-through-dom, PR #23 alerts 13-15) could not see a sanitizer in it
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-function escd(s){ return String(s==null?'':s).replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// esc: all five HTML specials (& < > " ') — safe in text and inside a double- or single-quoted
+// attribute. Every attribute value built from data goes through this one (TD-239: never a pass-through).
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+// escd: display text that may carry its own entities (& left alone); quotes are escaped too so a
+// stray attribute use cannot break out. Attribute values use esc().
+function escd(s){ return String(s==null?'':s).replace(/[<>"']/g, function(c){ return {'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
 function memLine(){
   // Lane 4b: when signed in, memory is LIVE — conversations + facts persist in FL Postgres,
@@ -395,8 +402,8 @@ function paintHire(b){
   b.innerHTML='Hire or skip an area’s employee — change anytime, independent of setup:<div class="setup-emprows">'+
     areas.map(function(a){ var h=a.hire;
       return '<div class="setup-emprow"><span><b>'+escd(a.employee.name)+'</b> <span class="su-dim">· '+escd(a.label)+'</span></span>'+
-        '<span class="setup-emprow-btns"><button type="button" class="echip'+(h==='hire'?' on':'')+'" data-hire="'+escd(a.id)+'">'+(h==='hire'?'✓ Hired':'Hire')+'</button> '+
-        '<button type="button" class="echip'+(h==='skip'?' on':'')+'" data-skip="'+escd(a.id)+'">'+(h==='skip'?'✓ Manual':'Skip')+'</button></span></div>';
+        '<span class="setup-emprow-btns"><button type="button" class="echip'+(h==='hire'?' on':'')+'" data-hire="'+esc(a.id)+'">'+(h==='hire'?'✓ Hired':'Hire')+'</button> '+
+        '<button type="button" class="echip'+(h==='skip'?' on':'')+'" data-skip="'+esc(a.id)+'">'+(h==='skip'?'✓ Manual':'Skip')+'</button></span></div>';
     }).join('')+
     '</div><div class="su-dim" style="margin-top:6px">Billing soon — hiring activates the area’s L0 advisor for now; the tiles always work by hand.</div>';
   b.querySelectorAll('[data-hire]').forEach(function(btn){ btn.onclick=function(){ var g=btn.getAttribute('data-hire'); fl.hireArea(g, fl.areaHire(g)==='hire'?null:'hire'); paintHire(b); }; });
@@ -563,10 +570,15 @@ function handleSetup(v){
       // the form may have been drawn under an older fact, or with no session: at the click, with a session, the fact is
       // read again for the session that will be sent, and nothing is created for a person who may not create here
       if(window.flApi && flApi.authed && flApi.authed()){
-        busy=true;   // a second click while the fact is read is not a second submission
+        var msg0=b.querySelector('#su-biz-msg');
+        busy=true; go.disabled=true; if(msg0) msg0.textContent='Checking…';   // a second click while the fact is read is not a second submission; the read ends within its limit (TD-266 R1A1-2)
         var gate=(window.flAccess && flAccess.mayCreateNow) ? await flAccess.mayCreateNow('more') : { ok:false, a:null };
-        busy=false;
-        if(!gate.ok){ b.querySelector('#su-biz-msg').innerHTML='<span class="su-err">'+entityStepClosed(gate.a)+'</span> Nothing was saved.'; return; }
+        busy=false; go.disabled=false; if(msg0) msg0.textContent='';
+        if(!gate.ok){
+          // a session that ended under the form is not "not open to your account": say what happened (TD-266 R1A1-1)
+          var closed=(gate.a && gate.a.kind==='signed-out') ? esc('Your session ended — sign in again; nothing was saved.') : entityStepClosed(gate.a)+' '+esc('Nothing was saved.');
+          b.querySelector('#su-biz-msg').innerHTML='<span class="su-err">'+closed+'</span>'; return;
+        }
       }
       var biz=cleanName(b.querySelector('#su-biz').value);
       var owner=cleanName(b.querySelector('#su-owner').value);
@@ -1169,7 +1181,7 @@ function handleSetup(v){
     if(!fl){ aBubble('Sign in to the Command Center to turn areas on.'); return true; }
     var areas=fl.areas().filter(function(a){ return a.id!=='brief' && a.id!=='overview'; });
     var html='Which area do you want to turn on? One click — data optional, fill it later.<div class="setup-chiprow">';
-    areas.forEach(function(a){ html+='<button type="button" class="echip'+(a.active?' on':'')+'" data-area="'+escd(a.id)+'">'+(a.active?'✓ ':'')+escd(a.label)+'</button>'; });
+    areas.forEach(function(a){ html+='<button type="button" class="echip'+(a.active?' on':'')+'" data-area="'+esc(a.id)+'">'+(a.active?'✓ ':'')+escd(a.label)+'</button>'; });
     html+='</div>';
     var ab=aBubble(html);
     ab.querySelectorAll('[data-area]').forEach(function(btn){
@@ -1243,6 +1255,7 @@ function $(id){ return document.getElementById(id); }
 window.Agents = {
   init(state){
     STATE = state; TENANT = state.tenant; Memory.load('all');
+    try { localStorage.removeItem('tcc_mem_queue'); } catch(e){}   // retired on-disk copy of the memory queue (now in-memory)
     // answer a drill-in that asks for its saved view config on load
     window.addEventListener('message', function(e){
       const d = e.data || {};

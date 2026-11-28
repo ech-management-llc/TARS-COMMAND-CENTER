@@ -23,7 +23,7 @@ if ('serviceWorker' in navigator) {
 
 /* ── tiny helpers ── */
 const $ = (id) => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pct(v){ if (v==null||isNaN(v)) return '—'; return (Math.round(Number(v)*10)/10).toFixed(1) + '%'; }
 function fmtMoney(n){
   if (n===null||n===undefined||n===''||isNaN(n)) return '—';
@@ -76,11 +76,15 @@ async function boot(){
   // has ended never shows the board first. A network failure settles nothing and the board opens as before;
   // a sign-in service that does not answer is not waited on past BOOT_REFRESH_CAP_MS — if its refusal arrives
   // later, fl-auth.js announces it and syncSignIn() brings the gate up then.
+  // The verdict is asked for whenever a token is PRESENT — not only when the record is real: a token with no record
+  // (or a local demo's) is about to be trusted by followToken, and must be refreshed first or the board draws and
+  // the first read lands the "session ended" form over it.
   try {
-    if (Auth.isReal(Auth.session()) && Auth.canTell() && flAuth.needsRefresh && flAuth.needsRefresh())
+    if (Auth.canTell() && flAuth.token && flAuth.token() && flAuth.needsRefresh && flAuth.needsRefresh())
       await Promise.race([flAuth.refresh(), new Promise(r => setTimeout(r, BOOT_REFRESH_CAP_MS))]);
   } catch(e){}
   endDeadSession();
+  followToken();   // a live token with no record (signed in on "Get set up", or in another tab) is a sign-in: the record is built from it
   const begin = () => { followToken(); startApp(); };
   if (!Auth.session()) { renderLoginGate({ onSignedIn: begin }); return; }
   begin();
@@ -175,17 +179,34 @@ const Auth = {
   dead(s){ return this.isReal(s) && this.canTell() && !flApi.authed(); },
   // WHOSE sign-in: the address a record names, and the address the live token was issued to ('' = not known)
   addr(s){ return String((s && (s.contact || s.email)) || '').trim().toLowerCase(); },
-  tokenAddr(){ return (this.canTell() && flApi.authed() && flAuth.email) ? String(flAuth.email() || '').trim().toLowerCase() : ''; }
+  // The stored address first; a token stored by the supabase-js path has none, so then the token's own `email` claim
+  // (the payload decoded, nothing verified — the API verifies); '' when neither can be read.
+  tokenAddr(){
+    if (!(this.canTell() && flApi.authed())) return '';
+    let who = (flAuth.email && flAuth.email()) || '';
+    if (!who && flApi.token){
+      try {
+        const part = String(flApi.token() || '').split('.')[1] || '';
+        const claims = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+        who = (claims && typeof claims.email === 'string') ? claims.email : '';
+      } catch(e){ who = ''; }
+    }
+    return String(who || '').trim().toLowerCase();
+  }
 };
 
 // The token decides WHO as well as WHETHER. Two accounts taking turns in one browser used to leave a tab naming
 // the first person while everything pressed in it was sent as the second. At startup the board's record is
 // rewritten to name the account the live token belongs to (a local demo record with a live token is, in fact,
-// signed in); while running, the page is reloaded when that account changes under it (accountMoved, below).
+// signed in — and so is a live token with NO record: a sign-in on the "Get set up" page or in another tab writes
+// the token and not the board's record, so the record is built from the token, in the shape a sign-in here would
+// write); while running, the page is reloaded when that account changes under it (accountMoved, below).
 function followToken(){
   const s = Auth.session(), who = Auth.tokenAddr();
-  if (!s || !who || (Auth.isReal(s) && Auth.addr(s) === who)) return;
-  const next = Object.assign({}, s, { name: who.split('@')[0], contact: who, supabase: true, at: new Date().toISOString() });
+  if (!who || (s && Auth.isReal(s) && Auth.addr(s) === who)) return;
+  // only a REAL record carries anything over (its role, tenant); a local demo's role and scope are not the account's
+  const next = Object.assign({ role: 'owner', tenant: (STATE.tenant && STATE.tenant.tenant_id) || 'ech' }, Auth.isReal(s) ? s : {},
+    { name: who.split('@')[0], contact: who, supabase: true, at: new Date().toISOString() });
   delete next.demo;
   Auth.signIn(next);
 }
@@ -216,7 +237,7 @@ function syncSignIn(){
   if (_syncingSignIn || $('login-gate')) return;   // already deciding, or already asking
   _syncingSignIn = true;
   try {
-    const was = Auth.addr(STATE.user);          // whose screen this is
+    const was = STATE.user;                     // whose screen this is: the record this window presents
     if (!endDeadSession()) return;
     closeSetupModal();
     renderLoginGate({ onSignedIn: () => resumeAfterSignIn(was) });
@@ -224,13 +245,22 @@ function syncSignIn(){
 }
 // Signed in again mid-visit. The SAME person returns to the page exactly as they left it — nothing is redrawn,
 // so nothing they typed is lost — and the app is never started a second time (that would wire every global
-// listener twice). ANYONE ELSE — another address, a new account, the local demo — gets a fresh page: the open
-// tile, the chat, the cached brief and the figures on screen belong to the person whose session ended, and none
-// of it may stay under a new name. Returns 'reloading' when it reloads, so the form stays up until the page goes.
-function resumeAfterSignIn(wasAddr){
-  const s = Auth.session(); if (!s) return;
-  if (!wasAddr || !Auth.isReal(s) || Auth.addr(s) !== wasAddr){ location.reload(); return 'reloading'; }
+// listener twice). ANYONE ELSE — another address, a new account, a different local demo — gets a fresh page: the
+// open tile, the chat, the cached brief and the figures on screen belong to the person whose session ended, and
+// none of it may stay under a new name. `was` is the record this window was presenting when the form came up; a
+// local demo that enters the SAME demo again (same role, same scope) is the same person and keeps the page too.
+// WHO signed in is the token's account (Auth.tokenAddr), as everywhere else in the round — not the stored record,
+// which another tab's local demo can hold at that moment; the record is made to follow the token (followToken).
+// Returns 'reloading' when it reloads, so the form stays up until the page goes.
+function resumeAfterSignIn(was){
+  let s = Auth.session(); if (!s) return;
+  const same = !!was && (Auth.isReal(was)
+    ? (!!Auth.addr(was) && Auth.tokenAddr() === Auth.addr(was))
+    : (s.demo === true && (s.role||'owner') === (was.role||'owner') && (s.scope||null) === (was.scope||null)));
+  if (!same){ location.reload(); return 'reloading'; }
+  followToken(); s = Auth.session() || s;   // the record this window adopts names the token's account
   STATE.user = s;
+  refreshIdentity();   // the corner says "signed in" now, not after the next read answers (it said "not signed in" when the session ended)
   fetchAll();
   checkNewOperator();
   if (window.flAuth && flAuth.mountReportButton) flAuth.mountReportButton();
@@ -292,10 +322,14 @@ function fileToDocNav(name, folder, sourceTile){
   var entry = { name:name, folder:folder||'entity', source_tile:sourceTile||'document-navigator',
                 added:(new Date()).toISOString().slice(0,10) };
   try {
-    var ov = JSON.parse(localStorage.getItem('fl_documents_overlay_v1')||'{"added":[]}');
+    // TD-264: the browser copy is keyed by account through FLState (plain key copies are migrated
+    // once and then deleted unread), so the write must go through the same helper.
+    var ov = (window.FLState && FLState.local) ? (FLState.local('fl_documents_overlay_v1') || {added:[]})
+           : JSON.parse(localStorage.getItem('fl_documents_overlay_v1')||'{"added":[]}');
     if (!ov.added) ov.added = [];
     ov.added.push(entry);
-    localStorage.setItem('fl_documents_overlay_v1', JSON.stringify(ov));
+    if (window.FLState && FLState.setLocal) FLState.setLocal('fl_documents_overlay_v1', ov);
+    else localStorage.setItem('fl_documents_overlay_v1', JSON.stringify(ov));
   } catch(e){}
   try {
     if (window.FLState && window.flApi && flApi.authed()){
@@ -480,6 +514,8 @@ function isDemoSession(){ return !!(STATE.user && STATE.user.demo === true); }
 // The line states the sign-in FACT — is there a live token, and whose — not what the board's own record says.
 // With a token it names the token's account, whatever the record is; with none it says "not signed in" and
 // offers the way to sign in. (If the script that holds the token never loaded, only the record is left to go by.)
+// The NAME comes from the token's stored address alone (flAuth.email): a token whose owner is not stored is
+// "Signed in" with no name, and a local demo record's typed address is never the name — it is not an account.
 function identityHtml(){
   const u = STATE.user || {};
   const can = !!(window.flApi && flApi.authed);
@@ -487,14 +523,16 @@ function identityHtml(){
   if (!live)
     return (isDemoSession() ? '<b>Demo</b> — not signed in' : '<b>Not signed in</b>')+
       ' <button type="button" class="vb-signout" data-id-act="signin">sign in</button>';
-  const em = (window.flAuth && flAuth.email && flAuth.email()) || u.contact || u.email || '';
+  const em = (window.flAuth && flAuth.email) ? (flAuth.email() || '') : (isDemoSession() ? '' : (u.contact || u.email || ''));
   return em ? 'Signed in as <b>'+esc(em)+'</b>' : 'Signed in';
 }
 // ...and it follows the fact when the fact changes under an open page: another tab or a tile signs in, signs out
 // or loses the session (storage event), this window's own session ends (announced by fl-auth.js), or a data
 // read has just come back (updLiveBar).
+// Each line is rewritten only when its text changes: a rewrite drops keyboard focus from a button in it ("sign in",
+// an open tile's "sign out"), and a token renewal or a first company created announce themselves without changing it.
 function refreshIdentity(){
-  const id = $('vb-id'); if (id) id.innerHTML = identityHtml();
+  const id = $('vb-id'); if (id){ const h = identityHtml(); if (id.innerHTML !== h) id.innerHTML = h; }
   if ($('drill-id')) mountDrillIdentity();
 }
 window.addEventListener('storage', e => { if (!e || e.key === null || e.key === 'fl_auth_token' || e.key === 'fl_auth_email') refreshIdentity(); });
@@ -504,8 +542,9 @@ function mountDrillIdentity(){
   const panel = $('panel'); if (!panel) return;
   let bar = $('drill-id');
   if (!bar){ bar = document.createElement('div'); bar.id = 'drill-id'; bar.className = 'idbar'; panel.insertBefore(bar, panel.firstChild); }
-  bar.innerHTML = '<span>'+identityHtml()+'</span>'+
+  const h = '<span>'+identityHtml()+'</span>'+
     '<button type="button" class="vb-signout" data-id-act="signout">sign out</button>';
+  if (bar.innerHTML !== h) bar.innerHTML = h;
 }
 // A tile's sign-in card (or the demo's "sign in") asks for the sign-in form. A tile is an <iframe> and cannot
 // show it itself. If a session is in fact live, the tile is simply stale: reload it.
@@ -518,8 +557,10 @@ function requestSignIn(){
   if (typeof syncSignIn === 'function' && typeof resumeAfterSignIn === 'function'){
     syncSignIn();                        // a real session without its token: the "session ended" form, returning here
     if ($('login-gate')) return;
-    closeSetupModal();                   // a local demo, or nobody: the plain form; signing in then loads a fresh page
-    renderLoginGate({ onSignedIn: resumeAfterSignIn });
+    const setupWasOpen = !!($('setup-modal') && $('setup-modal').classList.contains('on'));
+    closeSetupModal();                   // a local demo, or nobody: the plain form, with a way back ("Not now");
+    const was = STATE.user;              // the same demo keeps this page, anyone else loads a fresh one
+    renderLoginGate({ onSignedIn: () => resumeAfterSignIn(was), notNow: true, restoreSetup: setupWasOpen });
   } else {
     Auth.signOut(); location.reload();   // without those helpers: the plain route to the sign-in form
   }
@@ -657,25 +698,55 @@ function deriveName(contact, role){
   return ({admin:'Staff', viewer:'Viewer', field:'Field user', tenant:'Tenant'})[role] || 'User';
 }
 // opts.onSignedIn — what to do once signed in (default: start the app; mid-visit: resumeAfterSignIn).
+// opts.notNow — the form was asked for by a "sign in" press over a page that is fine without one (a local demo):
+//   it offers "Not now", which puts the form away and leaves that page as it was.
+// opts.restoreSetup — the setup modal was open and was closed to show the form: it comes back when the form goes
+//   and the page is kept.
 function renderLoginGate(opts){
   opts = opts || {};
   const b = (STATE.tenant.branding)||{};
   const real = !!(window.flAuth && flAuth.configured());
   // A person whose session ended is told so — they did sign in; it is not their first time here.
   const was = (window.flAuth && flAuth.ended) ? flAuth.ended() : null;
+  // Under the form, the page is out of reach: nothing beneath it stays in the tab order or is read out (Enter on an
+  // unseen "Back" used to close the open tile; on an unseen "sign out", to reload to a plain form). The form takes
+  // focus when it appears; when it goes, what was under it is reachable again and focus returns where it was.
+  let covered = [], prevFocus = null;
+  // The form goes: after a sign-in that keeps this page, or on "Not now".
+  const close = () => {
+    window.removeEventListener('storage', onOtherTab);
+    el.remove();
+    covered.forEach(n => n.removeAttribute('inert'));
+    if (opts.restoreSetup && $('setup-modal')){ $('setup-modal').classList.add('on'); document.body.style.overflow = 'hidden'; }
+    if (prevFocus && prevFocus.focus && document.contains(prevFocus)) { try { prevFocus.focus(); } catch(e){} }
+  };
   // The form stays up while the next step runs, and goes only if that step keeps this page (a step that reloads
   // the page says so — then nothing of the screen underneath is shown in between).
+  // ONCE. Two tabs at the form, "Sign in" pressed in both before either answer is back: the tab answered later was
+  // let through by the other tab's sign-in (onOtherTab) and again by its own answer, and started the app twice —
+  // every global listener wired twice, a tile's question reaching the assistant twice. (One tab, a slow sign-in,
+  // then "Enter demo" did the same.) The second time through does nothing — unless that answer is for a different
+  // account than this tab started as: then this page is someone else's, and it is reloaded.
+  let finished = false;
   const done = () => {
     window.removeEventListener('storage', onOtherTab);
-    if ((opts.onSignedIn || startApp)() !== 'reloading') el.remove();
+    if (finished){ if (accountMoved()) location.reload(); return; }
+    finished = true;
+    let r;
+    try { r = (opts.onSignedIn || startApp)(); }
+    catch(e){ finished = false; throw e; }        // the step failed: it may be tried again, and the page is not left inert
+    finally { if (r !== 'reloading') close(); }
   };
   // Signed in from ANOTHER tab while this form is up: this tab must not go on saying "your session has ended"
-  // over a live session, with no way on but typing the password a second time. (The token and the board's
-  // record arrive as two events, in either order; act once both are there.)
+  // over a live session, with no way on but typing the password a second time. (The token, its address and the
+  // board's record arrive as separate events, in any order; act once the token and its address are there — the
+  // record is built from them if nothing wrote one, as on the "Get set up" page.)
   const onOtherTab = e => {
-    if (e && e.key !== null && e.key !== 'fl_auth_token' && e.key !== AUTH_KEY) return;
+    if (e && e.key !== null && e.key !== 'fl_auth_token' && e.key !== 'fl_auth_email' && e.key !== AUTH_KEY) return;
     if (!document.body.contains(el)) { window.removeEventListener('storage', onOtherTab); return; }
-    if (Auth.session() && Auth.canTell() && flApi.authed()) done();
+    if (!(Auth.canTell() && flApi.authed())) return;
+    followToken();
+    if (Auth.session()) done();
   };
   window.addEventListener('storage', onOtherTab);
   const scopeOpts = (STATE.registry.layers||[]).filter(l => l.drilldown)
@@ -697,6 +768,7 @@ function renderLoginGate(opts){
       '<input id="gate-pass" type="password" placeholder="••••••••" autocomplete="current-password">'+
       '<button class="gate-btn primary" type="button" id="gate-signin">Sign in</button>'+
       (real ? '<button class="gate-link" type="button" id="gate-forgot" style="margin-top:4px">Forgot password?</button>' : '')+
+      (opts.notNow ? '<button class="gate-link" type="button" id="gate-notnow" style="margin-top:4px">Not now</button>' : '')+
       '<div class="gate-note" id="gate-err" style="display:none;color:var(--red)"></div>'+
       (real ? '<button class="gate-link" type="button" id="gate-create-toggle">Create an account ▾</button>'+
         '<div id="gate-create" style="display:none">'+
@@ -719,8 +791,15 @@ function renderLoginGate(opts){
         ? 'Sign in with your Foundation Layer account (Supabase Auth) — your session syncs deals + scoped data to the backend. No account yet? Use demo.'
         : 'Auth not configured — demo session only (local, this browser).')+'</div>'+
     '</div>';
+  prevFocus = document.activeElement;
+  covered = Array.from(document.body.children).filter(n => n.tagName !== 'SCRIPT' && !n.hasAttribute('inert'));
+  covered.forEach(n => n.setAttribute('inert', ''));
   document.body.appendChild(el);
   if (was && was.email) el.querySelector('#gate-email').value = was.email;   // set as a value, never as markup
+  el.querySelector(was && was.email ? '#gate-pass' : '#gate-email').focus();   // the address is filled in: the password is next
+
+  const notNow = el.querySelector('#gate-notnow');
+  if (notNow) notNow.onclick = close;   // back to the page as it was: nothing reloads, nothing is signed in
 
   const role = el.querySelector('#gate-role');
   el.querySelector('#gate-adv-toggle').onclick = () => { const a=el.querySelector('#gate-adv'); a.style.display = a.style.display==='none'?'block':'none'; };
@@ -921,20 +1000,43 @@ function refreshGroupChips(){
 // supposed to use (TD-086). That 403 must read as "new operator — create your first company",
 // never as a read-only app or an outage. FE-only: detection + a form; authorization stays
 // entirely server-side (the server namespaces member codes + grants ownership atomically).
+let accessSeq = 0;   // each read of the fact is numbered: an answer older than the newest ask never lands (TD-266 DE-1)
 function checkNewOperator(){
   if (!(window.flApi && flApi.authed && flApi.authed() && flApi.callX)) return;   // demo/local: skip
+  const seq = ++accessSeq;
   return flApi.callX('GET', '/api/entities').then(r => {
-    if (!r) return;
+    if (!r || seq !== accessSeq) return;   // a newer read was asked meanwhile (this one outran its limit): that one's answer lands
     const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
     if (!isNew){
-      if (!r.ok && STATE.access) return;   // a failed re-read leaves the last fact standing (it does not wipe what is said)
-      settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return;
+      if (!r.ok){ unreadAccess(null); return; }   // a failed read: the last fact stands, but no offer to create does (TD-266 DE-2)
+      settleAccess(false, { kind:'has', mayCreate:false, why:'listed' }); return;
     }
     // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
-    const done = a => settleAccess(boardOffersCreate(a, r), a);
+    const done = a => {
+      if (seq !== accessSeq) return;
+      // 'unknown' from a re-read (the roster failed, or ran past its limit) is a read that said nothing, like a failed
+      // list read: "You don't have access" is not replaced by "couldn't check" (TD-266 DE-3). A 409 on the roster
+      // ("no account") is an answer, not a failure.
+      if (!a || (a.kind === 'unknown' && a.why !== 'no-tenant')){
+        // the list itself DID answer (none, or 403): a last fact of 'has' is no longer true, so it is not kept — the
+        // board says "couldn't check" and the figures are read again, rather than standing on companies she lost
+        if (STATE.access && STATE.access.kind === 'has'){ settleAccess(false, a || { kind:'unknown', mayCreate:false, why:'roster-unread' }); return; }
+        unreadAccess(a); return;
+      }
+      settleAccess(boardOffersCreate(a, r), a);
+    };
     if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
     else done(null);
   }).catch(()=>{});
+}
+// A read that said nothing (the list failed; or the roster failed or ran past its limit, DE-3). On the first read, what
+// is known is said: nothing, or "couldn't check". On a
+// re-read the last fact stands — a read that said nothing does not wipe what is said — EXCEPT an offer to create: the
+// account may have stopped being empty meanwhile (another owner filed its first company), so the card, the setup entry
+// and the TARS step go, with "couldn't check", until a read answers again (TD-266 DE-2).
+function unreadAccess(a){
+  if (!STATE.access){ settleAccess(false, a); return; }
+  if (STATE.access.mayCreate) settleAccess(false, { kind:'unknown', mayCreate:false, why:'reread-failed' });
 }
 // Who is offered "Create your first company" on the board. a = the access fact (null when it could not be read).
 // Only someone who may create the account's first company: a person who was simply not given access is never offered
@@ -1000,10 +1102,19 @@ function newOperatorCreate(){
   if (!newopGatePassed){
     const btn0 = $('newop-create'), msg0 = $('newop-msg');
     if (btn0) btn0.disabled = true;
+    if (msg0) msg0.textContent = 'Checking…';   // said while the fact is read; the read ends within its limit, so the button comes back (TD-266 R1A1-2)
     const gate = (window.flAccess && flAccess.mayCreateNow) ? flAccess.mayCreateNow('first') : Promise.resolve({ ok:false, a:null });
     gate.then(g => {
       if (btn0) btn0.disabled = false;
       if (g.ok){ newopGatePassed = true; try { newOperatorCreate(); } finally { newopGatePassed = false; } return; }
+      if (g.a && g.a.kind === 'signed-out'){   // her session ended under the card: say so, and keep the card — her entries are still here (TD-266 R1A1-1)
+        if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+esc('Your session ended — sign in again; nothing was saved.')+'</b>';
+        return;
+      }
+      if (g.a && g.a.kind === 'unknown' && g.a.why !== 'no-tenant'){   // could not be checked (a failed or slow read): keep the card and her entries, as Entities and Get set up do
+        if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+esc('Nothing was saved — your access couldn’t be checked just now. Try again in a moment.')+'</b>';
+        return;
+      }
       if (msg0) msg0.innerHTML = '<b style="color:#ef4444">'+((typeof window.accessSentence === 'function' && window.accessSentence(g.a)) || 'Creating a company isn’t open to your account here.')+'</b>';
       settleAccess(false, g.a);   // the card goes: what the board says now follows the fresh answer
     });
@@ -1596,22 +1707,27 @@ function tileGeneric(l){
 /* ════════════════════════════════════════════════════════════════
    DATA FETCH — honest states, last-good fallback, graceful absence
    ════════════════════════════════════════════════════════════════ */
+// The figure reads carry an order: each ask is numbered and an answer older than the newest ask is dropped, so a
+// "Healthy" computed before a revoke never lands after the refusal that followed it (TD-266 DE-4).
+let figuresSeq = 0;
 function fetchAll(){
   // FL API
   const flUrl = (STATE.tenant.data_sources && STATE.tenant.data_sources.fl_api);
   if (flUrl && window.flApi && flApi.call){
+    const seq = ++figuresSeq;
     // H5: the Capital-Rules feed is the AUTHED, per-principal /api/dashboard/scoped (was the unauth
     // global /latest, now admin-only). flApi.call carries the JWT; null = no session/error -> down.
     // Status-carrying (callX): a 403 is FL REFUSING this account the figures (a member without the clearance they need),
     // which is a permission answer — never shown as "unreachable" / "offline" / "source down".
     (flApi.callX ? flApi.callX('GET', '/api/dashboard/scoped')
                  : flApi.call('GET', '/api/dashboard/scoped').then(d => ({ ok: !!d, status: d ? 200 : 0, data: d })))
-      .then(r=>{ const d = r && r.ok ? r.data : null;
+      .then(r=>{ if (seq !== figuresSeq) return;   // a newer ask is out: its answer is the one that lands
+        const d = r && r.ok ? r.data : null;
         if(!d && r && r.status === 403 && flApi.authed && flApi.authed()){ STATE.status.fl='refused'; STATE.data.fl=null; refreshDataTiles(); updLiveBar(); return; }   // refused: the figures held from before are not hers to read (TARS reads them too)
         if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
           STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
         STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
-      .catch(()=>{ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
+      .catch(()=>{ if (seq !== figuresSeq) return; STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
   }
   // committed snapshots (graceful absence)
   loadSnapshot('./data/REVENTURE_LATEST.json',      d=>STATE.data.reventure=d);
@@ -1754,12 +1870,16 @@ function closeDrill(){ hideOverlay('ov'); $('panel').innerHTML=''; STATE.openLay
 // entry — was read once at start and outlived a grant or a revoke made elsewhere until the page was reloaded. It is
 // re-read when the person comes back to the board: closing a screen, pressing REFRESH, returning to this tab. One read at
 // a time; asks that arrive meanwhile are folded into one more read after it, so an older answer never lands last.
+// A read that never answers must not hold the slot for the whole visit: past this limit the slot is freed and the next ask
+// runs. The late answer, if it ever comes, lands only while no newer read has been asked (checkNewOperator). TD-266 DE-1.
+const ACCESS_CHECK_MS = 15000;
 let accessCheck = null, accessAgain = false;
 function recheckAccess(){   // every caller is wired by startApp() or lives on the board, so the board has started
   if (accessCheck){ accessAgain = true; return; }
   if (window.flAccess && flAccess.forget) flAccess.forget();
   const was = STATE.accessKind;
-  accessCheck = Promise.resolve(checkNewOperator()).catch(() => {}).then(() => {
+  const check = Promise.resolve(checkNewOperator()).catch(() => {});
+  accessCheck = Promise.race([check, new Promise(res => setTimeout(res, ACCESS_CHECK_MS))]).then(() => {
     accessCheck = null;
     // the figures follow: a grant or a revoke changes what Financial Health may say, and a refusal may have been lifted
     if (was !== undefined && (STATE.accessKind !== was || STATE.status.fl === 'refused')) fetchAll();
@@ -1773,9 +1893,9 @@ function wireGlobalControls(){
   $('tars-btn').onclick = () => { if (window.Agents) Agents.openGlobal(); };
   // close overlays on backdrop click / Esc
   ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov'){ $('panel').innerHTML=''; } recheckAccess(); } }));
-  // (Esc does nothing while the sign-in form is up: it used to close the tile underneath, unseen, and with it
-  // whatever was typed there)
-  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; const was = $('ov').classList.contains('on') || $('gov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
+  // (While the sign-in form is up, Esc presses its "Not now" if it has one and otherwise does nothing: it used to
+  // close the tile underneath, unseen, and with it whatever was typed there)
+  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')){ const nn = $('gate-notnow'); if (nn) nn.click(); return; } const was = $('ov').classList.contains('on') || $('gov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
   // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event) —
   // or it now belongs to a different account than the one this page is presenting: then this page is someone
   // else's screen, and it is reloaded (boot presents whoever the token names).

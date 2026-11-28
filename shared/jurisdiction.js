@@ -16,7 +16,7 @@
   var SKEY = 'jurisdiction';        // server tile-state key (FLState bridge)
   var DATA = null;
 
-  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)); }catch(e){ return null; } }
+  function load(){ try{ return (window.FLState&&FLState.local) ? FLState.local(KEY) : JSON.parse(localStorage.getItem(KEY)); }catch(e){ return null; } }   // this person's choice (TD-264)
   function save(sel){
     if(window.FLState){ FLState.save(SKEY, KEY, sel); return; }  // LS immediately + debounced server PUT
     try{ localStorage.setItem(KEY, JSON.stringify(sel)); }catch(e){}

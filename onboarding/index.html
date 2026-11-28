@@ -191,7 +191,7 @@
       <label>Parent entity (optional)</label>
       <select id="ent_parent"><option value="">— top-level (no parent) —</option></select>
       <p class="hint">Code must be unique. EIN, formation date, registered agent &amp; annual-report status aren't stored yet (the entities table has no columns for them — TD-109) — they arrive with the Secretary-of-State source. Not collected here, so nothing's faked.</p>
-      <button class="savebtn" onclick="saveEntity()">Save entity</button>
+      <button class="savebtn" id="ent_save" onclick="saveEntity()">Save entity</button>
       <div class="msg" id="ent_msg"></div>
     </div>
     <div class="nav"><button class="btn ghost" onclick="go(2)">Back</button><button class="btn prim" onclick="go(4)">Next →</button></div>
@@ -354,9 +354,9 @@
   window.FL_SUPABASE = window.FL_SUPABASE || {url:'https://vnsbmzbnvszgsibttkot.supabase.co', anon:'sb_publishable_lAyX64SeqyQz8dyA25i91w_1jp7dxaL'};
   window.FL_API_BASE = window.FL_API_BASE || 'https://api.foundationlayerhq.com';
 </script>
-<script src="../shared/fl-auth.js?v=20260721a"></script>
-<script src="../shared/fl-api.js?v=20260721a"></script>
-<script src="../shared/fl-access.js?v=20261121b"></script>
+<script src="../shared/fl-auth.js?v=20261128a"></script>
+<script src="../shared/fl-api.js?v=20261128a"></script>
+<script src="../shared/fl-access.js?v=20261128a"></script>
 <script>
 const FOUNDATION=15, LAYER=15, EMPLOYEE=15;
 const LAST_STEP=11;
@@ -455,10 +455,19 @@ function saveProfile(){
 /* ───────── C — entities → /api/entities ───────── */
 function loadEntities(){
   if(!isAuthed())return;
+  if(window.flAccess&&flAccess.forget)flAccess.forget();   // each visit to step 3 reads the fact afresh: an older 'empty' is not served to someone since given none
   refreshEntities().then(function(rows){
-    if(rows&&rows.length){renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'');if($('ent_add_card'))$('ent_add_card').style.display='';}
+    if(rows&&rows.length){renderList('entOnfile',rows,function(e){return ofItem(e.name,e.code+' · '+(e.legal_form||'LLC')+' · '+(e.primary_bank||'—'),'entity');},'');if($('ent_add_card'))$('ent_add_card').style.display='';s3Bubble(null);}   // the bubble follows the fact: she holds companies (TD-266 R1A1-5)
     else{$('entOnfile').innerHTML='';holdEntityStep();}
   });
+}
+// Step 3's bubble says what the fact says, and is redrawn whenever the fact changes: null = the page's own opening line
+// (kept from the markup the first time), so a line written under an older fact never outlives it (TD-266 R1A1-5).
+let S3_BUBBLE_DEFAULT=null;
+function s3Bubble(text){
+  const b=$('s3_bubble');if(!b)return;
+  if(S3_BUBBLE_DEFAULT===null)S3_BUBBLE_DEFAULT=b.textContent;
+  b.textContent=(text===null)?S3_BUBBLE_DEFAULT:text;
 }
 // No company is offered to someone who may not create the account's first one: a person who was simply not given
 // access (FL would accept a company from any owner and file it beside the ones she cannot see), or one whose access
@@ -468,19 +477,24 @@ function holdEntityStep(){
   if(!card)return;
   card.style.display='none';
   const say=function(a){
-    const none=a&&a.kind==='none', noAccount=a&&a.kind==='unknown'&&a.why==='no-tenant';
-    if($('s3_bubble'))$('s3_bubble').textContent=(none||noAccount)
+    const none=a&&a.kind==='none', noAccount=a&&a.kind==='unknown'&&a.why==='no-tenant', ended=a&&a.kind==='signed-out';
+    s3Bubble((none||noAccount)
       ?'Companies on this account are added by its owner.'
-      :'We couldn’t check your companies just now.';
+      :ended?'Your session ended — sign in again.'
+      :'We couldn’t check your companies just now.');
     $('entOnfile').innerHTML='<div class="empty">'+esc(none
       ?'You don’t have access to any companies yet. Ask the owner of this account to give you access.'
       :noAccount?'Your sign-in isn’t linked to an account yet. Ask the owner of this account to give you access.'
+      :ended?'Your session ended — sign in again.'
       :'Adding one stays closed until we can. Reload this page to try again.')+'</div>';
   };
   if(!window.flAccess||!flAccess.read){say(null);return;}
   flAccess.read().then(function(a){
-    if(a&&a.mayCreate){$('entOnfile').innerHTML='<div class="empty">'+esc('No companies yet — add your first below.')+'</div>';card.style.display='';return;}
-    if(a&&a.kind==='has')return;   // the list above was read before a company arrived; the next visit shows it
+    if(a&&a.mayCreate){$('entOnfile').innerHTML='<div class="empty">'+esc('No companies yet — add your first below.')+'</div>';card.style.display='';s3Bubble(null);return;}
+    // the fact says she holds companies but the list read above gave none: that read failed (or a company arrived
+    // between the two). Saying "they'll show below" over an empty list promised a list that is not there — it is
+    // "couldn't check", with the way forward (TD-266 R1A1-6)
+    if(a&&a.kind==='has'){say({kind:'unknown',why:'list-unread'});return;}
     say(a);
   });
 }
@@ -492,23 +506,31 @@ function autoCode(){
 // grant taken away meanwhile, creates nothing.
 let entGatePassed=false;
 function saveEntity(){
+  const btn=$('ent_save');
   if(!entGatePassed&&isAuthed()){
+    if(btn&&btn.disabled)return;   // one save at a time: a press while the last is being checked or sent is not a second submission (TD-266 R1A1-4)
+    if(btn)btn.disabled=true;      // held from the press until the answer — re-enabled below on every ending
     const gate=(window.flAccess&&flAccess.mayCreateNow)?flAccess.mayCreateNow('more'):Promise.resolve({ok:false,a:null});
     setMsg('ent_msg','sub','Checking…');
     gate.then(function(g){
       if(g.ok){entGatePassed=true;try{saveEntity();}finally{entGatePassed=false;}return;}
+      if(btn)btn.disabled=false;
+      if(g.a&&g.a.kind==='signed-out'){setMsg('ent_msg','err',esc('Your session ended — sign in again; nothing was saved.'));return;}   // the form stays: her entries are still here (TD-266 R1A1-1)
+      if(g.a&&g.a.kind==='has'){setMsg('ent_msg','err',esc('Adding companies isn’t open to your account here. Nothing was saved.'));return;}   // she holds companies but is not the owner; the list and the form stay, so the words can be seen (TD-266 R1A1-3)
+      if(!g.a||(g.a.kind==='unknown'&&g.a.why!=='no-tenant')){setMsg('ent_msg','err',esc('Nothing was saved — your access couldn’t be checked just now. Try again in a moment.'));return;}   // one failed check at the click keeps the list and the form on screen (TD-266 R1A1-5)
       setMsg('ent_msg','err','Nothing was saved.');
-      holdEntityStep();
+      holdEntityStep();   // given none, or no account: the step now says what the fresh answer says
     });
     return;
   }
-  if(!isAuthed()){setMsg('ent_msg','err','Please sign in first.');return;}
+  if(!isAuthed()){if(btn)btn.disabled=false;setMsg('ent_msg','err','Please sign in first.');return;}
   const code=txt('ent_code'),name=txt('ent_name');
-  if(!code||!name){setMsg('ent_msg','err','Code and legal name are both required.');return;}
+  if(!code||!name){if(btn)btn.disabled=false;setMsg('ent_msg','err','Code and legal name are both required.');return;}
   const payload={code:code,name:name,legal_form:val('ent_legal')||'LLC',primary_bank:(val('ent_bank')||'').trim()||'Altra'};
   const parent=val('ent_parent');if(parent)payload.parent_entity_id=parent;
   setMsg('ent_msg','sub','Saving…');
   window.flEntities.create(payload).then(function(res){
+    if(btn)btn.disabled=false;
     if(!res){setMsg('ent_msg','err',(window.flApi&&!flApi.authed())?failCopy():'Save failed — that code may already exist, or you may not have create access. Try a different code.');return;}
     setMsg('ent_msg','ok','✓ '+esc(res.name||name)+' created.');
     ['ent_code','ent_name','ent_bank'].forEach(function(id){if($(id))$(id).value=(id==='ent_bank'?'Altra':'');});

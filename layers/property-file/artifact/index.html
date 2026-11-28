@@ -19,6 +19,14 @@
   .pf-del:hover{background:#fee2e2;border-color:#f87171}
   .pf-apply{background:#10211b;border:1.5px solid #1c4d3e;color:#34d399;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
   .pf-apply:hover{filter:brightness(1.1)}
+  /* TD-252 — edit a property in place: the Edit button on each row, the Cancel beside Save, the locked company, the row being edited */
+  .pf-edit{background:#eef2ff;border:1.5px solid #c7d2fe;color:#4338ca;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;margin-right:6px}
+  .pf-edit:hover{background:#e0e7ff;border-color:#a5b4fc}
+  .pf-cancel{margin-top:12px;margin-left:8px;background:transparent;border:1.5px solid #cbd5e0;color:var(--mut,#64748b);border-radius:6px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+  .pf-cancel:hover{border-color:#94a3b8}.pf-cancel:disabled{opacity:.6;cursor:default}
+  .pf-in:disabled{background:#f1f5f9;color:#475569;cursor:not-allowed}
+  .pf-editnote{font-size:12px;margin-top:4px;color:var(--mut,#64748b)}
+  tr.pf-editing td{background:rgba(99,102,241,.08)}
   .ok{color:#16a34a;font-weight:700}.err{color:#dc2626;font-weight:700}
 </style>
 </head>
@@ -56,11 +64,13 @@
       <div class="pf-msg" id="pf-rollup-msg"></div>
     </div>
 
-    <div class="card pf-form">
-      <div class="section-label">ADD A PROPERTY</div>
+    <div class="card pf-form" id="pf-form-card">
+      <div class="section-label" id="pf-form-label">ADD A PROPERTY</div>
+      <!-- TD-252: the same form re-opens an existing property; this line says which one and that the company stays as it is -->
+      <div class="pf-editnote" id="pf-editnote" style="display:none"></div>
       <div class="pf-grid">
         <div class="pf-field full"><span class="pf-lab">Address *</span><input class="pf-in" id="pf_address" placeholder="required"></div>
-        <div class="pf-field"><span class="pf-lab">Owning entity</span><select class="pf-in" id="pf_entity"><option value="">— unassigned —</option></select></div>
+        <div class="pf-field"><span class="pf-lab">Owning entity <span id="pf_entity_note" style="display:none;font-weight:400">— can't be changed here</span></span><select class="pf-in" id="pf_entity"><option value="">— unassigned —</option></select></div>
         <div class="pf-field"><span class="pf-lab">Status</span><select class="pf-in" id="pf_status"><option value="">—</option><option value="occupied">occupied</option><option value="vacant">vacant</option><option value="rehab">rehab</option><option value="listed">listed</option></select></div>
         <div class="pf-field"><span class="pf-lab">Units / doors</span><input class="pf-in" id="pf_units" inputmode="numeric" placeholder="default 1"></div>
         <div class="pf-field"><span class="pf-lab">Market value ($)</span><input class="pf-in" id="pf_value" inputmode="decimal" placeholder="blank = unknown"></div>
@@ -70,7 +80,7 @@
         <div class="pf-field"><span class="pf-lab">Baths</span><input class="pf-in" id="pf_baths" inputmode="decimal" placeholder=""></div>
         <div class="pf-field"><span class="pf-lab">Sqft</span><input class="pf-in" id="pf_sqft" inputmode="numeric" placeholder=""></div>
       </div>
-      <button type="button" class="pf-save" id="pf-savebtn">Save property</button>
+      <button type="button" class="pf-save" id="pf-savebtn">Save property</button><button type="button" class="pf-cancel" id="pf-cancelbtn" style="display:none">Cancel</button>
       <div class="pf-msg" id="pf-msg"></div>
     </div>
   </div>
@@ -78,11 +88,12 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/properties</code> (live, RLS-scoped). Rent/tenants arrive via RentRedi; cash flow via Plaid; LTV via lender — later phases.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
 <script>
   var PROPS = [], ENTITIES = [], FACTS = [];
+  var EDIT_ID = null, EDIT_BUSY = false;   // TD-252: the id (as a string) of the property open in the form, null while adding; true from Save pressed until the answer
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function dash(v){ return (v==null||v==='') ? '—' : esc(v); }
@@ -119,15 +130,17 @@
 
   function renderRows(){
     $('pf-loading').style.display='none';
+    // TD-252: if the property being edited is gone (deleted from this screen), the form goes back to "add".
+    if(EDIT_ID!==null && !findProp(EDIT_ID)) resetForm();
     if(!PROPS.length){ $('pf-rows').innerHTML='<tr><td colspan="7" class="small muted" style="padding:8px 2px">No properties yet. Add one below.</td></tr>'; return; }
     $('pf-rows').innerHTML=PROPS.map(function(p){
-      return '<tr><td style="font-weight:700">'+esc(p.address)+'</td>'+
+      return '<tr'+(EDIT_ID!==null&&String(p.id)===EDIT_ID?' class="pf-editing"':'')+'><td style="font-weight:700">'+esc(p.address)+'</td>'+
         '<td class="small muted">'+dash(p.entity_code)+'</td>'+
         '<td>'+dash(p.status)+'</td>'+
         '<td>'+dash(p.units)+'</td>'+
         '<td>'+money(p.market_value)+'</td>'+
         '<td>'+xref('—','rent-roll')+'</td>'+
-        '<td><button type="button" class="pf-del" data-del="'+esc(p.id)+'" title="Delete">🗑</button></td></tr>';
+        '<td style="white-space:nowrap"><button type="button" class="pf-edit" data-edit="'+esc(p.id)+'" title="Change this property">Edit</button><button type="button" class="pf-del" data-del="'+esc(p.id)+'" title="Delete">🗑</button></td></tr>';
     }).join('');
   }
 
@@ -159,6 +172,7 @@
   }
 
   function save(){
+    if(EDIT_ID!==null){ saveEdit(); return; }   // TD-252: the same button saves the open edit
     if(!isAuthed()){ $('pf-msg').innerHTML='<span class="err">Please sign in first.</span>'; return; }
     var address=txt('pf_address');
     if(!address){ $('pf-msg').innerHTML='<span class="err">Address is required.</span>'; return; }
@@ -209,14 +223,160 @@
     });
   }
 
+  // ── TD-252: edit a property in place ─────────────────────────────────────────────────────────
+  // ADD A PROPERTY is the only form. Edit on a row re-opens it filled with that row; the company (owning
+  // entity) is shown but locked and is never sent. Save sends PATCH /api/properties/{id} with ONLY the
+  // fields that changed — a field blanked that had a value goes as null (clear it). The row on screen is
+  // then replaced by the row the server sends back, so what you see is what the server holds.
+  var EDIT_TEXT = [['address','pf_address'],['status','pf_status'],['purchase_date','pf_pdate']];
+  var EDIT_NUMS = [['units','pf_units'],['market_value','pf_value'],['purchase_price','pf_price'],['beds','pf_beds'],['baths','pf_baths'],['sqft','pf_sqft']];
+  var FIELD_WORDS = { address:'Address', entity_code:'Owning entity', status:'Status', units:'Units / doors', market_value:'Market value', purchase_price:'Purchase price', purchase_date:'Purchase date', beds:'Beds', baths:'Baths', sqft:'Sqft' };
+  function findProp(id){ for(var i=0;i<PROPS.length;i++){ if(String(PROPS[i].id)===String(id)) return PROPS[i]; } return null; }
+  // what the server holds, in the form's own terms: '' for blank, a date's first ten characters, a number as it prints
+  function normText(v,key){ if(v==null) return ''; v=String(v); return key==='purchase_date' ? v.slice(0,10) : v; }
+  function normNum(v){ return (v==null||v==='') ? '' : String(Number(v)); }
+  function trimDot(s){ return String(s||'').replace(/[.\s]+$/,''); }
+  // A select must SHOW the row's value even when it is not one of its choices (a company outside this person's
+  // list, a status this form does not offer); otherwise a blank would read as "cleared" and be sent as such.
+  function showChoice(sel,value){
+    if(!sel) return;
+    Array.prototype.slice.call(sel.querySelectorAll('option[data-temp]')).forEach(function(o){ o.parentNode.removeChild(o); });
+    var want = (value==null) ? '' : String(value);
+    sel.value = want;
+    if(want!=='' && sel.value!==want){
+      var o=document.createElement('option'); o.value=want; o.textContent=want; o.setAttribute('data-temp','1');
+      sel.appendChild(o); sel.value=want;
+    }
+  }
+  // The server's own words on a refusal: a plain sentence passes through; a list of field problems becomes
+  // "Units / doors: …" named as the form names them. Any other shape -> '' and the caller's plain fallback speaks.
+  function serverWords(data){
+    var d=data&&data.detail;
+    if(typeof d==='string') return d;
+    if(Array.isArray(d)) return d.map(function(x){ var locs=Array.isArray(x&&x.loc)?x.loc:[]; var loc=locs.filter(function(l){ return typeof l==='string'&&l!=='body'; }).slice(-1)[0]; return (loc?(FIELD_WORDS[loc]||loc)+': ':'')+((x&&x.msg)||''); }).join(' · ');
+    return '';
+  }
+  // Read the form against the row it holds -> {patch} with only the changed fields, or {error} in plain words.
+  function readEdit(p){
+    var patch={}, i, key, id, raw, now, was;
+    if(!txt('pf_address')) return {error:'Address is required.'};
+    for(i=0;i<EDIT_TEXT.length;i++){
+      key=EDIT_TEXT[i][0]; id=EDIT_TEXT[i][1];
+      now=(($(id)&&$(id).value)||'').trim();
+      was=normText(p[key],key);
+      // a date the date box could not show (not YYYY-MM-DD) stays as it is unless a new one is typed
+      if(key==='purchase_date' && now==='' && was!=='' && !/^\d{4}-\d{2}-\d{2}$/.test(was)) continue;
+      if(now!==was) patch[key] = (now==='') ? null : now;
+    }
+    for(i=0;i<EDIT_NUMS.length;i++){
+      key=EDIT_NUMS[i][0]; id=EDIT_NUMS[i][1];
+      raw=(($(id)&&$(id).value)||'').trim();
+      if(raw!=='' && !isFinite(+raw)) return {error:FIELD_WORDS[key]+' must be a number.'};
+      now=(raw==='') ? '' : String(+raw);
+      was=normNum(p[key]);
+      if(now!==was) patch[key] = (raw==='') ? null : +raw;
+    }
+    return {patch:patch};
+  }
+  function hasUnsavedEdit(){
+    if(EDIT_ID===null) return false;
+    var p=findProp(EDIT_ID); if(!p) return false;
+    var r=readEdit(p);
+    return !!(r.error || (r.patch && Object.keys(r.patch).length));
+  }
+  function setFormMode(p){
+    var editing=!!p, note=$('pf-editnote');
+    $('pf-form-label').textContent = editing ? 'EDIT A PROPERTY' : 'ADD A PROPERTY';
+    note.style.display = editing ? '' : 'none';
+    note.innerHTML = editing ? 'Editing <b>'+esc(p.address)+'</b>. Change what you need, then press Save changes. The company it belongs to stays as it is.' : '';
+    $('pf_entity_note').style.display = editing ? '' : 'none';
+    $('pf_entity').disabled = editing;
+    $('pf-savebtn').textContent = editing ? 'Save changes' : 'Save property';
+    $('pf-cancelbtn').style.display = editing ? '' : 'none';
+  }
+  function fillForm(p){
+    $('pf_address').value = (p.address==null) ? '' : String(p.address);
+    showChoice($('pf_entity'), p.entity_code);
+    showChoice($('pf_status'), p.status);
+    $('pf_pdate').value = normText(p.purchase_date,'purchase_date');
+    EDIT_NUMS.forEach(function(f){ var v=p[f[0]]; $(f[1]).value = (v==null||v==='') ? '' : String(v); });
+  }
+  function resetForm(){
+    EDIT_ID=null;
+    ['pf_address','pf_units','pf_value','pf_price','pf_pdate','pf_beds','pf_baths','pf_sqft'].forEach(function(id){ if($(id)) $(id).value=''; });
+    showChoice($('pf_status'), ''); showChoice($('pf_entity'), '');
+    setFormMode(null);
+  }
+  function beginEdit(id){
+    if(EDIT_BUSY) return;
+    if(!isAuthed()){ $('pf-msg').innerHTML='<span class="err">Please sign in first.</span>'; return; }
+    var p=findProp(id); if(!p) return;
+    if(EDIT_ID!==null && String(p.id)!==EDIT_ID && hasUnsavedEdit()){
+      var cur=findProp(EDIT_ID);
+      if(!window.confirm('You changed '+((cur&&cur.address)||'a property')+' but haven\'t saved. Drop those changes and edit '+(p.address||'this one')+' instead?')) return;
+    }
+    EDIT_ID=String(p.id);
+    fillForm(p); setFormMode(p);
+    $('pf-msg').innerHTML='';
+    renderRows();
+    try{ $('pf-form-card').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
+    try{ $('pf_address').focus(); }catch(e){}
+  }
+  function cancelEdit(){
+    if(EDIT_BUSY) return;
+    if(hasUnsavedEdit()){
+      var cur=findProp(EDIT_ID);
+      if(!window.confirm('Drop your unsaved changes to '+((cur&&cur.address)||'this property')+'?')) return;
+    }
+    resetForm(); $('pf-msg').innerHTML=''; renderRows();
+  }
+  function saveEdit(){
+    if(EDIT_BUSY) return;
+    if(!isAuthed()){ $('pf-msg').innerHTML='<span class="err">Please sign in first.</span>'; return; }
+    var id=EDIT_ID, p=findProp(id);
+    if(!p){ resetForm(); renderRows(); $('pf-msg').innerHTML='<span class="err">That property is no longer on this list.</span> Reload to see the current list.'; return; }
+    var r=readEdit(p);
+    if(r.error){ $('pf-msg').innerHTML='<span class="err">'+esc(r.error)+'</span> Nothing was sent.'; return; }
+    var patch=r.patch;
+    if(!Object.keys(patch).length){ $('pf-msg').innerHTML='Nothing changed, so nothing was saved.'; return; }
+    var btn=$('pf-savebtn'), cbtn=$('pf-cancelbtn');
+    EDIT_BUSY=true; btn.disabled=true; cbtn.disabled=true; $('pf-msg').innerHTML='Saving…';
+    function done(){ EDIT_BUSY=false; btn.disabled=false; cbtn.disabled=false; }
+    window.flProperties.updateX(id, patch).then(function(res){
+      done();
+      if(res && res.ok){
+        // the server's answer is the row as it now stands; it replaces ours (a bodyless 200 falls back to our own merge)
+        var row = (res.data && res.data.id!=null) ? res.data : Object.assign({}, p, patch);
+        for(var k=0;k<PROPS.length;k++){ if(String(PROPS[k].id)===id){ PROPS[k]=row; break; } }
+        resetForm();
+        renderKpis(); renderRows(); renderRollup();
+        $('pf-msg').innerHTML='<span class="ok">✓ Saved.</span> '+esc(row.address)+' updated.';
+        return;
+      }
+      var st=res?res.status:0, words=serverWords(res&&res.data), why;
+      if(st===0) why = (window.flApi&&!flApi.authed()) ? 'your session expired. Sign in again, then try again — your changes are still in the form.' : 'the server didn\'t answer. Check your connection and try again — your changes are still in the form.';
+      else if(st===404) why = (words ? trimDot(words) : 'this property isn\'t in your account any more')+'. It may have been removed, or your access changed — reload to see the current list.';
+      else if(st===403) why = words || 'you don\'t have access to change this property.';
+      else if(st===422) why = words || 'the server didn\'t accept one of the values. Check the numbers and the date, then try again.';
+      else if(st>=500) why = words || 'the server had a problem. Try again in a moment.';
+      else why = words || 'the server refused the change.';
+      $('pf-msg').innerHTML='<span class="err">Couldn\'t save:</span> '+esc(why);
+    }).catch(function(){
+      done();
+      $('pf-msg').innerHTML='<span class="err">Couldn\'t save:</span> something went wrong on this screen. Reload and try again.';
+    });
+  }
+
   document.addEventListener('click', function(ev){
     var t=ev.target; if(!t||!t.closest) return;
+    var e=t.closest('[data-edit]'); if(e){ ev.preventDefault(); beginEdit(e.getAttribute('data-edit')); return; }
     var d=t.closest('[data-del]'); if(d){ ev.preventDefault(); del(d.getAttribute('data-del')); return; }
     var r=t.closest('[data-rollup]'); if(r){ ev.preventDefault(); applyRollup(r.getAttribute('data-rollup'), +r.getAttribute('data-units'), r.getAttribute('data-val')); }
   });
 
   function start(){
     var sb=$('pf-savebtn'); if(sb) sb.addEventListener('click', save);
+    var cb=$('pf-cancelbtn'); if(cb) cb.addEventListener('click', cancelEdit);   // TD-252
     if(!isAuthed()){ showAuth(); return; }
     $('pf-auth').style.display='none'; $('pf-live').style.display='';
     Promise.all([
@@ -234,7 +394,7 @@
   }
   start();
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>try{ FLSettings.mount({tileId:'property-file'}); }catch(e){}</script>
 </body>
 </html>

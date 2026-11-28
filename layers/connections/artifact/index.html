@@ -33,9 +33,9 @@
   </div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
 <script>
   // Toggle state overlays the stub via {id:bool}. Real-Data Foundation Part B: the overlay's
   // home is server tile-state 'connections_overlay' (survives browsers + cache clears);
@@ -47,7 +47,11 @@
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  function loadOv(){ try{ return JSON.parse(localStorage.getItem(OVKEY))||{}; }catch(e){ return {}; } }
+  // TD-264: the browser copy is this person's — FLState keys it by account; the plain read is the no-FLState fallback only
+  function loadOv(){
+    if(window.FLState && FLState.local) return FLState.local(OVKEY)||{};
+    try{ return JSON.parse(localStorage.getItem(OVKEY))||{}; }catch(e){ return {}; }
+  }
   function isOn(item){ var ov=loadOv(); return Object.prototype.hasOwnProperty.call(ov,item.id) ? !!ov[item.id] : !!item.connected; }
 
   function chip(item, extraSub){
@@ -96,8 +100,8 @@
     var on = !el.classList.contains('on');
     ov[id] = on;
     DIRTY = true;
-    try{ localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){}
-    if(window.FLState) FLState.save('connections_overlay', OVKEY, ov);   // server record (Part B)
+    if(window.FLState) FLState.save('connections_overlay', OVKEY, ov);   // this person's browser copy now + server record (Part B)
+    else { try{ localStorage.setItem(OVKEY, JSON.stringify(ov)); }catch(e){} }   // no FLState (stale cache): plain-key fallback
     el.classList.toggle('on', on);
     el.querySelector('.st2').textContent = on ? 'CONNECTED' : 'OFF';
   }
@@ -125,13 +129,13 @@
   if (window.FLState){
     FLState.load('connections_overlay', OVKEY).then(function(r){
       if (!DIRTY && r.value){                                // don't clobber an in-progress toggle
-        try{ localStorage.setItem(OVKEY, JSON.stringify(r.value)); }catch(e){}
+        FLState.setLocal(OVKEY, r.value);                   // this person's browser copy (TD-264)
         if (DATA) render();
       }
     });
   }
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>FLSettings.mount({tileId:'connections'});</script>
 </body>
 </html>

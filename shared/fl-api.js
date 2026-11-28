@@ -39,11 +39,25 @@
   // "your session expired" instead of a misleading empty state when a call returns null.
   function authExpired() { return !!(window.flAuth && flAuth.expired && flAuth.expired()); }
 
+  // A 401 after a request went out (TD-267). What the API refused is the token THAT request carried. If
+  // storage already holds a different one — a refresh finished while the request was out: another caller's
+  // in this window, a tile's, another tab's — the newer token is the retry, and no refresh is asked for: the
+  // answer it would bring is already here. Only a 401 on the token storage still holds earns a refresh, and
+  // that one is shared (flAuth.refresh hands concurrent askers one request). Either way ONE retry; a 401 on
+  // the retry is returned as it is. `sent` is the token the first request carried.
+  async function recover401(res, sent, doFetch) {
+    if (res.status !== 401 || !window.flAuth || !flAuth.refresh) return res;
+    var cur = token();
+    if (cur && cur !== sent) return doFetch(cur);
+    if (await flAuth.refresh()) return doFetch(token());
+    return res;
+  }
+
   // The single authed-fetch path for every FL call (FL API + the agent service), STATUS-CARRYING:
   // resolves to { ok, status, data } and never throws. status 0 = no session / transport error.
   // Token-expiry aware: refreshes proactively when the stored token is near expiry, and reactively
-  // retries ONCE on a 401. A confirmed-dead session is cleared by flAuth.refresh(), so the caller
-  // can branch on flApi.authed()/authExpired(). Callers that must tell "forbidden (e.g. a no-grant
+  // retries ONCE on a 401 (recover401). A confirmed-dead session is cleared by flAuth.refresh(), so the
+  // caller can branch on flApi.authed()/authExpired(). Callers that must tell "forbidden (e.g. a no-grant
   // new operator, 403)" apart from "API down" use this via callX (Ashley proving-run find #1 — a
   // 403 must NOT read as read-only/unreachable); everything else keeps the simpler call().
   async function authedCallX(base, method, path, body) {
@@ -63,10 +77,7 @@
     }
     try {
       var res = await doFetch(t);
-      if (res.status === 401 && window.flAuth && flAuth.refresh) {
-        var ok = await flAuth.refresh();                   // ONE reactive refresh
-        if (ok) res = await doFetch(token());
-      }
+      res = await recover401(res, t, doFetch);             // ONE retry; at most one reactive refresh (the proactive one above may precede it)
       var data = null;
       if (res.status !== 204) { data = await res.json().catch(function () { return null; }); }
       else { data = {}; }
@@ -108,10 +119,7 @@
     }
     try {
       var res = await doFetch(t);
-      if (res.status === 401 && window.flAuth && flAuth.refresh) {
-        var ok = await flAuth.refresh();
-        if (ok) res = await doFetch(token());
-      }
+      res = await recover401(res, t, doFetch);
       var data = res.status === 204 ? {} : await res.json().catch(function () { return null; });
       if (!res.ok) return { ok: false, status: res.status, data: data };
       return { ok: true, status: res.status, data: data };
@@ -277,6 +285,9 @@
     get: function (id) { return call('GET', '/api/properties/' + encodeURIComponent(id)); },
     create: function (p) { return call('POST', '/api/properties', p); },
     update: function (id, patch) { return call('PATCH', '/api/properties/' + encodeURIComponent(id), patch); },
+    // Status-carrying update (TD-252: edit a property in place) so the screen can show the server's own
+    // words on a refusal (404 not in reach · 422 a value it will not take) instead of one blended guess.
+    updateX: function (id, patch) { return callX('PATCH', '/api/properties/' + encodeURIComponent(id), patch); },
     del: function (id) { return call('DELETE', '/api/properties/' + encodeURIComponent(id)); },
   };
 

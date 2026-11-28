@@ -79,10 +79,10 @@
   <div class="wire-note" id="stamp" style="text-align:center;margin-top:14px"></div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
-<script src="../../../shared/fl-scope-select.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
+<script src="../../../shared/fl-scope-select.js?v=20261128a"></script>
 <script>
   // H5: the financial dashboard now reads the AUTHED, per-principal /api/dashboard/scoped (was the
   // unauth global /latest, now admin-only). flApi.call carries the caller's JWT + returns null on
@@ -383,12 +383,12 @@
     // a rollup render fault must never blank the other sections or read as an outage
     try{ renderRollups(); }catch(e){ rollupFault('from this payload'); }
     document.getElementById('stamp').textContent='Source: '+source+' · generated '+ts(d.generated_at);
-    try{ localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}
+    try{ if(window.FLState&&FLState.setLocal) FLState.setLocal(LS, {ts:d.generated_at}); else localStorage.setItem(LS, JSON.stringify({ts:d.generated_at})); }catch(e){}   // this person's "last good" (TD-264)
   }
 
   function fail(err){
     DATA=null;   // nothing rendered from this load — a late /api/entities response has nothing to paint over
-    var last=''; try{ var s=JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ts) last=' · last good '+ts(s.ts); }catch(e){}
+    var last=''; try{ var s=(window.FLState&&FLState.local) ? FLState.local(LS) : JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ts) last=' · last good '+ts(s.ts); }catch(e){}
     var bar=document.getElementById('statusbar'); bar.className='livewire apidown';
     var det=err&&err.data&&err.data.detail; det=(typeof det==='string' && det) ? det : null;
     // a sign-in state is claimed ONLY when fl-api is present to answer; with the shared scripts unloaded (offline: the
@@ -458,7 +458,7 @@
   // a synchronous fault inside load() (a broken client) must reach fail(), never leave "Loading…" on screen
   try{ load(); }catch(e){ fail({status:0, render_error:(e && typeof e.message==='string' && e.message) || 'load fault'}); }
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>FLSettings.mount({ tileId:'financials', onChange:function(eff){ FLS_OVR=eff; if(typeof renderRules==='function') renderRules(); } });</script>
 </body>
 </html>

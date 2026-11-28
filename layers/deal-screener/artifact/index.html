@@ -248,9 +248,9 @@
   Deal Decider · Capital Rules sourced from <code>MEGA_BRAIN/04_PORTFOLIO_LEVEL_REPORTING/04_CAPITAL_PLANNING/CAPITAL-RULES.md</code> · Built 2026-05-05 by TARS
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
 <script>
 const FIELDS = ['title','entity','type','units','year-built','asking','purchase','market-value','closing','rehab','reserves','down','loan','rents','vacancy','opex','debt','liq-current','liq-out','notes'];
 const STORAGE_KEY = 'ech-deal-screener-v1';
@@ -289,7 +289,8 @@ function renoFor(title){  // takeoff estimate matched to this deal by address (f
   return 0;
 }
 (function loadReno(){     // localStorage overlay (front-end edits) wins, else the shared base file
-  try{ var ov=JSON.parse(localStorage.getItem('fl_reno_estimate_v1')||'null'); if(ov&&ov.estimates&&ov.estimates.length){ RENO=ov.estimates; return; } }catch(e){}
+  // TD-264: this person's browser copy via FLState; the plain read is the no-FLState fallback only
+  try{ var ov=(window.FLState&&FLState.local) ? FLState.local('fl_reno_estimate_v1') : JSON.parse(localStorage.getItem('fl_reno_estimate_v1')||'null'); if(ov&&ov.estimates&&ov.estimates.length){ RENO=ov.estimates; return; } }catch(e){}
   fetch('../../../data/STUB_RENO_ESTIMATES.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(d&&d.estimates){ RENO=d.estimates; if(typeof compute==='function') compute(); } }).catch(function(){});
 })();
 
@@ -461,15 +462,17 @@ function saveState() {
   state._saved = new Date().toISOString();
   // Part B: LS immediately + debounced server PUT when signed in (FLState); LS-only until the
   // boot hydration has consulted the server draft, or if the bridge is absent (stale cache).
+  // Before hydration the draft stays browser-only, but still under THIS person (TD-264).
   if (HYDRATED && window.FLState) FLState.save('screener_draft', STORAGE_KEY, state);
+  else if (window.FLState && FLState.setLocal) FLState.setLocal(STORAGE_KEY, state);
   else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {} }
 }
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const state = JSON.parse(raw);
+    // TD-264: this person's browser copy via FLState; the plain read is the no-FLState fallback only
+    const state = (window.FLState && FLState.local) ? FLState.local(STORAGE_KEY) : JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (!state) return;
     FIELDS.forEach(f => { const el = document.getElementById(f); if (el && state[f] !== undefined) el.value = state[f]; });
   } catch(e) {}
 }
@@ -482,7 +485,7 @@ function resetAll() {
   FIELDS.forEach(f => { const el = document.getElementById(f); if (el) { if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = ''; } });
   document.getElementById('vacancy').value = '5';
   document.getElementById('units').value = '1';
-  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  try { if (window.FLState && FLState.removeLocal) FLState.removeLocal(STORAGE_KEY); else localStorage.removeItem(STORAGE_KEY); } catch(e) {}   // this person's copy (TD-264)
   compute();
 }
 
@@ -636,7 +639,7 @@ function renderTakeoff(){
 
 // Wire up
 loadState();
-var __hadSavedDeal=false; try{ __hadSavedDeal=!!localStorage.getItem(STORAGE_KEY); }catch(e){} // capture BEFORE compute() saves
+var __hadSavedDeal=false; try{ __hadSavedDeal=(window.FLState&&FLState.local) ? FLState.local(STORAGE_KEY)!=null : !!localStorage.getItem(STORAGE_KEY); }catch(e){} // capture BEFORE compute() saves (this person's copy, TD-264)
 function onEdit(){ DIRTY=true; compute(); }
 FIELDS.forEach(f => { const el = document.getElementById(f); if (el) el.addEventListener('input', onEdit); el && el.addEventListener('change', onEdit); });
 var __takeoffGo=document.getElementById('takeoff-go'); if(__takeoffGo) __takeoffGo.addEventListener('click', runTakeoff);
@@ -696,7 +699,7 @@ function applyAnalysis(a){
   compute();
 }
 function analyzerCarry(){
-  var a=null; try{ a=JSON.parse(localStorage.getItem('fl_deal_analysis_v1')); }catch(e){}
+  var a=null; try{ a=(window.FLState&&FLState.local) ? FLState.local('fl_deal_analysis_v1') : JSON.parse(localStorage.getItem('fl_deal_analysis_v1')); }catch(e){}   // this person's copy (TD-264)
   if(!a) return;
   DEAL_ID = a.deal_id || null;
   var bn=document.getElementById('analyzer-carry'), tx=document.getElementById('analyzer-carry-txt');

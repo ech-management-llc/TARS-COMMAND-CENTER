@@ -14,8 +14,9 @@
   var KEY = 'fl_documents_overlay_v1';   // legacy browser cache (still the signed-out fallback)
   var NOTES_KEY = 'docnav_notes';        // server tile-state ledger for name-only references
 
-  function loadOv(){ try{ return JSON.parse(localStorage.getItem(KEY)) || {added:[]}; }catch(e){ return {added:[]}; } }
-  function saveOv(ov){ try{ localStorage.setItem(KEY, JSON.stringify(ov)); }catch(e){} }
+  // TD-264: the browser copy is this person's — FLState keys it by account; the plain reads are the no-FLState fallback only
+  function loadOv(){ try{ var ov=(window.FLState&&FLState.local) ? FLState.local(KEY) : JSON.parse(localStorage.getItem(KEY)); return ov || {added:[]}; }catch(e){ return {added:[]}; } }
+  function saveOv(ov){ try{ if(window.FLState&&FLState.setLocal) FLState.setLocal(KEY, ov); else localStorage.setItem(KEY, JSON.stringify(ov)); }catch(e){} }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function authed(){ return !!(window.flApi && flApi.authed && flApi.authed()); }
   function kindOf(folder){

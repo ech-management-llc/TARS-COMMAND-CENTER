@@ -50,9 +50,9 @@
   </div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
 <script>
   var MODE_KEY='fl_bizplan_mode', PLAN_KEY='fl_business_plan_v1', STATE_KEY='business_plan';
   function $(id){ return document.getElementById(id); }
@@ -75,7 +75,17 @@
   //    localStorage PLAN_KEY as the instant first paint + offline cache. Legacy shapes (flat
   //    {sectionId:text} plan, separate MODE_KEY) normalize in; MODE_KEY is read once only when
   //    the loaded state carries no mode of its own.
-  function lsPlan(){ try{ return JSON.parse(localStorage.getItem(PLAN_KEY)||'null'); }catch(e){ return null; } }
+  //    The browser copy is THIS person's (TD-264): FLState keeps it under the signed-in account
+  //    and clears it at sign-out, so the first paint never shows the last person's text and a
+  //    first keystroke never saves it into this account. The plain-key reads below run only on
+  //    a stale-cached page with no FLState.
+  function lsPlan(){
+    if(window.FLState && FLState.local) return FLState.local(PLAN_KEY);
+    try{ return JSON.parse(localStorage.getItem(PLAN_KEY)||'null'); }catch(e){ return null; }
+  }
+  function legacyMode(){
+    try{ return localStorage.getItem((window.FLState && FLState.storageKey) ? FLState.storageKey(MODE_KEY) : MODE_KEY); }catch(e){ return null; }
+  }
   function normalize(v){
     var st={ mode:null, sections:{} };
     if(v && typeof v==='object'){
@@ -88,7 +98,7 @@
       }
     }
     if(st.mode==null){
-      var m=null; try{ m=localStorage.getItem(MODE_KEY); }catch(e){}
+      var m=legacyMode();
       st.mode=(m==='auto'||m==='manual')?m:'auto';
     }
     return st;
@@ -157,12 +167,12 @@
     flOpen('lender-packet');
   });
 
-  render();               // instant first paint from the localStorage cache
+  render();               // instant first paint from this person's browser copy (empty for a newcomer)
   updateBadge('local');   // honest until the server answers
   if(window.FLState && FLState.load){
     FLState.load(STATE_KEY, PLAN_KEY).then(function(r){
       var hadNewShape = !!(r.value && typeof r.value==='object' && r.value.sections);
-      ST = normalize(r.value!=null ? r.value : ST);
+      ST = normalize(r.value!=null ? r.value : ST);   // no server row: keep this person's own browser copy, never another's
       if(r.value!=null && !hadNewShape) saveState();  // one-time shape+mode migration made durable
       render();
       updateBadge(r.source);
@@ -174,7 +184,7 @@
     if(d&&d.type==='tcc:viewcfg'){ /* whole-tile sections are dynamic; view-config is a no-op here */ } });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:viewcfg:request'},'*'); }catch(err){}
 </script>
-<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>FLSettings.mount({tileId:'business-plan'});</script>
 </body>
 </html>

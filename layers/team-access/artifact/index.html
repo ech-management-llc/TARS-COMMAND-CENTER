@@ -90,10 +90,10 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/team</code> (roster) · <code>/api/team/{id}/entities</code> and <code>/capabilities</code> (access, grant, revoke) · <code>/api/team/invite</code> · <code>/api/team/{id}</code> (remove) · <code>/api/team/history</code> (the trail). Authorization is decided by the server on every call; this page only shows its answers.</div>
 </div>
 
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20261102a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
-<script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
+<script src="../../../shared/fl-auth.js?v=20261128a"></script>
+<script src="../../../shared/fl-api.js?v=20261128a"></script>
+<script src="../../../shared/fl-state.js?v=20261128a"></script>
+<script src="../../../shared/fl-tile-settings.js?v=20261128a"></script>
 <script>
 (function(){
   'use strict';
@@ -153,9 +153,22 @@
   var ROSTER_NOTE = '';                    // shown above the roster: a failed re-read, or unreadable entries
   var MINE_ST = 200;                       // the status of the caller's own company-list read (names + picker)
   var ACCESS_SEQ = Object.create(null);    // per person: the newest access read issued; an older answer is dropped
+  var ACCESS_WAIT = Object.create(null);   // per person: the newest access read's promise. An older read that finds
+                                           // itself stale resolves with THIS, not at once (TD-259 RV5-A-1: a Refresh
+                                           // or Add person read issued after the write's own made the write's re-read
+                                           // stale; refreshPerson() then resolved on the dropped answer, the controls
+                                           // came back on the OLD level, and the newest read flipped the row under
+                                           // live buttons — a repeat click on Revoke landed on Grant edit)
   var ROSTER_SEQ = 0;                      // the newest roster read issued (Refresh or a post-write re-read); an
                                            // older answer is dropped (round 4: a slow Refresh read used to land
                                            // after a Remove/Add re-read and paint the old roster back)
+  var ROSTER_WAIT = Promise.resolve();     // the newest roster read's promise, settled once its answer has RENDERED.
+                                           // A roster read that finds itself stale resolves with THIS, not at once
+                                           // (TD-259 RV5-A-2: Remove's re-read, made stale by Add person's, resolved
+                                           // at once; the controls came back on the pre-Remove rows — the removed
+                                           // person shown active, with access and live buttons — for as long as the
+                                           // newer read took, and a Grant click there asked the server for a grant
+                                           // to a disabled account)
   var HIST_GEN = 0;                        // bumped by every first-page history load; an older page is dropped
   // What the sign-in card says about the changes made on this page. A session that ends around a change shows the
   // sign-in card, and that card used to say "Nothing was changed" with the success line hidden behind it (round 4).
@@ -244,9 +257,11 @@
     ME = ((window.flAuth && flAuth.email && flAuth.email()) || '').toLowerCase();
     var rf = $('ta-refresh'); if(rf) rf.disabled = true;
     var seq = ++ROSTER_SEQ;
-    flTeam.roster().then(function(r){
+    // registered as ROSTER_WAIT (settled once this read has rendered, or handed on to a newer read), so a
+    // post-write re-read that this read makes stale can wait for it (TD-259 RV5-A-2)
+    ROSTER_WAIT = flTeam.roster().then(function(r){
       if(rf) rf.disabled = BUSY;
-      if(seq !== ROSTER_SEQ) return;   // a newer roster read (a post-write re-read) was issued after this one
+      if(seq !== ROSTER_SEQ) return ROSTER_WAIT;   // a newer roster read (a post-write re-read) was issued after this one: it renders, not this
       if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return loadAll(); }
       if(r.ok){ showState('UNEXPECTED ANSWER', 'The roster did not come back as a list — nothing is shown.', true); return; }
       if(r.status === 403){
@@ -258,7 +273,11 @@
         showState('NO COMPANY YET', 'Create your first company in <b>Entities</b> first; then people can be given access to it.'+serverSays(r));
         return;
       }
-      if((r.status === 0 || r.status === 401) && notSignedIn()){ boot(); return; }   // the session died: the sign-in state
+      // the session died while this read was out — whatever the answer says, a 5xx included: the sign-in state,
+      // which boot() paints with the same words it already shows, so a card already up is left as it was (TD-259
+      // R5B-3: only a 0/401 took this exit, and a 5xx answered just after the session ended replaced the sign-in
+      // card with COULD NOT LOAD THE ROSTER until Retry)
+      if(notSignedIn()){ boot(); return; }
       if(r.status === 401){ showState('SIGN-IN NOT ACCEPTED', fail(r,'read'), true); return; }   // token kept: Retry (round 4)
       showState('COULD NOT LOAD THE ROSTER', fail(r,'read')+' <span class="muted">This screen is for a tenant owner of one company.</span>', true);
     });
@@ -282,10 +301,13 @@
   }
   function loadAccess(p){
     // the newest read for this person wins: a Refresh read answered after a post-write read must not paint the
-    // pre-write state back over it (round 2)
+    // pre-write state back over it (round 2). Resolves only once the NEWEST read for this person has landed in
+    // ACCESS (TD-259 RV5-A-1): a read made stale by a newer one hands back that newer read's promise — which is
+    // registered before any answer can arrive, so it is never this read's own — and whoever waited on this read
+    // (refreshPerson, reloadRoster, loadAll) renders the newest level, never the one this read was issued under.
     var seq = (ACCESS_SEQ[p.id] || 0) + 1; ACCESS_SEQ[p.id] = seq;
-    return Promise.all([flTeam.entities(p.id), flTeam.capabilities(p.id)]).then(function(rs){
-      if(ACCESS_SEQ[p.id] !== seq) return;
+    var pr = Promise.all([flTeam.entities(p.id), flTeam.capabilities(p.id)]).then(function(rs){
+      if(ACCESS_SEQ[p.id] !== seq) return ACCESS_WAIT[p.id];
       var e = rs[0], c = rs[1];
       ACCESS[p.id] = {
         entities: (e.ok && e.data && Array.isArray(e.data.entities)) ? e.data.entities.filter(function(x){ return x && typeof x === 'object'; }) : null,
@@ -295,25 +317,35 @@
         est: e.status, cst: c.status
       };
     });
+    ACCESS_WAIT[p.id] = pr;
+    return pr;
   }
   // After a write that changes WHO is on the roster. A failed re-read is said above the table (round 2: it used to
   // re-render the pre-write rows under a success line); the written person's access is still re-read so at least
-  // that row is current. Resolves when the screen is consistent with what could be read.
+  // that row is current. Resolves when the screen is consistent with what could be read — and only once the NEWEST
+  // roster read has rendered: a read made stale by a newer one (Refresh, or Add person's own re-read) waits for
+  // that newer read instead of resolving at once (TD-259 RV5-A-2), so the controls released on this promise never
+  // come back on rows a read still in flight is about to replace.
   function reloadRoster(writtenId){
     var seq = ++ROSTER_SEQ;
-    return flTeam.roster().then(function(r){
-      if(seq !== ROSTER_SEQ) return 'stale';   // a newer roster read (Refresh) was issued: it renders, not this
+    var pr = flTeam.roster().then(function(r){
+      if(seq !== ROSTER_SEQ) return 'stale';   // a newer roster read was issued: it renders, not this
       if(sessionGone(r)) return 'session';
       if(r.ok && Array.isArray(r.data)){ takeRoster(r.data); return Promise.all(ROSTER.map(loadAccess)); }
       ROSTER_NOTE = 'The roster could not be re-read after this change — '+(r.ok ? 'it came back in an unexpected shape' : fail(r,'read'))+' — the rows below may be stale. Use Refresh to try again.';
       var w = writtenId ? personById(writtenId) : null;
       return w ? loadAccess(w) : null;
     }).then(function(x){
-      if(x === 'stale') return;
+      if(x === 'stale') return ROSTER_WAIT;   // the newer read's promise — registered before any answer can arrive, so never this one's
       if(x === 'session' || checkSession()){ if(x === 'session'){ BUSY = false; boot(); } return; }
       renderRoster(); renderManage(); renderAddCodes();
     });
+    ROSTER_WAIT = pr;
+    return pr;
   }
+  // After a write to ONE person's access. Resolves only once the newest read for that person has landed and been
+  // rendered (loadAccess waits for it) — so the controls, released on this promise, never come back on a level
+  // that a read still in flight is about to overwrite (TD-259 RV5-A-1).
   function refreshPerson(id){
     var p = personById(id); if(!p) return Promise.resolve();
     return loadAccess(p).then(function(){ if(checkSession()) return; renderRoster(); renderManage(); renderAddCodes(); });
@@ -451,6 +483,11 @@
     SENT_MANAGE = false;
     if(sessionGone(r)){ wroteUnanswered(r, LAST_MSG); BUSY = false; boot(); return; }
     wroteAnswered(LAST_MSG, r);
+    // The session ended while this change was out and the sign-in card is up, saying the change got no answer:
+    // it has one now, so the card is repainted with it — boot()'s own words, nothing re-read on a dead session
+    // (TD-259 R5B-1: a refusal on the merits is not a dead-session answer, so sessionGone() above did not catch
+    // it, and the card kept saying "may or may not have been applied" after the server had refused).
+    if(checkSession()) return;
     var freed = false, free = function(){ if(!freed){ freed = true; release(); } };
     setTimeout(free, REREAD_CAP_MS);
     return (reread ? reread() : Promise.resolve()).then(free, free);
@@ -600,6 +637,7 @@
       if(!r.ok){
         var hint = (r.status===409 && /tenant-owner/.test(detail422(r.data)||'')) ? ' Use <b>Manage</b> on that person\'s row instead.' : '';
         msg.innerHTML = '<span class="ta-err">'+fail(r,'write')+'</span>'+hint; wroteAnswered('adding '+esc(email)+': '+msg.innerHTML, r);
+        if(checkSession()) return;   // the sign-in card is up and said this change got no answer: repaint it with the answer (TD-259 R5B-1)
         if(r.status===0){ reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); }); }
         return;
       }
@@ -616,6 +654,7 @@
       else if(!codes.length) line += ' <span class="muted">No company was included.</span>';
       msg.innerHTML = line; wroteAnswered(line, r);
       $('ta-add-email').value=''; $('ta-add-code').value=''; $('ta-add-codes').querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
+      if(checkSession()) return;   // the sign-in card is up: repaint it with the answer; nothing is re-read on a dead session (TD-259 R5B-1)
       reloadRoster().then(function(){ if(!notSignedIn()) loadHistory(null); });
     });
   });
