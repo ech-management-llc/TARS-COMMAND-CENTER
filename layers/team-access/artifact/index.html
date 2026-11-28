@@ -273,7 +273,11 @@
         showState('NO COMPANY YET', 'Create your first company in <b>Entities</b> first; then people can be given access to it.'+serverSays(r));
         return;
       }
-      if((r.status === 0 || r.status === 401) && notSignedIn()){ boot(); return; }   // the session died: the sign-in state
+      // the session died while this read was out — whatever the answer says, a 5xx included: the sign-in state,
+      // which boot() paints with the same words it already shows, so a card already up is left as it was (TD-259
+      // R5B-3: only a 0/401 took this exit, and a 5xx answered just after the session ended replaced the sign-in
+      // card with COULD NOT LOAD THE ROSTER until Retry)
+      if(notSignedIn()){ boot(); return; }
       if(r.status === 401){ showState('SIGN-IN NOT ACCEPTED', fail(r,'read'), true); return; }   // token kept: Retry (round 4)
       showState('COULD NOT LOAD THE ROSTER', fail(r,'read')+' <span class="muted">This screen is for a tenant owner of one company.</span>', true);
     });
