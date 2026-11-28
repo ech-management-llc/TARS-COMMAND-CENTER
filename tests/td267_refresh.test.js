@@ -57,7 +57,9 @@ function makeWindow() {
       if (net.refreshMode === 'defer') return new Promise((res) => net.deferred.push(() => res(answer())));
       return Promise.resolve(answer());
     }
-    if (url.startsWith(API_URL)) {
+    // The fake API answers only requests whose parsed origin IS the API origin (a substring test would
+    // also match 'https://api.example.test.evil' — CodeQL js/incomplete-url-substring-sanitization).
+    if (new URL(url).origin === new URL(API_URL).origin) {
       const auth = String((opts.headers || {}).Authorization || '');
       const call = { path: url.slice(API_URL.length), token: auth.replace(/^Bearer /, '') };
       net.apiCalls.push(call);
