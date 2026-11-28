@@ -1694,22 +1694,27 @@ function tileGeneric(l){
 /* ════════════════════════════════════════════════════════════════
    DATA FETCH — honest states, last-good fallback, graceful absence
    ════════════════════════════════════════════════════════════════ */
+// The figure reads carry an order: each ask is numbered and an answer older than the newest ask is dropped, so a
+// "Healthy" computed before a revoke never lands after the refusal that followed it (TD-266 DE-4).
+let figuresSeq = 0;
 function fetchAll(){
   // FL API
   const flUrl = (STATE.tenant.data_sources && STATE.tenant.data_sources.fl_api);
   if (flUrl && window.flApi && flApi.call){
+    const seq = ++figuresSeq;
     // H5: the Capital-Rules feed is the AUTHED, per-principal /api/dashboard/scoped (was the unauth
     // global /latest, now admin-only). flApi.call carries the JWT; null = no session/error -> down.
     // Status-carrying (callX): a 403 is FL REFUSING this account the figures (a member without the clearance they need),
     // which is a permission answer — never shown as "unreachable" / "offline" / "source down".
     (flApi.callX ? flApi.callX('GET', '/api/dashboard/scoped')
                  : flApi.call('GET', '/api/dashboard/scoped').then(d => ({ ok: !!d, status: d ? 200 : 0, data: d })))
-      .then(r=>{ const d = r && r.ok ? r.data : null;
+      .then(r=>{ if (seq !== figuresSeq) return;   // a newer ask is out: its answer is the one that lands
+        const d = r && r.ok ? r.data : null;
         if(!d && r && r.status === 403 && flApi.authed && flApi.authed()){ STATE.status.fl='refused'; STATE.data.fl=null; refreshDataTiles(); updLiveBar(); return; }   // refused: the figures held from before are not hers to read (TARS reads them too)
         if(!d){ syncSignIn();   // no answer because the session is gone? then say that, not "unreachable"
           STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); return; }
         STATE.data.fl=d; STATE.status.fl='ok'; try{localStorage.setItem(STATE.lastGoodKey, JSON.stringify({ts:d.generated_at}));}catch(e){} refreshDataTiles(); updLiveBar(); })
-      .catch(()=>{ STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
+      .catch(()=>{ if (seq !== figuresSeq) return; STATE.status.fl='down'; refreshDataTiles(); updLiveBar(); });
   }
   // committed snapshots (graceful absence)
   loadSnapshot('./data/REVENTURE_LATEST.json',      d=>STATE.data.reventure=d);
