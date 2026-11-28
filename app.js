@@ -228,13 +228,16 @@ function syncSignIn(){
 // open tile, the chat, the cached brief and the figures on screen belong to the person whose session ended, and
 // none of it may stay under a new name. `was` is the record this window was presenting when the form came up; a
 // local demo that enters the SAME demo again (same role, same scope) is the same person and keeps the page too.
+// WHO signed in is the token's account (Auth.tokenAddr), as everywhere else in the round — not the stored record,
+// which another tab's local demo can hold at that moment; the record is made to follow the token (followToken).
 // Returns 'reloading' when it reloads, so the form stays up until the page goes.
 function resumeAfterSignIn(was){
-  const s = Auth.session(); if (!s) return;
+  let s = Auth.session(); if (!s) return;
   const same = !!was && (Auth.isReal(was)
-    ? (Auth.isReal(s) && !!Auth.addr(was) && Auth.addr(s) === Auth.addr(was))
+    ? (!!Auth.addr(was) && Auth.tokenAddr() === Auth.addr(was))
     : (s.demo === true && (s.role||'owner') === (was.role||'owner') && (s.scope||null) === (was.scope||null)));
   if (!same){ location.reload(); return 'reloading'; }
+  followToken(); s = Auth.session() || s;   // the record this window adopts names the token's account
   STATE.user = s;
   refreshIdentity();   // the corner says "signed in" now, not after the next read answers (it said "not signed in" when the session ended)
   fetchAll();
