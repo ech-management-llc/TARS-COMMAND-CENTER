@@ -40,12 +40,12 @@
   <div id="scopebar"></div>
 
   <div class="preview-banner">
-    <b>Your companies — one place.</b> Every row is a <b>live read</b> from the Foundation Layer
-    backend (<code>/api/entities</code>, RLS-scoped to your access). Legal name, type, parent, ownership %, and
+    <b>Your companies — one place.</b> Every row is <b>read live</b> from your account, and you see
+    only the companies you’ve been given access to. Legal name, type, parent, ownership %, and
     primary bank are <b>real</b>. EIN, formation date, registered agent, door count, and annual-report
-    status are <b>not in the entities table yet</b> — they show as <b>“—” (UNKNOWN)</b>, never faked,
-    until the Secretary-of-State / records source is wired.
-    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Ellis</b> and say “flag annual reports due in 90 days” — the employee reshapes this view once the records source lands.</div>
+    status are <b>not on file yet</b> — they show as <b>“—” (not known)</b>, never a guess,
+    until the Secretary of State records are connected.
+    <div class="wire-note" style="margin-top:8px">Tip: open <b>Ask Ellis</b> and say “flag annual reports due in 90 days” — Ellis will reshape this view once those records are connected.</div>
   </div>
 
   <!-- Sign-in required (shown when not authenticated) -->
@@ -60,22 +60,22 @@
       <select id="ent-picker"></select>
     </div>
     <div class="card" data-view-section="detail-rows">
-      <div class="section-label">ENTITY DETAIL</div>
+      <div class="section-label">COMPANY DETAIL</div>
       <table><tbody id="ent-detail-rows"></tbody></table>
-      <div class="small dim" style="margin-top:8px">“—” = not yet backed by the entities table (UNKNOWN). EIN is never faked.</div>
+      <div class="small dim" style="margin-top:8px">“—” = not on file yet (not known). An EIN is never a guess.</div>
     </div>
 
     <div class="card" data-view-section="roster">
-      <div class="section-label">ALL ENTITIES</div>
-      <table><thead><tr><th>ENTITY</th><th>TYPE</th><th>PARENT</th><th>DOORS</th><th>BANK</th><th>ANNUAL REPORT</th><th></th></tr></thead>
+      <div class="section-label">ALL COMPANIES</div>
+      <table><thead><tr><th>COMPANY</th><th>TYPE</th><th>PARENT</th><th>DOORS</th><th>BANK</th><th>ANNUAL REPORT</th><th></th></tr></thead>
         <tbody id="ent-rows"></tbody>
       </table>
     </div>
 
     <div class="card ent-form" id="ent-add" data-view-section="add">
-      <div class="section-label">ADD AN ENTITY</div>
+      <div class="section-label">ADD A COMPANY</div>
       <div class="ent-grid">
-        <div class="ent-field"><span class="ent-lab">Code (natural key)</span>
+        <div class="ent-field"><span class="ent-lab">Short code</span>
           <input class="ent-in" id="ent-code" placeholder="e.g. ECH_NEWCO — required"></div>
         <div class="ent-field"><span class="ent-lab">Legal name</span>
           <input class="ent-in" id="ent-name" placeholder="e.g. ECH NEWCO LLC — required"></div>
@@ -83,19 +83,19 @@
           <select class="ent-in" id="ent-legal"><option value="LLC">LLC</option><option value="Inc">Inc</option></select></div>
         <div class="ent-field"><span class="ent-lab">Primary bank</span>
           <input class="ent-in" id="ent-bank" value="Altra"></div>
-        <div class="ent-field"><span class="ent-lab">Parent entity (optional)</span>
+        <div class="ent-field"><span class="ent-lab">Parent company (optional)</span>
           <select class="ent-in" id="ent-parent"><option value="">— top-level (no parent) —</option></select></div>
         <div class="ent-field"><span class="ent-lab">Ownership % held by parent</span>
           <input class="ent-in" id="ent-own" inputmode="decimal" autocomplete="off" placeholder="pick a parent first" disabled>
           <div class="ent-hint">Blank = <b>not established</b> (never assumed 100). Above 0, at most 100, two decimals. Only 100.00 consolidates into the parent&rsquo;s rollup.</div></div>
       </div>
-      <div class="ent-hint" style="margin-top:8px">Code must be unique. New entities are created under your signed-in account and scoped by RLS.</div>
-      <button type="button" class="ent-save" id="ent-save">Save entity</button>
+      <div class="ent-hint" style="margin-top:8px">The code must be unique. A new company is saved to your account; people see it only if they’ve been given access to it.</div>
+      <button type="button" class="ent-save" id="ent-save">Save company</button>
       <div class="ent-msg" id="ent-msg"></div>
     </div>
   </div>
 
-  <div class="wire-note" style="text-align:center;margin-top:14px">Source: <code>/api/entities</code> (live, RLS-scoped); ownership and parent writes <code>PATCH /api/entities/{id}</code> (<code>ownership_pct</code> · <code>parent_entity_id</code>, null = top-level; patch 049 — the wholly-owned rollup consolidates a child only at 100.00). Banking primacy: Altra is primary for all entities; VeraBank is transient deposit only. Real values for EIN/formation/agent arrive via the records source in a later phase.</div>
+  <div class="wire-note" style="text-align:center;margin-top:14px">Source: your account’s company records, read live — you see only the companies you’ve been given access to. Ownership % and parent are saved straight back to the record (no parent = top-level; a company rolls up into its parent only when wholly owned, at exactly 100.00%). Banking: Altra is the primary bank for every company; VeraBank is for pass-through deposits only. EIN, formation date and registered agent will come from the Secretary of State records in a later phase.</div>
 </div>
 
 <script src="../../../shared/fl-auth.js?v=20261127a"></script>
@@ -187,14 +187,14 @@
           ? '<input class="ent-in ent-own-in" data-own-in="'+esc(e.id)+'" inputmode="decimal" autocomplete="off" placeholder="e.g. 100.00" value="'+esc(shownVal)+'"'+dis+'>'+
             '<button type="button" class="ent-own-save" data-own="'+esc(e.id)+'" title="Save ownership %"'+dis+'>Set</button>'
           : '')+
-        '<button type="button" class="ent-own-clear" data-own-clear="'+esc(e.id)+'" title="Back to not established (NULL)"'+dis+'>Clear</button></span>'+
+        '<button type="button" class="ent-own-clear" data-own-clear="'+esc(e.id)+'" title="Back to not established (blank)"'+dis+'>Clear</button></span>'+
         '<div class="ent-msg" id="ent-own-msg">'+(pend?'<span class="muted">Saving…</span>':'')+'</div>';   // the Parent row says Saving… for its own write
     }
     if(!e.parent_entity_id){
       // the plain top-level row still carries the message slot, so a just-cleared stale value can say so here
-      if(e.ownership_pct==null) return '<span class="muted">n/a — top-level entity</span>'+(e._sample?'':'<div class="ent-msg" id="ent-own-msg"></div>');
+      if(e.ownership_pct==null) return '<span class="muted">n/a — top-level company</span>'+(e._sample?'':'<div class="ent-msg" id="ent-own-msg"></div>');
       // a value survived a promote-to-top-level (the server keeps it): say so, and let it be cleared
-      return '<span class="muted">n/a — top-level entity</span> <span class="pill ry">a stale '+esc(e.ownership_pct)+'% is still recorded</span>'+(e._sample?'':editor(false));
+      return '<span class="muted">n/a — top-level company</span> <span class="pill ry">a stale '+esc(e.ownership_pct)+'% is still recorded</span>'+(e._sample?'':editor(false));
     }
     var known = parentName(e.parent_entity_id);
     var pn = known ? esc(known) : null;
@@ -259,7 +259,7 @@
         '<td>'+dash(x.doors)+'</td>'+
         '<td>'+dash(x.bank)+'</td>'+
         '<td><span class="pill '+a.cls+'">'+a.txt+'</span></td>'+
-        '<td><button type="button" class="ent-del" data-del="'+esc(x.id)+'" title="Soft-delete this entity">🗑</button></td></tr>';
+        '<td><button type="button" class="ent-del" data-del="'+esc(x.id)+'" title="Remove this company from the list">🗑</button></td></tr>';
     }).join('');
     applyViewCfg(viewOps);
   }
@@ -270,10 +270,10 @@
     // doors + filings are NOT in the entities table yet -> honest "—" (UNKNOWN), not a fabricated 0.
     var bank = E.length ? dash(E[0].bank) : '—';
     document.getElementById('ent-kpis').innerHTML =
-      '<div class="rule rg"><div class="rn">ENTITIES</div><div class="rv">'+total+'</div><div class="rt">companies</div></div>'+
-      '<div class="rule"><div class="rn">TOTAL DOORS</div><div class="rv">—</div><div class="rt">not yet wired</div></div>'+
-      '<div class="rule"><div class="rn">FILINGS DUE</div><div class="rv">—</div><div class="rt">not yet wired</div></div>'+
-      '<div class="rule rg"><div class="rn">PRIMARY BANK</div><div class="rv">'+bank+'</div><div class="rt">all entities</div></div>';
+      '<div class="rule rg"><div class="rn">COMPANIES</div><div class="rv">'+total+'</div><div class="rt">showing</div></div>'+
+      '<div class="rule"><div class="rn">TOTAL DOORS</div><div class="rv">—</div><div class="rt">not on file yet</div></div>'+
+      '<div class="rule"><div class="rn">FILINGS DUE</div><div class="rv">—</div><div class="rt">not on file yet</div></div>'+
+      '<div class="rule rg"><div class="rn">PRIMARY BANK</div><div class="rv">'+bank+'</div><div class="rt">all companies</div></div>';
   }
 
   function buildPicker(){
@@ -326,7 +326,7 @@
     scope = null;
     if(window.FLScope && ENTS.length){
       scope = FLScope.create({ items:ENTS.map(function(e){ return {id:e.id, label:e.name, sub:(e.type||'')+' · '+(e.code||'')}; }),
-        unit:'entity', unitPlural:'entities', label:'🏢 Showing', persistKey:'tcc_entities_scope', host:'#scopebar',
+        unit:'company', unitPlural:'companies', label:'🏢 Showing', persistKey:'tcc_entities_scope', host:'#scopebar',
         onChange:function(ids,isAll){ SELE=isAll?null:ids; renderKpis(); render(); } });
     }
     buildPicker(); buildParentSelect(); renderKpis(); render();
@@ -339,8 +339,8 @@
     box.style.display='block';
     box.innerHTML = '<div class="section-label">'+(expired?'SESSION EXPIRED':'SIGN IN REQUIRED')+'</div>'+
       '<div class="small">'+(expired
-        ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to view and manage your entities. <span class="muted">Your data is safe — this is only a re-login.</span>'
-        : 'Your entities are saved to your account (not this browser). <b>Sign in to the Command Center</b> to view and manage them. Admins and members see only what they\'re granted.')+'</div>';
+        ? 'Your session expired (sign-ins last about an hour). <b>Sign in to the Command Center again</b> to view and manage your companies. <span class="muted">Your data is safe — you just need to sign in again.</span>'
+        : 'Your companies are saved to your account (not this browser). <b>Sign in to the Command Center</b> to view and manage them. Admins and members see only what they\'ve been given access to.')+'</div>';
   }
 
   function showLive(){
@@ -389,7 +389,7 @@
     var own = parseOwnership(ownEl ? ownEl.value : '');
     if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
     if(own.value!=null){
-      if(!parent){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> Pick the parent entity, or leave ownership blank.'; return; }
+      if(!parent){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> Pick the parent company, or leave ownership blank.'; return; }
       payload.ownership_pct = own.value;   // two-decimal string; blank is OMITTED -> stored NULL (not established)
     }
     btn.disabled = true; msg.innerHTML = 'Saving…';
@@ -403,10 +403,10 @@
         // Honest per-status message — never blame the network for a policy refusal or vice versa.
         if(window.flApi && !flApi.authed()) msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then re-save — your entries are still here.';
         else if(r.status === 409) msg.innerHTML='<span class="err">That code already exists.</span> Pick a different code and re-save.';
-        else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'Only a tenant-owner (or genesis) can create a company, or the parent is outside your access.');
-        else if(r.status === 404) msg.innerHTML='<span class="err">Parent not found.</span> '+esc((r.data&&r.data.detail)||'')+' Reload the tile and pick the parent again — your entries are still here.';
+        else if(r.status === 403) msg.innerHTML='<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'Only the owner of this account can add a company, or the parent is outside your access.');
+        else if(r.status === 404) msg.innerHTML='<span class="err">Parent not found.</span> '+esc((r.data&&r.data.detail)||'')+' Reload this page and pick the parent again — your entries are still here.';
         else if(r.status === 422) msg.innerHTML='<span class="err">Check the fields.</span> '+esc(detail422(r.data)||'Code and legal name are both required.');
-        else msg.innerHTML='<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status?'Try again.':'The service looks unreachable — your entries are still here; retry in a moment.');
+        else msg.innerHTML='<span class="err">Save failed'+(r.status?' (error '+r.status+')':'')+'.</span> '+(r.status?'Try again.':'The service looks unreachable — your entries are still here; retry in a moment.');
         return;
       }
       var res = r.data;
@@ -420,7 +420,7 @@
       if(ENTS.length === 0 && window.flEntities.listX){
         window.flEntities.listX().then(function(rr){
           ENTS = (rr.ok ? (rr.data||[]) : [res]).map(mapEntity);
-          current = 0; document.getElementById('ent-add').querySelector('.section-label').textContent='ADD AN ENTITY';
+          current = 0; document.getElementById('ent-add').querySelector('.section-label').textContent='ADD A COMPANY';
           document.getElementById('ent-code').placeholder='e.g. NEWCO — required';
           document.getElementById('ent-name').placeholder='e.g. NEWCO LLC — required';
           boot();
@@ -455,18 +455,18 @@
     var cyclic = !!(stored && !outside && desc[stored]);             // stored parent sits under this company (a corrupted graph; FL refuses to create one) — never claim top-level
     var opts = '<option value=""'+(!pid?' selected':'')+'>— top-level (no parent) —</option>' +
       (outside ? '<option value="'+esc(stored)+'"'+(pid===stored?' selected':'')+' disabled>not in your list (outside your access, or inactive)</option>' : '') +
-      (cyclic ? '<option value="'+esc(stored)+'"'+(pid===stored?' selected':'')+' disabled>stored parent is under this company — a cycle; fix it on the server</option>' : '') +
+      (cyclic ? '<option value="'+esc(stored)+'"'+(pid===stored?' selected':'')+' disabled>the saved parent sits under this company (a loop) — ask an admin to fix it</option>' : '') +
       ENTS.filter(function(x){ return x.id!==e.id && !desc[x.id]; }).map(function(x){
         return '<option value="'+esc(x.id)+'"'+(x.id===pid?' selected':'')+'>'+esc(x.name)+' ('+esc(x.code)+')</option>'; }).join('');
-    return ' <span class="ent-own-edit"><select class="ent-in ent-par-in" data-par-in="'+esc(e.id)+'" title="Parent entity (optional)"'+dis+'>'+opts+'</select>'+
-      '<button type="button" class="ent-par-save" data-par="'+esc(e.id)+'" title="Set the parent entity"'+dis+'>Set</button></span>'+
+    return ' <span class="ent-own-edit"><select class="ent-in ent-par-in" data-par-in="'+esc(e.id)+'" title="Parent company (optional)"'+dis+'>'+opts+'</select>'+
+      '<button type="button" class="ent-par-save" data-par="'+esc(e.id)+'" title="Set the parent company"'+dis+'>Set</button></span>'+
       '<div class="ent-msg" id="ent-par-msg">'+(PAR_INFLIGHT[e.id]?'<span class="muted">Saving…</span>':'')+'</div>';
   }
   function setParent(id, value){
     var msg = document.getElementById('ent-par-msg') || document.getElementById('ent-msg');
     var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
     if(!ent || ent._sample) return;
-    if(PAR_INFLIGHT[id] || OWN_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — wait for the response.</span>'; return; }
+    if(PAR_INFLIGHT[id] || OWN_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — give it a moment.</span>'; return; }
     var pid = value || null;
     if(pid===(ent.parent_entity_id||null)){ msg.innerHTML='<span class="muted">No change — that is already the parent.</span>'; return; }   // first: a stored parent is never re-sent, even in a corrupted graph
     if(pid===id){ msg.innerHTML='<span class="err">A company cannot be its own parent.</span>'; return; }
@@ -486,19 +486,19 @@
         release();
         var det = (r.data && typeof r.data.detail==='string') ? r.data.detail : '';
         if(window.flApi && !flApi.authed()) say(who+'<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.');
-        else if(r.status === 409) say(who+'<span class="err">Refused.</span> '+esc(det||'that parent would make a cycle'));          // FL: self-parent / descendant
+        else if(r.status === 409) say(who+'<span class="err">Refused.</span> '+esc(det||'that parent would put this company under itself (a loop)'));          // FL: self-parent / descendant
         // FL answers 404 for the ENTITY itself ("entity … not found") before it looks at the parent ("parent_entity_id … not found")
         else if(r.status === 404 && ENTS.indexOf(ent) < 0) say(who+'<span class="err">Not saved.</span> You have since removed this company from the list.');
-        else if(r.status === 404) say(who+(/^parent_entity_id/i.test(det) ? '<span class="err">Parent not found.</span> '+esc(det)+'. Reload the tile and pick again.' : '<span class="err">Entity not found.</span> '+(det ? esc(det)+'. ' : '')+'Reload the tile.'));
-        else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc(det||'The server refused this change (HTTP 403).'));
-        else if(r.status === 422) say(who+'<span class="err">Rejected.</span> '+esc(detail422(r.data)||'HTTP 422'));
-        else if(r.status === 400) say(who+'<span class="err">Not applied.</span> '+esc(det||'HTTP 400'));
-        else say(who+'<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status ? (esc(detail422(r.data))||'Try again.') : 'The service did not confirm the change — it may or may not have reached it. Reload the tile to see the stored value.'));
+        else if(r.status === 404) say(who+(/^parent_entity_id/i.test(det) ? '<span class="err">Parent not found.</span> '+esc(det)+'. Reload this page and pick again.' : '<span class="err">Company not found.</span> '+(det ? esc(det)+'. ' : '')+'Reload this page.'));
+        else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc(det||'The server refused this change.'));
+        else if(r.status === 422) say(who+'<span class="err">Rejected.</span> '+esc(detail422(r.data)||'The server didn’t accept those values.'));
+        else if(r.status === 400) say(who+'<span class="err">Not applied.</span> '+esc(det||'The server didn’t apply the change.'));
+        else say(who+'<span class="err">Save failed'+(r.status?' (error '+r.status+')':'')+'.</span> '+(r.status ? (esc(detail422(r.data))||'Try again.') : 'The service did not confirm the change — it may or may not have gone through. Reload this page to see what was saved.'));
         return;
       }
       if(!r.data || typeof r.data !== 'object' || !('parent_entity_id' in r.data)){
         release();
-        say(who+'<span class="err">Unverified.</span> The server accepted the request but did not echo parent_entity_id. Reload the tile to see the stored value.');
+        say(who+'<span class="err">Unverified.</span> The server accepted the change but did not confirm the new parent. Reload this page to see what was saved.');
         return;
       }
       PAR_INFLIGHT[id] = false;
@@ -551,10 +551,10 @@
     var msg = document.getElementById('ent-own-msg') || document.getElementById('ent-msg');
     var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
     if(!ent || ent._sample) return;
-    if(OWN_INFLIGHT[id] || PAR_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — wait for the response.</span>'; return; }   // one PATCH per entity at a time, whatever the trigger, across both editors
+    if(OWN_INFLIGHT[id] || PAR_INFLIGHT[id]){ msg.innerHTML='<span class="muted">Still saving — give it a moment.</span>'; return; }   // one PATCH per entity at a time, whatever the trigger, across both editors
     var own = parseOwnership(raw);
     if(own.error){ msg.innerHTML='<span class="err">'+esc(own.error)+'</span>'; return; }
-    if(!ent.parent_entity_id && own.value!=null){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> A top-level entity has no owner to record (a stale value can still be cleared).'; return; }
+    if(!ent.parent_entity_id && own.value!=null){ msg.innerHTML='<span class="err">Ownership needs a parent.</span> A top-level company has no owner to record (a stale value can still be cleared).'; return; }
     msg.innerHTML='<span class="muted">Saving…</span>';
     // lock BOTH editors at once (one write per row): the Parent editor's guard already refuses, but the controls should look it
     var ctl = document.querySelectorAll(ownSel('data-own',id)+','+ownSel('data-own-clear',id)+','+ownSel('data-own-in',id)+','+ownSel('data-par',id)+','+ownSel('data-par-in',id));
@@ -580,16 +580,16 @@
       if(!r.ok){
         release();
         if(window.flApi && !flApi.authed()) say(who+'<span class="err">Session expired.</span> Sign in again, then retry — nothing was changed.');
-        else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'The server refused this change (HTTP 403).'));
+        else if(r.status === 403) say(who+'<span class="err">Not allowed.</span> '+esc((r.data&&r.data.detail)||'The server refused this change.'));
         else if(r.status === 422) say(who+'<span class="err">Rejected.</span> '+esc(detail422(r.data)||'Ownership must be above 0 and at most 100, two decimals.'));
-        else if(r.status === 404) say(who+'<span class="err">Entity not found.</span> Reload the tile.');
+        else if(r.status === 404) say(who+'<span class="err">Company not found.</span> Reload this page.');
         // 400 here is the route's "no updatable fields" — a server build without ownership support (patch 049)
         // drops the key before it reaches the update; retrying cannot help, so say that.
-        else if(r.status === 400) say(who+'<span class="err">Not applied.</span> '+esc((r.data&&typeof r.data.detail==='string'&&r.data.detail)||'HTTP 400')+' — the server did not accept this field; it may be running a build without ownership support.');
+        else if(r.status === 400) say(who+'<span class="err">Not applied.</span> '+esc((r.data&&typeof r.data.detail==='string'&&r.data.detail)||'The server didn’t apply the change.')+' — it did not accept the ownership field; it may be running an older version without ownership support.');
         // status 0 = transport (or no token): the write MAY have landed — never claim it did not.
-        else say(who+'<span class="err">Save failed'+(r.status?' (HTTP '+r.status+')':'')+'.</span> '+(r.status
+        else say(who+'<span class="err">Save failed'+(r.status?' (error '+r.status+')':'')+'.</span> '+(r.status
           ? (esc(detail422(r.data))||'Try again.')
-          : 'The service did not confirm the change — it may or may not have reached it. Reload the tile to see the stored value.'));
+          : 'The service did not confirm the change — it may or may not have gone through. Reload this page to see what was saved.'));
         return;
       }
       // Trust the server's ECHO, not the input — the stored value is what the B7b rollup reads. An echo
@@ -597,7 +597,7 @@
       // is NOT a clearing — it is unverified: the model is left alone and the user is told to reload.
       if(!r.data || typeof r.data !== 'object' || !('ownership_pct' in r.data)){
         release();
-        say(who+'<span class="err">Unverified.</span> The server accepted the request but did not echo ownership_pct — it may be running a build without ownership support (patch 049). Reload the tile to see the stored value.');
+        say(who+'<span class="err">Unverified.</span> The server accepted the change but did not confirm the ownership % — it may be running an older version without ownership support. Reload this page to see what was saved.');
         return;
       }
       OWN_INFLIGHT[id] = false;
@@ -613,7 +613,7 @@
       say(ent.ownership_pct==null
         ? (ent.parent_entity_id
             ? '<span class="ok">✓ Cleared.</span> '+who+'ownership is not established — excluded from '+(pn ? esc(pn)+'&rsquo;s' : 'the parent&rsquo;s')+' rollup, never assumed 100.'
-            : '<span class="ok">✓ Cleared.</span> '+who+'the stale value is gone — a top-level entity has no owner to record.')
+            : '<span class="ok">✓ Cleared.</span> '+who+'the stale value is gone — a top-level company has no owner to record.')
         : '<span class="ok">✓ Saved.</span> '+who+esc(ent.ownership_pct)+'% held by '+(pn ? esc(pn) : 'a parent not in your list')+'.');
     });
   }
@@ -636,7 +636,7 @@
     if(!id) return;
     var msg = document.getElementById('ent-msg');
     var ent = null; for(var i=0;i<ENTS.length;i++){ if(ENTS[i].id===id){ ent=ENTS[i]; break; } }
-    if(!window.confirm('Soft-delete '+((ent&&ent.name)||'this entity')+'? It is removed from the active list (recoverable by an admin).')) return;
+    if(!window.confirm('Remove '+((ent&&ent.name)||'this company')+' from the list? It leaves the active list; an admin can bring it back.')) return;
     if(msg) msg.innerHTML='<span class="muted">Deleting…</span>';
     window.flEntities.del(id).then(function(res){
       if(!res){
@@ -644,7 +644,7 @@
           if(window.flApi && !flApi.authed())
             msg.innerHTML='<span class="err">Session expired.</span> Sign in again, then retry — nothing was deleted.';
           else
-            msg.innerHTML='<span class="err">Delete failed.</span> Only an admin can delete an entity, and an entity with active child entities needs a cascade. Check and retry.';
+            msg.innerHTML='<span class="err">Delete failed.</span> Only an admin can delete a company, and a company that still has companies under it can’t be deleted on its own. Check and retry.';
         }
         return;
       }
@@ -716,7 +716,7 @@
     if(a && a.kind === 'unknown' && a.why === 'no-tenant') return big('Your sign-in isn’t linked to an account yet.', 'Ask the owner of this account to give you access.');
     if(a && a.kind === 'unknown') return big('We couldn’t check which companies you can see just now.', 'Nothing is offered until we can. Open this screen again to retry.');
     if(a && a.kind === 'empty' && !NO_CREATE) return '<div class="muted">This account has no companies yet — add the first one below.</div>';
-    return NO_CREATE ? '<div class="muted">No companies to show.</div>' : '<div class="muted">No entities yet — add one below.</div>';
+    return NO_CREATE ? '<div class="muted">No companies to show.</div>' : '<div class="muted">No companies yet — add one below.</div>';
   }
   // A person shown no company because she was given none (or because it could not be checked) is not also shown empty
   // company cards: a count of 0 and an empty roster would say "there are no companies".
@@ -780,14 +780,14 @@
     var banner = document.createElement('div');
     banner.className = 'preview-banner';
     banner.style.cssText = 'background:#7f1d1d;color:#fff;font-weight:700';
-    banner.innerHTML = '⚠ SAMPLE DATA — the entity service was unreachable. These rows are illustrative, not your real entities. Reload when the connection is back.';
+    banner.innerHTML = '⚠ SAMPLE DATA — we couldn’t reach your company records. These rows are examples, not your real companies. Reload when the connection is back.';
     var live = document.getElementById('ent-live');
     live.insertBefore(banner, live.firstChild);
     document.getElementById('ent-add').style.display='none';   // no creating against a dead API
     fetch('../../../data/STUB_ENTITIES.json',{cache:'no-store'})
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(d){ ENTS = (d.entities||[]).map(function(e){ e._sample=true; return mapEntity(Object.assign({legal_form:e.type, primary_bank:e.bank}, e)); }); boot(); })
-      .catch(function(){ document.getElementById('ent-head').innerHTML='<div class="muted">Entity service unreachable and no sample available — reload to retry.</div>'; });
+      .catch(function(){ document.getElementById('ent-head').innerHTML='<div class="muted">We couldn’t reach your company records and there’s no sample to show — reload to retry.</div>'; });
   }
 
   start();
