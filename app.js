@@ -1004,14 +1004,22 @@ function checkNewOperator(){
     if (!r || seq !== accessSeq) return;   // a newer read was asked meanwhile (this one outran its limit): that one's answer lands
     const isNew = r.status === 403 || (r.ok && Array.isArray(r.data) && r.data.length === 0);
     if (!isNew){
-      if (!r.ok && STATE.access) return;   // a failed re-read leaves the last fact standing (it does not wipe what is said)
-      settleAccess(false, r.ok ? { kind:'has', mayCreate:false, why:'listed' } : null); return;
+      if (!r.ok){ unreadAccess(null); return; }   // a failed read: the last fact stands, but no offer to create does (TD-266 DE-2)
+      settleAccess(false, { kind:'has', mayCreate:false, why:'listed' }); return;
     }
     // WHICH kind of "no company" this is (shared/fl-access.js): given none, or an account that has none yet.
     const done = a => { if (seq === accessSeq) settleAccess(boardOffersCreate(a, r), a); };
     if (window.flAccess && flAccess.classify) return flAccess.classify(r).then(done, () => done(null));
     else done(null);
   }).catch(()=>{});
+}
+// A read that said nothing (the list failed). On the first read, what is known is said: nothing, or "couldn't check". On a
+// re-read the last fact stands — a read that said nothing does not wipe what is said — EXCEPT an offer to create: the
+// account may have stopped being empty meanwhile (another owner filed its first company), so the card, the setup entry
+// and the TARS step go, with "couldn't check", until a read answers again (TD-266 DE-2).
+function unreadAccess(a){
+  if (!STATE.access){ settleAccess(false, a); return; }
+  if (STATE.access.mayCreate) settleAccess(false, { kind:'unknown', mayCreate:false, why:'reread-failed' });
 }
 // Who is offered "Create your first company" on the board. a = the access fact (null when it could not be read).
 // Only someone who may create the account's first company: a person who was simply not given access is never offered
