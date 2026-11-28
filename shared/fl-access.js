@@ -79,6 +79,7 @@
   }
 
   // A read that never answers must not hold a screen open: past this, the fact is 'unknown' and nothing is offered.
+  // It covers the whole of a read — the list, its token renewal, the roster — not only the roster (TD-266 R1A1-2).
   var READ_LIMIT_MS = 10000;
   function bounded(p) {
     return Promise.race([p, new Promise(function (res) { setTimeout(function () { res(lost('slow')); }, READ_LIMIT_MS); })]);
@@ -109,7 +110,7 @@
     var tok = a.token ? a.token() : '';
     if (memo && memoTok === tok) return memo;
     memoTok = tok;
-    memo = a.callX('GET', '/api/entities').then(classify, function () { return lost('error'); });
+    memo = bounded(a.callX('GET', '/api/entities').then(classify0, function () { return lost('error'); }));
     return memo;
   }
   function forget() { memo = null; memoTok = null; }
@@ -137,10 +138,10 @@
   // anything is sent.
   function mayCreateNow(rule) {
     forget();
-    return read().then(function (a) {
+    return bounded(read().then(function (a) {
       if (!a || a.mayCreate || rule !== 'more' || a.kind !== 'has') return a;
       return ownerHolds(a);
-    }).then(function (a) {
+    })).then(function (a) {
       var ok = !!a && (a.mayCreate || (rule === 'more' && a.kind === 'has' && a.role === 'owner'));
       return { ok: ok, a: a };
     }, function () { return { ok: false, a: lost('error') }; });

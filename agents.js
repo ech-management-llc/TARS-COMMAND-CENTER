@@ -570,9 +570,10 @@ function handleSetup(v){
       // the form may have been drawn under an older fact, or with no session: at the click, with a session, the fact is
       // read again for the session that will be sent, and nothing is created for a person who may not create here
       if(window.flApi && flApi.authed && flApi.authed()){
-        busy=true;   // a second click while the fact is read is not a second submission
+        var msg0=b.querySelector('#su-biz-msg');
+        busy=true; go.disabled=true; if(msg0) msg0.textContent='Checking…';   // a second click while the fact is read is not a second submission; the read ends within its limit (TD-266 R1A1-2)
         var gate=(window.flAccess && flAccess.mayCreateNow) ? await flAccess.mayCreateNow('more') : { ok:false, a:null };
-        busy=false;
+        busy=false; go.disabled=false; if(msg0) msg0.textContent='';
         if(!gate.ok){
           // a session that ended under the form is not "not open to your account": say what happened (TD-266 R1A1-1)
           var closed=(gate.a && gate.a.kind==='signed-out') ? esc('Your session ended — sign in again; nothing was saved.') : entityStepClosed(gate.a)+' '+esc('Nothing was saved.');

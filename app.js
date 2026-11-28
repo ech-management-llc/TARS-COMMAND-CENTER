@@ -1075,6 +1075,7 @@ function newOperatorCreate(){
   if (!newopGatePassed){
     const btn0 = $('newop-create'), msg0 = $('newop-msg');
     if (btn0) btn0.disabled = true;
+    if (msg0) msg0.textContent = 'Checking…';   // said while the fact is read; the read ends within its limit, so the button comes back (TD-266 R1A1-2)
     const gate = (window.flAccess && flAccess.mayCreateNow) ? flAccess.mayCreateNow('first') : Promise.resolve({ ok:false, a:null });
     gate.then(g => {
       if (btn0) btn0.disabled = false;
