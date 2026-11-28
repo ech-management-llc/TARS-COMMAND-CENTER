@@ -23,7 +23,7 @@ if ('serviceWorker' in navigator) {
 
 /* ── tiny helpers ── */
 const $ = (id) => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pct(v){ if (v==null||isNaN(v)) return '—'; return (Math.round(Number(v)*10)/10).toFixed(1) + '%'; }
 function fmtMoney(n){
   if (n===null||n===undefined||n===''||isNaN(n)) return '—';
