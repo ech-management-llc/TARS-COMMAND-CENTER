@@ -81,6 +81,7 @@ async function boot(){
       await Promise.race([flAuth.refresh(), new Promise(r => setTimeout(r, BOOT_REFRESH_CAP_MS))]);
   } catch(e){}
   endDeadSession();
+  followToken();   // a live token with no record (signed in on "Get set up", or in another tab) is a sign-in: the record is built from it
   const begin = () => { followToken(); startApp(); };
   if (!Auth.session()) { renderLoginGate({ onSignedIn: begin }); return; }
   begin();
@@ -181,11 +182,14 @@ const Auth = {
 // The token decides WHO as well as WHETHER. Two accounts taking turns in one browser used to leave a tab naming
 // the first person while everything pressed in it was sent as the second. At startup the board's record is
 // rewritten to name the account the live token belongs to (a local demo record with a live token is, in fact,
-// signed in); while running, the page is reloaded when that account changes under it (accountMoved, below).
+// signed in — and so is a live token with NO record: a sign-in on the "Get set up" page or in another tab writes
+// the token and not the board's record, so the record is built from the token, in the shape a sign-in here would
+// write); while running, the page is reloaded when that account changes under it (accountMoved, below).
 function followToken(){
   const s = Auth.session(), who = Auth.tokenAddr();
-  if (!s || !who || (Auth.isReal(s) && Auth.addr(s) === who)) return;
-  const next = Object.assign({}, s, { name: who.split('@')[0], contact: who, supabase: true, at: new Date().toISOString() });
+  if (!who || (s && Auth.isReal(s) && Auth.addr(s) === who)) return;
+  const next = Object.assign({ role: 'owner', tenant: (STATE.tenant && STATE.tenant.tenant_id) || 'ech' }, s || {},
+    { name: who.split('@')[0], contact: who, supabase: true, at: new Date().toISOString() });
   delete next.demo;
   Auth.signIn(next);
 }
@@ -706,12 +710,15 @@ function renderLoginGate(opts){
     if ((opts.onSignedIn || startApp)() !== 'reloading') close();
   };
   // Signed in from ANOTHER tab while this form is up: this tab must not go on saying "your session has ended"
-  // over a live session, with no way on but typing the password a second time. (The token and the board's
-  // record arrive as two events, in either order; act once both are there.)
+  // over a live session, with no way on but typing the password a second time. (The token, its address and the
+  // board's record arrive as separate events, in any order; act once the token and its address are there — the
+  // record is built from them if nothing wrote one, as on the "Get set up" page.)
   const onOtherTab = e => {
-    if (e && e.key !== null && e.key !== 'fl_auth_token' && e.key !== AUTH_KEY) return;
+    if (e && e.key !== null && e.key !== 'fl_auth_token' && e.key !== 'fl_auth_email' && e.key !== AUTH_KEY) return;
     if (!document.body.contains(el)) { window.removeEventListener('storage', onOtherTab); return; }
-    if (Auth.session() && Auth.canTell() && flApi.authed()) done();
+    if (!(Auth.canTell() && flApi.authed())) return;
+    followToken();
+    if (Auth.session()) done();
   };
   window.addEventListener('storage', onOtherTab);
   const scopeOpts = (STATE.registry.layers||[]).filter(l => l.drilldown)
