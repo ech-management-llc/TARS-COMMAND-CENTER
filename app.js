@@ -216,7 +216,7 @@ function syncSignIn(){
   if (_syncingSignIn || $('login-gate')) return;   // already deciding, or already asking
   _syncingSignIn = true;
   try {
-    const was = Auth.addr(STATE.user);          // whose screen this is
+    const was = STATE.user;                     // whose screen this is: the record this window presents
     if (!endDeadSession()) return;
     closeSetupModal();
     renderLoginGate({ onSignedIn: () => resumeAfterSignIn(was) });
@@ -224,12 +224,17 @@ function syncSignIn(){
 }
 // Signed in again mid-visit. The SAME person returns to the page exactly as they left it — nothing is redrawn,
 // so nothing they typed is lost — and the app is never started a second time (that would wire every global
-// listener twice). ANYONE ELSE — another address, a new account, the local demo — gets a fresh page: the open
-// tile, the chat, the cached brief and the figures on screen belong to the person whose session ended, and none
-// of it may stay under a new name. Returns 'reloading' when it reloads, so the form stays up until the page goes.
-function resumeAfterSignIn(wasAddr){
+// listener twice). ANYONE ELSE — another address, a new account, a different local demo — gets a fresh page: the
+// open tile, the chat, the cached brief and the figures on screen belong to the person whose session ended, and
+// none of it may stay under a new name. `was` is the record this window was presenting when the form came up; a
+// local demo that enters the SAME demo again (same role, same scope) is the same person and keeps the page too.
+// Returns 'reloading' when it reloads, so the form stays up until the page goes.
+function resumeAfterSignIn(was){
   const s = Auth.session(); if (!s) return;
-  if (!wasAddr || !Auth.isReal(s) || Auth.addr(s) !== wasAddr){ location.reload(); return 'reloading'; }
+  const same = !!was && (Auth.isReal(was)
+    ? (Auth.isReal(s) && !!Auth.addr(was) && Auth.addr(s) === Auth.addr(was))
+    : (s.demo === true && (s.role||'owner') === (was.role||'owner') && (s.scope||null) === (was.scope||null)));
+  if (!same){ location.reload(); return 'reloading'; }
   STATE.user = s;
   refreshIdentity();   // the corner says "signed in" now, not after the next read answers (it said "not signed in" when the session ended)
   fetchAll();
@@ -519,8 +524,9 @@ function requestSignIn(){
   if (typeof syncSignIn === 'function' && typeof resumeAfterSignIn === 'function'){
     syncSignIn();                        // a real session without its token: the "session ended" form, returning here
     if ($('login-gate')) return;
-    closeSetupModal();                   // a local demo, or nobody: the plain form; signing in then loads a fresh page
-    renderLoginGate({ onSignedIn: resumeAfterSignIn });
+    closeSetupModal();                   // a local demo, or nobody: the plain form, with a way back ("Not now");
+    const was = STATE.user;              // the same demo keeps this page, anyone else loads a fresh one
+    renderLoginGate({ onSignedIn: () => resumeAfterSignIn(was), notNow: true });
   } else {
     Auth.signOut(); location.reload();   // without those helpers: the plain route to the sign-in form
   }
@@ -658,17 +664,24 @@ function deriveName(contact, role){
   return ({admin:'Staff', viewer:'Viewer', field:'Field user', tenant:'Tenant'})[role] || 'User';
 }
 // opts.onSignedIn — what to do once signed in (default: start the app; mid-visit: resumeAfterSignIn).
+// opts.notNow — the form was asked for by a "sign in" press over a page that is fine without one (a local demo):
+//   it offers "Not now", which puts the form away and leaves that page as it was.
 function renderLoginGate(opts){
   opts = opts || {};
   const b = (STATE.tenant.branding)||{};
   const real = !!(window.flAuth && flAuth.configured());
   // A person whose session ended is told so — they did sign in; it is not their first time here.
   const was = (window.flAuth && flAuth.ended) ? flAuth.ended() : null;
+  // The form goes: after a sign-in that keeps this page, or on "Not now".
+  const close = () => {
+    window.removeEventListener('storage', onOtherTab);
+    el.remove();
+  };
   // The form stays up while the next step runs, and goes only if that step keeps this page (a step that reloads
   // the page says so — then nothing of the screen underneath is shown in between).
   const done = () => {
     window.removeEventListener('storage', onOtherTab);
-    if ((opts.onSignedIn || startApp)() !== 'reloading') el.remove();
+    if ((opts.onSignedIn || startApp)() !== 'reloading') close();
   };
   // Signed in from ANOTHER tab while this form is up: this tab must not go on saying "your session has ended"
   // over a live session, with no way on but typing the password a second time. (The token and the board's
@@ -698,6 +711,7 @@ function renderLoginGate(opts){
       '<input id="gate-pass" type="password" placeholder="••••••••" autocomplete="current-password">'+
       '<button class="gate-btn primary" type="button" id="gate-signin">Sign in</button>'+
       (real ? '<button class="gate-link" type="button" id="gate-forgot" style="margin-top:4px">Forgot password?</button>' : '')+
+      (opts.notNow ? '<button class="gate-link" type="button" id="gate-notnow" style="margin-top:4px">Not now</button>' : '')+
       '<div class="gate-note" id="gate-err" style="display:none;color:var(--red)"></div>'+
       (real ? '<button class="gate-link" type="button" id="gate-create-toggle">Create an account ▾</button>'+
         '<div id="gate-create" style="display:none">'+
@@ -722,6 +736,9 @@ function renderLoginGate(opts){
     '</div>';
   document.body.appendChild(el);
   if (was && was.email) el.querySelector('#gate-email').value = was.email;   // set as a value, never as markup
+
+  const notNow = el.querySelector('#gate-notnow');
+  if (notNow) notNow.onclick = close;   // back to the page as it was: nothing reloads, nothing is signed in
 
   const role = el.querySelector('#gate-role');
   el.querySelector('#gate-adv-toggle').onclick = () => { const a=el.querySelector('#gate-adv'); a.style.display = a.style.display==='none'?'block':'none'; };
@@ -1774,9 +1791,9 @@ function wireGlobalControls(){
   $('tars-btn').onclick = () => { if (window.Agents) Agents.openGlobal(); };
   // close overlays on backdrop click / Esc
   ['ov','gov'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id===id){ hideOverlay(id); if(id==='ov'){ $('panel').innerHTML=''; } recheckAccess(); } }));
-  // (Esc does nothing while the sign-in form is up: it used to close the tile underneath, unseen, and with it
-  // whatever was typed there)
-  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')) return; const was = $('ov').classList.contains('on') || $('gov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
+  // (While the sign-in form is up, Esc presses its "Not now" if it has one and otherwise does nothing: it used to
+  // close the tile underneath, unseen, and with it whatever was typed there)
+  document.addEventListener('keydown', e => { if (e.key==='Escape'){ if ($('login-gate')){ const nn = $('gate-notnow'); if (nn) nn.click(); return; } const was = $('ov').classList.contains('on') || $('gov').classList.contains('on'); hideOverlay('ov'); hideOverlay('gov'); if (was) recheckAccess(); } });
   // the API token went away — in this window (fl-auth.js says so) or in a tile / another tab (storage event) —
   // or it now belongs to a different account than the one this page is presenting: then this page is someone
   // else's screen, and it is reloaded (boot presents whoever the token names).
