@@ -29,24 +29,29 @@
    touches lives under '<lsKey>::<account>' — <account> is the signed-in user's id (the JWT
    'sub'; the lower-cased email when the token does not decode) — or under '<lsKey>::anon'
    while nobody is signed in. fl_state_owner_v1 remembers whose copies this browser holds;
-   when the signed-in account changes or the session ends (sign-out, or fl_auth_ended written
-   by a failed refresh) that account's copies are removed and its pending PUTs dropped, so the
-   next person on a shared browser never sees — and never saves into their own account — what
-   the last person typed. The server's answer for THIS person decides what is shown once it
-   arrives. A tile that reads its lsKey directly for the first paint must read it through
-   local() / storageKey(); a plain localStorage.getItem(lsKey) finds nothing.
+   when the signed-in account changes, or the person signs out, that account's copies are
+   removed (and, on a change, its pending PUTs dropped), so the next person on a shared
+   browser never sees — and never saves into their own account — what the last person typed.
+   The server's answer for THIS person decides what is shown once it arrives. A tile that
+   reads its lsKey directly for the first paint must read it through local() / storageKey();
+   a plain localStorage.getItem(lsKey) finds nothing.
 
-   Migration from the pre-TD-264 plain name: the first time an lsKey is seen with a known
-   account, a plain copy is moved under that account (or dropped if the account already has
-   one) and fl_state_migrated_v1 records the lsKey. From then on a plain copy is stale code's
-   and is deleted unread — it is never claimed by whoever signs in next.
+   The pre-TD-264 plain name is never read: a plain copy is deleted on sight, unread. It cannot
+   be attributed to anyone (the old sign-out left it behind), so claiming it for whoever signs
+   in next would replay the defect once per key; the server is the record for a signed-in
+   person (every save was PUT), and a signed-out copy from the old build belongs to nobody.
+
+   Clearing: a deliberate sign-out leaves no fl_auth_ended note, and that person's copies go
+   with them. A session that merely ended (failed refresh, token lost) leaves the note, and
+   the copies stay for the same person's return — keys with no server home (a dispatch
+   setting, a "last good" stamp, a scope selection) would otherwise be lost to an expiry.
+   A different account signing in clears the previous one's copies either way.
    ════════════════════════════════════════════════════════════════ */
 (function () {
   if (window.FLState) return;
 
   var PUT_DEBOUNCE_MS = 800;
   var OWNER_KEY = 'fl_state_owner_v1';         // the account whose copies this browser holds
-  var MIGRATED_KEY = 'fl_state_migrated_v1';   // { lsKey: 1 } once the plain name has been claimed
   var ANON = 'anon';                           // the bucket while nobody is signed in
   var timers = {};     // key -> timeout id
   var queued = {};     // key -> latest value awaiting PUT
@@ -103,33 +108,31 @@
     Object.keys(timers).forEach(function (k) { clearTimeout(timers[k]); });
     timers = {}; queued = {}; queuedAs = {};
   }
+  // fl-auth.js writes fl_auth_ended when a session ENDED on its own (failed refresh); a deliberate
+  // signOut() removes it. So, with nobody signed in: note present = expiry, note absent = sign-out.
+  function sessionEnded() { return rawGet('fl_auth_ended') != null; }
   // Runs at load, on every auth change this window can hear, and at the top of every call — so
   // the clean-up happens even when no copy of this file was alive at the moment of sign-out.
   function reconcile() {
     var cur = account();
     var owner = rawGet(OWNER_KEY);
     if (owner === cur) return;
-    if (owner) { clearAccount(owner); dropQueued(); rawRemove(OWNER_KEY); }
-    if (cur) rawSet(OWNER_KEY, cur);
+    if (!cur) {
+      if (sessionEnded()) return;                       // expiry: the copies wait for the same person
+      if (owner) clearAccount(owner);                   // deliberate sign-out: the copies leave with them
+      rawRemove(OWNER_KEY);
+      return;
+    }
+    if (owner) { clearAccount(owner); dropQueued(); }   // a different person: a real account change
+    rawSet(OWNER_KEY, cur);
   }
 
-  // ── the one-time claim of the pre-TD-264 plain name ──
-  function migrate(lsKey, acct) {
-    var done = parse(rawGet(MIGRATED_KEY));
-    if (!done || typeof done !== 'object') done = {};
-    var plain = rawGet(lsKey);
-    if (!done[lsKey]) {
-      if (plain != null && rawGet(lsKey + '::' + acct) == null) rawSet(lsKey + '::' + acct, plain);
-      done[lsKey] = 1;
-      rawSet(MIGRATED_KEY, JSON.stringify(done));
-    }
-    if (plain != null) rawRemove(lsKey);
-  }
+  // ── the pre-TD-264 plain name: deleted on sight, never read, never given to an account ──
+  function dropPlain(lsKey) { if (rawGet(lsKey) != null) rawRemove(lsKey); }
   function storageKey(lsKey) {
     reconcile();
-    var acct = account();
-    if (acct) migrate(lsKey, acct);
-    return lsKey + '::' + (acct || ANON);
+    dropPlain(lsKey);
+    return lsKey + '::' + (account() || ANON);
   }
 
   function lsGet(lsKey) { return parse(rawGet(storageKey(lsKey))); }

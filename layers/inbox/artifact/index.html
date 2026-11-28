@@ -94,6 +94,11 @@
   <div class="wire-note" style="text-align:center;margin-top:14px">Leads run Nadia's tour flow. Tenant messages route to <button class="xref" type="button" onclick="flOpen('maintenance')" title="Open Maintenance">Maintenance</button> · bank messages route to <button class="xref" type="button" onclick="flOpen('financials')" title="Open Financial Dashboard">Financials</button> · screening hand-off via <button class="xref" type="button" onclick="flOpen('tenant-screening')" title="Open Tenant Screening">Screening</button>. Texting the TARS line (Rule 27) lands here too when it isn't a command.</div>
 </div>
 
+<!-- shared scripts BEFORE the tile script (TD-264): a fetch callback below can run while a later blocking
+     script include is still downloading, and would then read the plain key instead of this person's copy -->
+<script src="../../../shared/fl-auth.js?v=20260721a"></script>
+<script src="../../../shared/fl-api.js?v=20260721a"></script>
+<script src="../../../shared/fl-state.js?v=20260721a"></script>
 <script>
   // ── the real seams (backend swaps the transport, NOT this logic) ──
   // proposeSlots(feed, constraints) -> 3 conflict-free slots from the live calendar feed
@@ -105,8 +110,8 @@
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
-  // TD-264: the overlay is this person's — FLState (loaded below the main script, present by the time
-  // anything renders) keys it by account and clears it at sign-out; the plain reads are the no-FLState fallback only.
+  // TD-264: the overlay is this person's — FLState (loaded above this script) keys it by account and clears it
+  // at sign-out; the plain reads are the no-FLState fallback only.
   function loadOverlay(){
     try{ var ov=(window.FLState&&FLState.local) ? FLState.local(OVKEY) : JSON.parse(localStorage.getItem(OVKEY)); return ov || {added:[],removed:[],hard:{}}; }catch(e){ return {added:[],removed:[],hard:{}}; }
   }
@@ -262,12 +267,9 @@
   }
   window.addEventListener('message', function(e){ var d=e.data||{}; if(d&&d.type==='tcc:viewcfg') applyViewCfg(d.ops); });
 
-  // The dispatch setting is this person's (TD-264): read through FLState once the shared scripts below have loaded.
-  function restoreDispatchMode(){
-    try{ MODE = localStorage.getItem((window.FLState&&FLState.storageKey) ? FLState.storageKey('fl_inbox_dispatch') : 'fl_inbox_dispatch')==='auto' ? 'auto' : 'draft'; }catch(e){}
-    if(MODE==='auto'){ document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')==='auto'); }); }
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', restoreDispatchMode); else restoreDispatchMode();
+  // The dispatch setting is this person's (TD-264): read through FLState, which is loaded above this script.
+  try{ MODE = localStorage.getItem((window.FLState&&FLState.storageKey) ? FLState.storageKey('fl_inbox_dispatch') : 'fl_inbox_dispatch')==='auto' ? 'auto' : 'draft'; }catch(e){}
+  if(MODE==='auto'){ document.querySelectorAll('#sendmode button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-mode')==='auto'); }); }
 
   /* ── LIVE Gmail (Google connector, brief 2026-07-11) ──
      When the tenant's Google connection is live, the INCOMING list shows the REAL mailbox
@@ -422,9 +424,6 @@
     }).catch(function(){ bootSample(); });
   }
 </script>
-<script src="../../../shared/fl-auth.js?v=20260721a"></script>
-<script src="../../../shared/fl-api.js?v=20260721a"></script>
-<script src="../../../shared/fl-state.js?v=20260721a"></script>
 <script src="../../../shared/fl-tile-settings.js?v=20260721a"></script>
 <script>FLSettings.mount({tileId:'inbox'});</script>
 <script>bootInbox(); /* AFTER fl-auth/fl-api so the live-Gmail path can actually run */</script>
