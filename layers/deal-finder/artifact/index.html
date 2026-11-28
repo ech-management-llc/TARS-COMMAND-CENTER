@@ -151,6 +151,7 @@
   function flOpen(id){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tcc:open-layer', layer:id},'*'); }catch(e){} }
   function $(id){ return document.getElementById(id); }
   function num(v){ v=String(v==null?'':v).replace(/[^0-9.]/g,''); return v===''?null:Number(v); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
   function readBuyBox(){
     return { target:num($('df-target').value), type:$('df-type').value, where:$('df-where').value.trim(),
@@ -215,10 +216,11 @@
     saveBuyBox();
     var b=readBuyBox();
     var srcs = SOURCES.filter(function(s){ return b.fsbo || !/FSBO|Marketplace|Craigslist/.test(s); });
-    var where=b.where||'your target area', price=b.target?('around $'+b.target.toLocaleString()):'your price range';
+    var where=esc(b.where||'your target area'), price=b.target?('around $'+esc(b.target.toLocaleString())):'your price range';
+    // typed buy-box values are escaped before they go into markup (CodeQL #5)
     $('df-scrape-msg').innerHTML = '<b>Scout will scan for:</b> '+
-      (b.type==='any'?'any property type':b.type)+' in <b>'+where+'</b>, '+price+
-      (b.cap?(', ≥ '+b.cap+'% cap'):'')+(b.kw?(', matching "'+b.kw+'"'):'')+'.<br>'+
+      (b.type==='any'?'any property type':esc(b.type))+' in <b>'+where+'</b>, '+price+
+      (b.cap?(', ≥ '+esc(b.cap)+'% cap'):'')+(b.kw?(', matching "'+esc(b.kw)+'"'):'')+'.<br>'+
       'It pulls from every source below'+(b.fsbo?', including FSBO &amp; social/marketplace posts':' (agent/MLS only — FSBO toggle off)')+', de-dupes, and returns real matches with links + retrieval dates.';
     $('df-srcs').innerHTML = srcs.map(function(s){ return '<span class="df-src">'+s+'</span>'; }).join('');
     $('df-scrape').classList.remove('df-hide');
